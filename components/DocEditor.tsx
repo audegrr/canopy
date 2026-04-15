@@ -1,7 +1,6 @@
 'use client'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
 
 type Doc = {
   id: string; title: string; content: string; owner_id: string
@@ -25,7 +24,6 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
   const [toast, setToast] = useState('')
   const saveTimer = useRef<any>(null)
   const supabase = createClient()
-  const router = useRouter()
 
   useEffect(() => { renderPreview(content) }, [content])
   useEffect(() => { if (shareOpen && isOwner) loadShares() }, [shareOpen])
@@ -38,7 +36,6 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
   function renderPreview(md: string) {
     if (typeof window === 'undefined') return
     import('marked').then(({ marked }) => {
-      // Process video embeds
       const processed = md.replace(/!video\[([^\]]*)\]\(([^)]+)\)/g, (_, title, url) => {
         const m = url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/)
         if (m) return `<div class="video-embed"><iframe src="https://www.youtube.com/embed/${m[1]}" allowfullscreen title="${title}"></iframe></div>`
@@ -63,7 +60,6 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
   function onTitleChange(v: string) { setTitle(v); scheduleSave(v, content) }
   function onContentChange(v: string) { setContent(v); renderPreview(v); scheduleSave(title, v) }
 
-  // Toolbar actions
   function wrap(before: string, after: string) {
     const ta = document.getElementById('editor-ta') as HTMLTextAreaElement
     if (!ta) return
@@ -78,12 +74,22 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
     const ta = document.getElementById('editor-ta') as HTMLTextAreaElement
     if (!ta) return
     const pos = ta.selectionStart
-    const before = content.slice(0, pos)
-    const after = content.slice(pos)
-    const nl = before.endsWith('\n') || before === '' ? '' : '\n'
-    const newVal = before + nl + prefix + after
+    // Find start of current line
+    const lineStart = content.lastIndexOf('\n', pos - 1) + 1
+    const lineContent = content.slice(lineStart, pos)
+    // Toggle off if already has this prefix
+    if (lineContent.startsWith(prefix)) {
+      const newVal = content.slice(0, lineStart) + content.slice(lineStart + prefix.length)
+      setContent(newVal); renderPreview(newVal); scheduleSave(title, newVal)
+      setTimeout(() => { ta.selectionStart = ta.selectionEnd = Math.max(lineStart, pos - prefix.length); ta.focus() }, 0)
+      return
+    }
+    // Remove any existing list prefix before adding new one
+    const existingPrefix = lineContent.match(/^(\d+\.\s+|[-*]\s+)/)
+    const removeLen = existingPrefix ? existingPrefix[0].length : 0
+    const newVal = content.slice(0, lineStart) + prefix + content.slice(lineStart + removeLen)
     setContent(newVal); renderPreview(newVal); scheduleSave(title, newVal)
-    setTimeout(() => { ta.selectionStart = ta.selectionEnd = pos + nl.length + prefix.length; ta.focus() }, 0)
+    setTimeout(() => { ta.selectionStart = ta.selectionEnd = pos + prefix.length - removeLen; ta.focus() }, 0)
   }
 
   function insertAt(text: string) {
@@ -91,10 +97,54 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
     if (!ta) return
     const pos = ta.selectionStart
     const newVal = content.slice(0, pos) + text + content.slice(pos)
-    setContent(newVal); renderPreview(newVal); scheduleMove(title, newVal)
+    setContent(newVal); renderPreview(newVal); scheduleSave(title, newVal)
     setTimeout(() => { ta.selectionStart = ta.selectionEnd = pos + text.length; ta.focus() }, 0)
   }
-  function scheduleMove(t: string, c: string) { setSaved(false); if(saveTimer.current) clearTimeout(saveTimer.current); saveTimer.current = setTimeout(() => save(t, c), 1200) }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    const ta = e.currentTarget
+    if (e.key === 'Enter') {
+      const pos = ta.selectionStart
+      const lineStart = content.lastIndexOf('\n', pos - 1) + 1
+      const lineContent = content.slice(lineStart, pos)
+      const bulletMatch = lineContent.match(/^([-*]\s)(.*)$/)
+      const numberedMatch = lineContent.match(/^(\d+)(\.\s)(.*)$/)
+      if (bulletMatch) {
+        e.preventDefault()
+        if (bulletMatch[2] === '') {
+          // Empty bullet — exit list
+          const newVal = content.slice(0, lineStart) + '\n' + content.slice(pos)
+          setContent(newVal); renderPreview(newVal); scheduleSave(title, newVal)
+          setTimeout(() => { ta.selectionStart = ta.selectionEnd = lineStart + 1; ta.focus() }, 0)
+        } else {
+          const insert = '\n' + bulletMatch[1]
+          const newVal = content.slice(0, pos) + insert + content.slice(pos)
+          setContent(newVal); renderPreview(newVal); scheduleSave(title, newVal)
+          setTimeout(() => { ta.selectionStart = ta.selectionEnd = pos + insert.length; ta.focus() }, 0)
+        }
+        return
+      }
+      if (numberedMatch) {
+        e.preventDefault()
+        if (numberedMatch[3] === '') {
+          // Empty numbered item — exit list
+          const newVal = content.slice(0, lineStart) + '\n' + content.slice(pos)
+          setContent(newVal); renderPreview(newVal); scheduleSave(title, newVal)
+          setTimeout(() => { ta.selectionStart = ta.selectionEnd = lineStart + 1; ta.focus() }, 0)
+        } else {
+          const nextNum = parseInt(numberedMatch[1]) + 1
+          const insert = '\n' + nextNum + numberedMatch[2]
+          const newVal = content.slice(0, pos) + insert + content.slice(pos)
+          setContent(newVal); renderPreview(newVal); scheduleSave(title, newVal)
+          setTimeout(() => { ta.selectionStart = ta.selectionEnd = pos + insert.length; ta.focus() }, 0)
+        }
+        return
+      }
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(title, content); setSaved(true) }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); wrap('**', '**') }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'i') { e.preventDefault(); wrap('*', '*') }
+  }
 
   async function updateLinkPerm(perm: string) {
     await supabase.from('documents').update({ link_permission: perm }).eq('id', doc.id)
@@ -103,7 +153,6 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
 
   async function inviteUser() {
     if (!inviteEmail.trim()) return
-    // Look up user by email
     const { data: profile } = await supabase.from('profiles').select('id').eq('email', inviteEmail.trim()).single()
     if (!profile) { showToast('User not found. They must have a Canopy account.'); return }
     await supabase.from('document_shares').upsert({ document_id: doc.id, user_id: profile.id, permission: inviteRole })
@@ -112,8 +161,8 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
     showToast('Invitation sent!')
   }
 
-  async function removeShare(userId: string) {
-    await supabase.from('document_shares').delete().eq('document_id', doc.id).eq('user_id', userId)
+  async function removeShare(uid: string) {
+    await supabase.from('document_shares').delete().eq('document_id', doc.id).eq('user_id', uid)
     loadShares()
   }
 
@@ -150,9 +199,9 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
           <TbBtn onClick={() => insertLine('- ')} title="Bullet list">• —</TbBtn>
           <TbBtn onClick={() => insertLine('1. ')} title="Numbered list">1.</TbBtn>
           <TbBtn onClick={() => insertLine('> ')} title="Quote">❝</TbBtn>
-          <TbBtn onClick={() => insertLine('---\n')} title="Divider">—</TbBtn>
+          <TbBtn onClick={() => insertAt('\n---\n')} title="Divider">—</TbBtn>
           <Sep />
-          <TbBtn onClick={() => insertAt('\n[Link text](https://...)\n')} title="Link">🔗</TbBtn>
+          <TbBtn onClick={() => insertAt('[Link text](https://...)')} title="Link">🔗</TbBtn>
           <TbBtn onClick={() => insertAt('\n![Alt text](https://...)\n')} title="Image">⬚</TbBtn>
           <TbBtn onClick={() => insertAt('\n| Col 1 | Col 2 | Col 3 |\n|---|---|---|\n| Cell | Cell | Cell |\n')} title="Table">⊞</TbBtn>
           <TbBtn onClick={() => insertAt('\n!video[Title](https://youtube.com/watch?v=...)\n')} title="Embed video">▶</TbBtn>
@@ -177,7 +226,6 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
       {/* CONTENT */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          {/* Editor pane */}
           <div style={{ flex: 1, overflowY: 'auto', padding: mode === 'split' ? '32px 32px' : '40px 60px', display: 'flex', flexDirection: 'column', maxWidth: mode === 'split' ? 'none' : '780px', margin: mode === 'split' ? '0' : '0 auto', width: '100%' }}>
             {canEdit ? (
               <input value={title} onChange={e => onTitleChange(e.target.value)} placeholder="Untitled"
@@ -190,9 +238,10 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
               {!canEdit && <span style={{ background: '#fdf3e3', color: '#8b5e00', padding: '1px 8px', borderRadius: '6px', fontSize: '11px' }}>View only</span>}
             </div>
 
-            {/* Editor textarea (edit & split) */}
             {(mode === 'edit' || mode === 'split') && canEdit && (
-              <textarea id="editor-ta" value={content} onChange={e => onContentChange(e.target.value)}
+              <textarea id="editor-ta" value={content}
+                onChange={e => onContentChange(e.target.value)}
+                onKeyDown={handleKeyDown}
                 placeholder="Start writing… (Markdown supported)"
                 style={{ flex: 1, border: mode === 'split' ? '1px solid var(--border)' : 'none', borderRadius: mode === 'split' ? '8px' : '0', background: mode === 'split' ? 'var(--bg)' : 'transparent', fontFamily: 'var(--font-sans)', fontSize: '0.9rem', lineHeight: 1.7, color: 'var(--text)', outline: 'none', resize: 'none', minHeight: '400px', padding: mode === 'split' ? '12px' : '0' }} />
             )}
@@ -204,7 +253,6 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
             )}
           </div>
 
-          {/* Preview pane (split) */}
           {mode === 'split' && (
             <div style={{ flex: 1, overflowY: 'auto', padding: '32px 32px', borderLeft: '1px solid var(--border)' }}>
               <div className="prose" dangerouslySetInnerHTML={{ __html: preview }} />
@@ -219,8 +267,6 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
               <h3 style={{ fontFamily: 'var(--font-serif)', fontSize: '1rem' }}>Share</h3>
               <button onClick={() => setShareOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '16px' }}>✕</button>
             </div>
-
-            {/* Link sharing */}
             <div style={{ marginBottom: '20px' }}>
               <label style={shareLabelSt}>Link access</label>
               <select value={doc.link_permission} onChange={e => updateLinkPerm(e.target.value)}
@@ -235,8 +281,6 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
                 </button>
               )}
             </div>
-
-            {/* Invite */}
             <div style={{ marginBottom: '16px' }}>
               <label style={shareLabelSt}>Invite by email</label>
               <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)}
@@ -251,8 +295,6 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
                 <button onClick={inviteUser} style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '7px', fontFamily: 'var(--font-sans)', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500 }}>Invite</button>
               </div>
             </div>
-
-            {/* Shared with */}
             {shares.length > 0 && (
               <div>
                 <label style={shareLabelSt}>Shared with</label>
@@ -274,7 +316,6 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
         )}
       </div>
 
-      {/* TOAST */}
       {toast && (
         <div style={{ position: 'fixed', bottom: '24px', right: '24px', background: 'var(--text)', color: '#fff', padding: '10px 18px', borderRadius: '10px', fontSize: '13px', zIndex: 200, animation: 'fadeIn 0.2s ease' }}>
           {toast}

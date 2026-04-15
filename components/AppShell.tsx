@@ -94,6 +94,13 @@ export default function AppShell({
     closeModal()
   }
 
+  async function moveDocToFolder(docId: string, folderId: string | null) {
+    const doc = docs.find(d => d.id === docId)
+    if (!doc || doc.folder_id === folderId) return
+    await supabase.from('documents').update({ folder_id: folderId }).eq('id', docId)
+    setDocs(d => d.map(x => x.id === docId ? { ...x, folder_id: folderId } : x))
+  }
+
   function toggleFolder(id: string) {
     setFolders(f => f.map(x => x.id === id ? { ...x, expanded: !x.expanded } : x))
   }
@@ -122,17 +129,22 @@ export default function AppShell({
         <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '12px' }}>
           <div style={{ padding: '8px 10px 4px', fontSize: '10px', fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.7px' }}>Workspace</div>
 
-          {/* Folders */}
+          {/* Folders with drag & drop */}
           {folders.map(f => (
-            <div key={f.id}>
-              <TreeItem
-                icon="📁" label={f.name} active={false}
-                prefix={<span style={{ fontSize: '10px', color: 'var(--muted)', marginRight: '2px', transition: 'transform 0.15s', display: 'inline-block', transform: f.expanded ? 'rotate(90deg)' : 'none' }}>▶</span>}
-                onClick={() => toggleFolder(f.id)}
-                actions={[
-                  { label: '+', title: 'New doc in folder', onClick: () => openModal('newDoc', { folderId: f.id }) },
-                  { label: '✎', title: 'Rename', onClick: () => openModal('renameFolder', f, f.name) },
-                  { label: '✕', title: 'Delete', onClick: () => openModal('deleteFolder', f) },
+            <FolderDropZone key={f.id} folder={f}
+              onDrop={moveDocToFolder}
+              onToggle={() => toggleFolder(f.id)}
+              onNewDoc={() => openModal('newDoc', { folderId: f.id })}
+              onRename={() => openModal('renameFolder', f, f.name)}
+              onDelete={() => openModal('deleteFolder', f)}
+            >
+              {docs.filter(d => d.folder_id === f.id).map(d => (
+                <DocItem key={d.id} doc={d} active={currentDocId === d.id}
+                  onClick={() => router.push(`/app/doc/${d.id}`)}
+                  onRename={() => openModal('renameDoc', d, d.title)}
+                  onDelete={() => openModal('deleteDoc', d)}
+                />
+              ))}
                 ]}
               />
               {f.expanded && (
@@ -144,19 +156,23 @@ export default function AppShell({
                       onDelete={() => openModal('deleteDoc', d)}
                     />
                   ))}
-                </div>
-              )}
-            </div>
+            </FolderDropZone>
           ))}
 
-          {/* Root docs */}
-          {rootDocs.map(d => (
-            <DocItem key={d.id} doc={d} active={currentDocId === d.id}
-              onClick={() => router.push(`/app/doc/${d.id}`)}
-              onRename={() => openModal('renameDoc', d, d.title)}
-              onDelete={() => openModal('deleteDoc', d)}
-            />
-          ))}
+          {/* Root docs — also droppable to remove from folder */}
+          <div
+            onDragOver={e => e.preventDefault()}
+            onDrop={e => { e.preventDefault(); const docId = e.dataTransfer.getData('docId'); if (docId) moveDocToFolder(docId, null) }}
+            style={{ minHeight: '8px' }}
+          >
+            {rootDocs.map(d => (
+              <DocItem key={d.id} doc={d} active={currentDocId === d.id}
+                onClick={() => router.push(`/app/doc/${d.id}`)}
+                onRename={() => openModal('renameDoc', d, d.title)}
+                onDelete={() => openModal('deleteDoc', d)}
+              />
+            ))}
+          </div>
         </div>
 
         {/* User */}
@@ -233,16 +249,63 @@ export default function AppShell({
   )
 }
 
-function DocItem({ doc, active, onClick, onRename, onDelete }: any) {
+function DocItem({ doc, active, onClick, onRename, onDelete, onDrop }: any) {
   const permIcon = doc.link_permission === 'view' ? ' 👁' : doc.link_permission === 'edit' ? ' ✎' : ''
   return (
-    <TreeItem icon="📄" label={doc.title || 'Untitled'} active={active} onClick={onClick}
-      suffix={permIcon ? <span style={{ fontSize: '10px' }}>{permIcon}</span> : undefined}
-      actions={[
-        { label: '✎', title: 'Rename', onClick: onRename },
-        { label: '✕', title: 'Delete', onClick: onDelete },
-      ]}
-    />
+    <div
+      draggable
+      onDragStart={e => { e.dataTransfer.setData('docId', doc.id); e.dataTransfer.effectAllowed = 'move' }}
+      onClick={onClick}
+      style={{
+        display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px',
+        cursor: 'grab', borderRadius: '7px', margin: '1px 6px', userSelect: 'none',
+        background: active ? 'var(--accent-light)' : 'transparent',
+        color: active ? 'var(--accent)' : 'var(--text)', transition: 'background 0.1s', position: 'relative'
+      }}
+      onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--border)' }}
+      onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = active ? 'var(--accent-light)' : 'transparent' }}
+    >
+      <span style={{ fontSize: '15px', flexShrink: 0, width: '18px', textAlign: 'center' }}>📄</span>
+      <span style={{ flex: 1, fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.title || 'Untitled'}</span>
+      {permIcon && <span style={{ fontSize: '10px' }}>{permIcon}</span>}
+      <span className="tree-actions" style={{ display: 'none', gap: '2px' }} onClick={e => e.stopPropagation()}>
+        <button onClick={onRename} title="Rename" style={actionBtnSt}>✎</button>
+        <button onClick={onDelete} title="Delete" style={actionBtnSt}>✕</button>
+      </span>
+      <style>{`.tree-actions{display:none!important}div:hover>.tree-actions{display:flex!important}`}</style>
+    </div>
+  )
+}
+
+function FolderDropZone({ folder, onDrop, children, onToggle, onNewDoc, onRename, onDelete }: any) {
+  const [dragOver, setDragOver] = useState(false)
+  return (
+    <div
+      onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={e => { e.preventDefault(); setDragOver(false); const docId = e.dataTransfer.getData('docId'); if (docId) onDrop(docId, folder.id) }}
+      style={{ outline: dragOver ? '2px dashed var(--accent)' : 'none', borderRadius: '8px', transition: 'outline 0.1s' }}
+    >
+      <div onClick={onToggle} style={{
+        display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px',
+        cursor: 'pointer', borderRadius: '7px', margin: '1px 6px', userSelect: 'none',
+        background: dragOver ? 'var(--accent-light)' : 'transparent', transition: 'background 0.1s', position: 'relative'
+      }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = dragOver ? 'var(--accent-light)' : 'var(--border)' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = dragOver ? 'var(--accent-light)' : 'transparent' }}
+      >
+        <span style={{ fontSize: '10px', color: 'var(--muted)', transition: 'transform 0.15s', display: 'inline-block', transform: folder.expanded ? 'rotate(90deg)' : 'none' }}>▶</span>
+        <span style={{ fontSize: '15px', flexShrink: 0, width: '18px', textAlign: 'center' }}>📁</span>
+        <span style={{ flex: 1, fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{folder.name}</span>
+        <span className="tree-actions" style={{ display: 'none', gap: '2px' }} onClick={e => e.stopPropagation()}>
+          <button onClick={onNewDoc} title="New doc" style={actionBtnSt}>+</button>
+          <button onClick={onRename} title="Rename" style={actionBtnSt}>✎</button>
+          <button onClick={onDelete} title="Delete" style={actionBtnSt}>✕</button>
+        </span>
+        <style>{`.tree-actions{display:none!important}div:hover>.tree-actions{display:flex!important}`}</style>
+      </div>
+      {folder.expanded && <div style={{ paddingLeft: '12px' }}>{children}</div>}
+    </div>
   )
 }
 
@@ -253,7 +316,7 @@ function TreeItem({ icon, label, active, onClick, prefix, suffix, actions }: {
 }) {
   return (
     <div onClick={onClick} style={{
-      display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px 5px 10px',
+      display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px',
       cursor: 'pointer', borderRadius: '7px', margin: '1px 6px', userSelect: 'none',
       background: active ? 'var(--accent-light)' : 'transparent', color: active ? 'var(--accent)' : 'var(--text)',
       transition: 'background 0.1s', position: 'relative'
@@ -266,20 +329,18 @@ function TreeItem({ icon, label, active, onClick, prefix, suffix, actions }: {
       <span style={{ flex: 1, fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
       {suffix}
       {actions && (
-        <span className="tree-actions" style={{ display: 'none', gap: '2px' }}
-          onClick={e => e.stopPropagation()}>
+        <span className="tree-actions" style={{ display: 'none', gap: '2px' }} onClick={e => e.stopPropagation()}>
           {actions.map((a, i) => (
-            <button key={i} onClick={a.onClick} title={a.title}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px 4px', borderRadius: '4px', fontSize: '11px' }}>
-              {a.label}
-            </button>
+            <button key={i} onClick={a.onClick} title={a.title} style={actionBtnSt}>{a.label}</button>
           ))}
         </span>
       )}
-      <style>{`.tree-actions { display: none !important } div:hover > .tree-actions { display: flex !important }`}</style>
+      <style>{`.tree-actions{display:none!important}div:hover>.tree-actions{display:flex!important}`}</style>
     </div>
   )
 }
+
+const actionBtnSt: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px 4px', borderRadius: '4px', fontSize: '11px' }
 
 function SideBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
   return (
