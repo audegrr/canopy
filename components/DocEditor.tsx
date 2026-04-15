@@ -22,6 +22,7 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('view')
   const [toast, setToast] = useState('')
+  const [dragOver, setDragOver] = useState(false)
   const saveTimer = useRef<any>(null)
   const supabase = createClient()
 
@@ -36,19 +37,21 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
   function renderPreview(md: string) {
     if (typeof window === 'undefined') return
     import('marked').then(({ marked }) => {
-      const processed = md.replace(/!video\[([^\]]*)\]\(([^)]+)\)/g, (_, title, url) => {
+      const processed = md.replace(/!video\[([^\]]*)\]\(([^)]+)\)/g, (_, t, url) => {
         const m = url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/)
-        if (m) return `<div class="video-embed"><iframe src="https://www.youtube.com/embed/${m[1]}" allowfullscreen title="${title}"></iframe></div>`
-        return `<p><a href="${url}">${title}</a></p>`
+        if (m) return `<div class="video-embed"><iframe src="https://www.youtube.com/embed/${m[1]}" allowfullscreen title="${t}"></iframe></div>`
+        return `<p><a href="${url}" target="_blank" rel="noopener">${t}</a></p>`
       })
-      setPreview(marked.parse(processed) as string)
+      // Make all links open in new tab
+      const html = (marked.parse(processed) as string).replace(/<a href=/g, '<a target="_blank" rel="noopener" href=')
+      setPreview(html)
     })
   }
 
-  function scheduleSave(newTitle: string, newContent: string) {
+  function scheduleSave(t: string, c: string) {
     setSaved(false)
     if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => save(newTitle, newContent), 1200)
+    saveTimer.current = setTimeout(() => save(t, c), 1200)
   }
 
   async function save(t: string, c: string) {
@@ -60,45 +63,46 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
   function onTitleChange(v: string) { setTitle(v); scheduleSave(v, content) }
   function onContentChange(v: string) { setContent(v); renderPreview(v); scheduleSave(title, v) }
 
+  function getTA() { return document.getElementById('editor-ta') as HTMLTextAreaElement }
+
   function wrap(before: string, after: string) {
-    const ta = document.getElementById('editor-ta') as HTMLTextAreaElement
-    if (!ta) return
+    const ta = getTA(); if (!ta) return
     const s = ta.selectionStart, e = ta.selectionEnd
-    const sel = content.slice(s, e)
-    const newVal = content.slice(0, s) + before + sel + after + content.slice(e)
-    setContent(newVal); renderPreview(newVal); scheduleSave(title, newVal)
+    const newVal = content.slice(0, s) + before + content.slice(s, e) + after + content.slice(e)
+    updateContent(newVal)
     setTimeout(() => { ta.selectionStart = s + before.length; ta.selectionEnd = e + before.length; ta.focus() }, 0)
   }
 
   function insertLine(prefix: string) {
-    const ta = document.getElementById('editor-ta') as HTMLTextAreaElement
-    if (!ta) return
+    const ta = getTA(); if (!ta) return
     const pos = ta.selectionStart
-    // Find start of current line
     const lineStart = content.lastIndexOf('\n', pos - 1) + 1
     const lineContent = content.slice(lineStart, pos)
-    // Toggle off if already has this prefix
+    // Toggle off
     if (lineContent.startsWith(prefix)) {
       const newVal = content.slice(0, lineStart) + content.slice(lineStart + prefix.length)
-      setContent(newVal); renderPreview(newVal); scheduleSave(title, newVal)
+      updateContent(newVal)
       setTimeout(() => { ta.selectionStart = ta.selectionEnd = Math.max(lineStart, pos - prefix.length); ta.focus() }, 0)
       return
     }
-    // Remove any existing list prefix before adding new one
-    const existingPrefix = lineContent.match(/^(\d+\.\s+|[-*]\s+)/)
-    const removeLen = existingPrefix ? existingPrefix[0].length : 0
+    // Replace existing prefix
+    const existing = lineContent.match(/^(\d+\.\s+|[-*]\s+)/)
+    const removeLen = existing ? existing[0].length : 0
     const newVal = content.slice(0, lineStart) + prefix + content.slice(lineStart + removeLen)
-    setContent(newVal); renderPreview(newVal); scheduleSave(title, newVal)
+    updateContent(newVal)
     setTimeout(() => { ta.selectionStart = ta.selectionEnd = pos + prefix.length - removeLen; ta.focus() }, 0)
   }
 
   function insertAt(text: string) {
-    const ta = document.getElementById('editor-ta') as HTMLTextAreaElement
-    if (!ta) return
+    const ta = getTA(); if (!ta) return
     const pos = ta.selectionStart
     const newVal = content.slice(0, pos) + text + content.slice(pos)
-    setContent(newVal); renderPreview(newVal); scheduleSave(title, newVal)
+    updateContent(newVal)
     setTimeout(() => { ta.selectionStart = ta.selectionEnd = pos + text.length; ta.focus() }, 0)
+  }
+
+  function updateContent(val: string) {
+    setContent(val); renderPreview(val); scheduleSave(title, val)
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -107,35 +111,35 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
       const pos = ta.selectionStart
       const lineStart = content.lastIndexOf('\n', pos - 1) + 1
       const lineContent = content.slice(lineStart, pos)
-      const bulletMatch = lineContent.match(/^([-*]\s)(.*)$/)
-      const numberedMatch = lineContent.match(/^(\d+)(\.\s)(.*)$/)
-      if (bulletMatch) {
+      const bullet = lineContent.match(/^([-*]\s)(.*)$/)
+      const numbered = lineContent.match(/^(\d+)(\.\s)(.*)$/)
+
+      if (bullet) {
         e.preventDefault()
-        if (bulletMatch[2] === '') {
-          // Empty bullet — exit list
-          const newVal = content.slice(0, lineStart) + '\n' + content.slice(pos)
-          setContent(newVal); renderPreview(newVal); scheduleSave(title, newVal)
-          setTimeout(() => { ta.selectionStart = ta.selectionEnd = lineStart + 1; ta.focus() }, 0)
+        if (bullet[2] === '') {
+          // Second Enter on empty bullet — exit list, no blank line
+          const newVal = content.slice(0, lineStart) + content.slice(pos)
+          updateContent(newVal)
+          setTimeout(() => { ta.selectionStart = ta.selectionEnd = lineStart; ta.focus() }, 0)
         } else {
-          const insert = '\n' + bulletMatch[1]
+          const insert = '\n' + bullet[1]
           const newVal = content.slice(0, pos) + insert + content.slice(pos)
-          setContent(newVal); renderPreview(newVal); scheduleSave(title, newVal)
+          updateContent(newVal)
           setTimeout(() => { ta.selectionStart = ta.selectionEnd = pos + insert.length; ta.focus() }, 0)
         }
         return
       }
-      if (numberedMatch) {
+      if (numbered) {
         e.preventDefault()
-        if (numberedMatch[3] === '') {
-          // Empty numbered item — exit list
-          const newVal = content.slice(0, lineStart) + '\n' + content.slice(pos)
-          setContent(newVal); renderPreview(newVal); scheduleSave(title, newVal)
-          setTimeout(() => { ta.selectionStart = ta.selectionEnd = lineStart + 1; ta.focus() }, 0)
+        if (numbered[3] === '') {
+          // Second Enter on empty numbered — exit list, no blank line
+          const newVal = content.slice(0, lineStart) + content.slice(pos)
+          updateContent(newVal)
+          setTimeout(() => { ta.selectionStart = ta.selectionEnd = lineStart; ta.focus() }, 0)
         } else {
-          const nextNum = parseInt(numberedMatch[1]) + 1
-          const insert = '\n' + nextNum + numberedMatch[2]
+          const insert = '\n' + (parseInt(numbered[1]) + 1) + numbered[2]
           const newVal = content.slice(0, pos) + insert + content.slice(pos)
-          setContent(newVal); renderPreview(newVal); scheduleSave(title, newVal)
+          updateContent(newVal)
           setTimeout(() => { ta.selectionStart = ta.selectionEnd = pos + insert.length; ta.focus() }, 0)
         }
         return
@@ -144,6 +148,39 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
     if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); save(title, content); setSaved(true) }
     if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); wrap('**', '**') }
     if ((e.ctrlKey || e.metaKey) && e.key === 'i') { e.preventDefault(); wrap('*', '*') }
+  }
+
+  // Image upload to Supabase Storage
+  async function uploadImage(file: File): Promise<string | null> {
+    const ext = file.name.split('.').pop()
+    const path = `${userId}/${Date.now()}.${ext}`
+    const { error } = await supabase.storage.from('images').upload(path, file)
+    if (error) { showToast('Upload failed: ' + error.message); return null }
+    const { data } = supabase.storage.from('images').getPublicUrl(path)
+    return data.publicUrl
+  }
+
+  async function handleImageDrop(e: React.DragEvent) {
+    // Only handle if dropping on editor pane (not sidebar)
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
+    if (!files.length) return
+    e.preventDefault(); setDragOver(false)
+    showToast('Uploading image…')
+    for (const file of files) {
+      const url = await uploadImage(file)
+      if (url) insertAt(`\n![${file.name}](${url})\n`)
+    }
+  }
+
+  async function handlePaste(e: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const files = Array.from(e.clipboardData.files).filter(f => f.type.startsWith('image/'))
+    if (!files.length) return
+    e.preventDefault()
+    showToast('Uploading image…')
+    for (const file of files) {
+      const url = await uploadImage(file)
+      if (url) insertAt(`\n![Image](${url})\n`)
+    }
   }
 
   async function updateLinkPerm(perm: string) {
@@ -156,9 +193,7 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
     const { data: profile } = await supabase.from('profiles').select('id').eq('email', inviteEmail.trim()).single()
     if (!profile) { showToast('User not found. They must have a Canopy account.'); return }
     await supabase.from('document_shares').upsert({ document_id: doc.id, user_id: profile.id, permission: inviteRole })
-    setInviteEmail('')
-    loadShares()
-    showToast('Invitation sent!')
+    setInviteEmail(''); loadShares(); showToast('Invitation sent!')
   }
 
   async function removeShare(uid: string) {
@@ -171,20 +206,27 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
     showToast('Link copied!')
   }
 
-  function showToast(msg: string) {
-    setToast(msg)
-    setTimeout(() => setToast(''), 2500)
-  }
+  function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2500) }
 
   const created = new Date(doc.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}
+      onDragOver={e => { if (canEdit && Array.from(e.dataTransfer.types).includes('Files')) { e.preventDefault(); setDragOver(true) } }}
+      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false) }}
+      onDrop={e => { if (canEdit) handleImageDrop(e) }}
+    >
+      {/* Drag overlay */}
+      {dragOver && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(45,106,79,0.08)', border: '2px dashed var(--accent)', borderRadius: '8px', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+          <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', color: 'var(--accent)' }}>Drop image to insert</span>
+        </div>
+      )}
+
       {/* TOOLBAR */}
       {canEdit && (
         <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '6px 16px', display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', flexShrink: 0 }}>
-          <select onChange={e => { if (e.target.value) { insertLine(e.target.value); e.target.value = '' } }}
-            style={tbSelectSt} defaultValue="">
+          <select onChange={e => { if (e.target.value) { insertLine(e.target.value); e.target.value = '' } }} style={tbSelectSt} defaultValue="">
             <option value="">Paragraph</option>
             <option value="# ">Heading 1</option>
             <option value="## ">Heading 2</option>
@@ -194,7 +236,7 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
           <TbBtn onClick={() => wrap('**', '**')} title="Bold"><b style={{ fontWeight: 700 }}>B</b></TbBtn>
           <TbBtn onClick={() => wrap('*', '*')} title="Italic"><i>I</i></TbBtn>
           <TbBtn onClick={() => wrap('~~', '~~')} title="Strikethrough"><span style={{ textDecoration: 'line-through' }}>S</span></TbBtn>
-          <TbBtn onClick={() => wrap('`', '`')} title="Inline code">{'<>'}</TbBtn>
+          <TbBtn onClick={() => wrap('`', '`')} title="Code">{'<>'}</TbBtn>
           <Sep />
           <TbBtn onClick={() => insertLine('- ')} title="Bullet list">• —</TbBtn>
           <TbBtn onClick={() => insertLine('1. ')} title="Numbered list">1.</TbBtn>
@@ -202,9 +244,17 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
           <TbBtn onClick={() => insertAt('\n---\n')} title="Divider">—</TbBtn>
           <Sep />
           <TbBtn onClick={() => insertAt('[Link text](https://...)')} title="Link">🔗</TbBtn>
-          <TbBtn onClick={() => insertAt('\n![Alt text](https://...)\n')} title="Image">⬚</TbBtn>
           <TbBtn onClick={() => insertAt('\n| Col 1 | Col 2 | Col 3 |\n|---|---|---|\n| Cell | Cell | Cell |\n')} title="Table">⊞</TbBtn>
           <TbBtn onClick={() => insertAt('\n!video[Title](https://youtube.com/watch?v=...)\n')} title="Embed video">▶</TbBtn>
+          <label title="Upload image" style={{ ...tbBtnBase, cursor: 'pointer' }}>
+            ⬚<input type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
+              const file = e.target.files?.[0]; if (!file) return
+              showToast('Uploading…')
+              const url = await uploadImage(file)
+              if (url) insertAt(`\n![${file.name}](${url})\n`)
+              e.target.value = ''
+            }} />
+          </label>
 
           <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px', alignItems: 'center' }}>
             <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{saved ? '✓ Saved' : 'Saving…'}</span>
@@ -226,7 +276,7 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
       {/* CONTENT */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <div style={{ flex: 1, overflowY: 'auto', padding: mode === 'split' ? '32px 32px' : '40px 60px', display: 'flex', flexDirection: 'column', maxWidth: mode === 'split' ? 'none' : '780px', margin: mode === 'split' ? '0' : '0 auto', width: '100%' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: mode === 'split' ? '32px' : '40px 60px', display: 'flex', flexDirection: 'column', maxWidth: mode === 'split' ? 'none' : '780px', margin: mode === 'split' ? '0' : '0 auto', width: '100%' }}>
             {canEdit ? (
               <input value={title} onChange={e => onTitleChange(e.target.value)} placeholder="Untitled"
                 style={{ fontFamily: 'var(--font-serif)', fontSize: '2rem', fontWeight: 600, border: 'none', background: 'transparent', color: 'var(--text)', outline: 'none', width: '100%', marginBottom: '8px', lineHeight: 1.2 }} />
@@ -236,25 +286,24 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
             <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '28px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
               <span>Created {created}</span>
               {!canEdit && <span style={{ background: '#fdf3e3', color: '#8b5e00', padding: '1px 8px', borderRadius: '6px', fontSize: '11px' }}>View only</span>}
+              {canEdit && <span style={{ color: 'var(--muted)', fontSize: '11px' }}>Drag & drop or paste images directly</span>}
             </div>
 
             {(mode === 'edit' || mode === 'split') && canEdit && (
               <textarea id="editor-ta" value={content}
                 onChange={e => onContentChange(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Start writing… (Markdown supported)"
+                onPaste={handlePaste}
+                placeholder="Start writing… Markdown supported. Paste or drag images."
                 style={{ flex: 1, border: mode === 'split' ? '1px solid var(--border)' : 'none', borderRadius: mode === 'split' ? '8px' : '0', background: mode === 'split' ? 'var(--bg)' : 'transparent', fontFamily: 'var(--font-sans)', fontSize: '0.9rem', lineHeight: 1.7, color: 'var(--text)', outline: 'none', resize: 'none', minHeight: '400px', padding: mode === 'split' ? '12px' : '0' }} />
             )}
-            {mode === 'edit' && !canEdit && (
+            {(mode === 'edit' && !canEdit) || mode === 'preview' ? (
               <div className="prose" dangerouslySetInnerHTML={{ __html: preview }} />
-            )}
-            {mode === 'preview' && (
-              <div className="prose" dangerouslySetInnerHTML={{ __html: preview }} />
-            )}
+            ) : null}
           </div>
 
           {mode === 'split' && (
-            <div style={{ flex: 1, overflowY: 'auto', padding: '32px 32px', borderLeft: '1px solid var(--border)' }}>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '32px', borderLeft: '1px solid var(--border)' }}>
               <div className="prose" dangerouslySetInnerHTML={{ __html: preview }} />
             </div>
           )}
@@ -276,15 +325,12 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
                 <option value="edit">Anyone with link can edit</option>
               </select>
               {doc.link_permission !== 'none' && (
-                <button onClick={copyLink} style={{ marginTop: '8px', width: '100%', padding: '7px', border: '1px solid var(--border)', borderRadius: '7px', background: 'var(--bg)', fontFamily: 'var(--font-sans)', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text)' }}>
-                  Copy link
-                </button>
+                <button onClick={copyLink} style={{ marginTop: '8px', width: '100%', padding: '7px', border: '1px solid var(--border)', borderRadius: '7px', background: 'var(--bg)', fontFamily: 'var(--font-sans)', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text)' }}>Copy link</button>
               )}
             </div>
             <div style={{ marginBottom: '16px' }}>
               <label style={shareLabelSt}>Invite by email</label>
-              <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)}
-                placeholder="email@example.com"
+              <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="email@example.com"
                 style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: '8px', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', background: 'var(--bg)', color: 'var(--text)', marginTop: '6px', outline: 'none', marginBottom: '6px' }} />
               <div style={{ display: 'flex', gap: '6px' }}>
                 <select value={inviteRole} onChange={e => setInviteRole(e.target.value)}
@@ -306,7 +352,7 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
                       </div>
                       <span style={{ flex: 1, fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.email || s.user_id.slice(0, 8)}</span>
                       <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{s.permission}</span>
-                      <button onClick={() => removeShare(s.user_id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '12px', padding: '2px' }}>✕</button>
+                      <button onClick={() => removeShare(s.user_id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '12px' }}>✕</button>
                     </div>
                   ))}
                 </div>
@@ -327,8 +373,7 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
 
 function TbBtn({ onClick, title, children }: any) {
   return (
-    <button onClick={onClick} title={title}
-      style={{ background: 'none', border: '1px solid transparent', cursor: 'pointer', color: 'var(--muted)', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '2px', transition: 'all 0.1s' }}
+    <button onClick={onClick} title={title} style={tbBtnBase}
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--muted)'; (e.currentTarget as HTMLElement).style.borderColor = 'transparent' }}>
       {children}
@@ -340,5 +385,6 @@ function Sep() {
   return <div style={{ width: '1px', height: '18px', background: 'var(--border)', margin: '0 2px', flexShrink: 0 }} />
 }
 
+const tbBtnBase: React.CSSProperties = { background: 'none', border: '1px solid transparent', cursor: 'pointer', color: 'var(--muted)', padding: '4px 8px', borderRadius: '6px', fontSize: '12px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '2px', transition: 'all 0.1s' }
 const tbSelectSt: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text)', fontFamily: 'var(--font-sans)', fontSize: '12px', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', outline: 'none' }
 const shareLabelSt: React.CSSProperties = { fontSize: '10px', fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.7px' }
