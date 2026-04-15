@@ -248,6 +248,7 @@ export default function AppShell({
 
 function FolderZone({ folder, children, onDrop, onToggle, onNewDoc, onRename, onDelete }: any) {
   const [over, setOver] = useState(false)
+  const [hovered, setHovered] = useState(false)
   return (
     <div
       onDragOver={e => { e.preventDefault(); setOver(true) }}
@@ -257,14 +258,14 @@ function FolderZone({ folder, children, onDrop, onToggle, onNewDoc, onRename, on
     >
       <div
         onClick={onToggle}
-        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', cursor: 'pointer', borderRadius: '7px', margin: '1px 6px', userSelect: 'none', background: over ? 'var(--accent-light)' : 'transparent', transition: 'background 0.1s', position: 'relative' }}
-        onMouseEnter={e => { if (!over) (e.currentTarget as HTMLElement).style.background = 'var(--border)' }}
-        onMouseLeave={e => { if (!over) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', cursor: 'pointer', borderRadius: '7px', margin: '1px 6px', userSelect: 'none', background: over ? 'var(--accent-light)' : hovered ? 'var(--border)' : 'transparent', transition: 'background 0.1s' }}
       >
         <span style={{ fontSize: '11px', color: 'var(--muted)', transition: 'transform 0.15s', display: 'inline-block', transform: folder.expanded ? 'rotate(90deg)' : 'none', width: '10px' }}>▶</span>
         <span style={{ fontSize: '16px', flexShrink: 0 }}>📁</span>
         <span style={{ flex: 1, fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{folder.name}</span>
-        <span className="row-actions" onClick={e => e.stopPropagation()}>
+        <span style={{ display: hovered ? 'flex' : 'none', gap: '2px', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
           <ActionBtn onClick={onNewDoc} title="New doc">＋</ActionBtn>
           <ActionBtn onClick={onRename} title="Rename">✎</ActionBtn>
           <ActionBtn onClick={onDelete} title="Delete">✕</ActionBtn>
@@ -291,24 +292,24 @@ function RootDropZone({ children, onDrop }: { children: React.ReactNode; onDrop:
 }
 
 function DocRow({ doc, active, onClick, onRename, onDelete }: any) {
+  const [hovered, setHovered] = useState(false)
   const permIcon = doc.link_permission === 'view' ? '👁' : doc.link_permission === 'edit' ? '✎' : ''
   return (
     <div
       draggable
       onDragStart={e => { e.dataTransfer.setData('docId', doc.id); e.dataTransfer.effectAllowed = 'move' }}
       onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', cursor: 'pointer', borderRadius: '7px', margin: '1px 6px', userSelect: 'none', background: active ? 'var(--accent-light)' : 'transparent', color: active ? 'var(--accent)' : 'var(--text)', transition: 'background 0.1s', position: 'relative' }}
-      onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--border)' }}
-      onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = active ? 'var(--accent-light)' : 'transparent' }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', cursor: 'pointer', borderRadius: '7px', margin: '1px 6px', userSelect: 'none', background: active ? 'var(--accent-light)' : hovered ? 'var(--border)' : 'transparent', color: active ? 'var(--accent)' : 'var(--text)', transition: 'background 0.1s' }}
     >
       <span style={{ fontSize: '16px', flexShrink: 0 }}>📄</span>
       <span style={{ flex: 1, fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.title || 'Untitled'}</span>
-      {permIcon && <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{permIcon}</span>}
-      <span className="row-actions" onClick={e => e.stopPropagation()}>
+      {permIcon && !hovered && <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{permIcon}</span>}
+      <span style={{ display: hovered ? 'flex' : 'none', gap: '2px', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
         <ActionBtn onClick={onRename} title="Rename">✎</ActionBtn>
         <ActionBtn onClick={onDelete} title="Delete">✕</ActionBtn>
       </span>
-      <style>{`.row-actions{display:none}.row-actions button{font-size:13px;padding:2px 5px}div:hover>.row-actions{display:flex;gap:2px;align-items:center}`}</style>
     </div>
   )
 }
@@ -327,7 +328,7 @@ function ActionBtn({ onClick, title, children }: any) {
 function SideBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
   return (
     <button onClick={onClick} title={title}
-      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '6px 8px', borderRadius: '6px', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}
+      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', padding: '5px 8px', borderRadius: '6px', fontSize: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, fontWeight: 500 }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--border)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
       {children}
