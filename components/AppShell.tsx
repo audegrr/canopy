@@ -145,17 +145,6 @@ export default function AppShell({
                   onDelete={() => openModal('deleteDoc', d)}
                 />
               ))}
-                ]}
-              />
-              {f.expanded && (
-                <div style={{ paddingLeft: '12px' }}>
-                  {docs.filter(d => d.folder_id === f.id).map(d => (
-                    <DocItem key={d.id} doc={d} active={currentDocId === d.id}
-                      onClick={() => router.push(`/app/doc/${d.id}`)}
-                      onRename={() => openModal('renameDoc', d, d.title)}
-                      onDelete={() => openModal('deleteDoc', d)}
-                    />
-                  ))}
             </FolderDropZone>
           ))}
 
