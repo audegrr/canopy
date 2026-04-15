@@ -293,7 +293,7 @@ function RootDropZone({ children, onDrop }: { children: React.ReactNode; onDrop:
 
 function DocRow({ doc, active, onClick, onRename, onDelete }: any) {
   const [hovered, setHovered] = useState(false)
-  const permIcon = doc.link_permission === 'view' ? '👁' : doc.link_permission === 'edit' ? '✎' : ''
+  const permIcon = doc.link_permission === 'view' ? '👁' : doc.link_permission === 'edit' ? '🔓' : ''
   return (
     <div
       draggable
