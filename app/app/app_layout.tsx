@@ -15,7 +15,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <AppShell
       user={{ id: user.id, email: user.email!, name: user.user_metadata?.full_name || user.email! }}
       initialFolders={folders || []}
-      initialDocs={docs || []}
+      initialDocs={(docs || []).map(d => ({ ...d, parent_id: d.parent_id ?? null }))}
       initialDatabases={databases || []}
     >
       {children}
