@@ -24,6 +24,21 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
   const [toast, setToast] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const saveTimer = useRef<any>(null)
+  const editorPaneRef = useRef<HTMLDivElement>(null)
+  const previewPaneRef = useRef<HTMLDivElement>(null)
+  const syncingRef = useRef(false)
+
+  function syncScroll(source: 'editor' | 'preview') {
+    if (syncingRef.current) return
+    syncingRef.current = true
+    const from = source === 'editor' ? editorPaneRef.current : previewPaneRef.current
+    const to = source === 'editor' ? previewPaneRef.current : editorPaneRef.current
+    if (from && to) {
+      const pct = from.scrollTop / (from.scrollHeight - from.clientHeight || 1)
+      to.scrollTop = pct * (to.scrollHeight - to.clientHeight)
+    }
+    requestAnimationFrame(() => { syncingRef.current = false })
+  }
   const supabase = createClient()
 
   useEffect(() => { renderPreview(content) }, [content])
@@ -287,7 +302,7 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
       {/* CONTENT */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <div style={{ flex: 1, overflowY: 'auto', padding: mode === 'split' ? '32px' : '40px 60px', display: 'flex', flexDirection: 'column', maxWidth: mode === 'split' ? 'none' : '780px', margin: mode === 'split' ? '0' : '0 auto', width: '100%' }}>
+          <div ref={editorPaneRef} onScroll={() => { if (mode === 'split') syncScroll('editor') }} style={{ flex: 1, overflowY: 'auto', padding: mode === 'split' ? '32px' : '40px 60px', display: 'flex', flexDirection: 'column', maxWidth: mode === 'split' ? 'none' : '780px', margin: mode === 'split' ? '0' : '0 auto', width: '100%' }}>
             {canEdit ? (
               <input value={title} onChange={e => onTitleChange(e.target.value)} placeholder="Untitled"
                 style={{ fontFamily: 'var(--font-serif)', fontSize: '2rem', fontWeight: 600, border: 'none', background: 'transparent', color: 'var(--text)', outline: 'none', width: '100%', marginBottom: '8px', lineHeight: 1.2 }} />
@@ -314,7 +329,7 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
           </div>
 
           {mode === 'split' && (
-            <div style={{ flex: 1, overflowY: 'auto', padding: '32px', borderLeft: '1px solid var(--border)' }}>
+            <div ref={previewPaneRef} onScroll={() => syncScroll('preview')} style={{ flex: 1, overflowY: 'auto', padding: '32px', borderLeft: '1px solid var(--border)' }}>
               <div className="prose" dangerouslySetInnerHTML={{ __html: preview }} />
             </div>
           )}
