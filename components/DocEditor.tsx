@@ -26,16 +26,22 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
   const saveTimer = useRef<any>(null)
   const editorPaneRef = useRef<HTMLDivElement>(null)
   const previewPaneRef = useRef<HTMLDivElement>(null)
+  const taRef = useRef<HTMLTextAreaElement>(null)
   const syncingRef = useRef(false)
 
   function syncScroll(source: 'editor' | 'preview') {
     if (syncingRef.current) return
     syncingRef.current = true
-    const from = source === 'editor' ? editorPaneRef.current : previewPaneRef.current
-    const to = source === 'editor' ? previewPaneRef.current : editorPaneRef.current
-    if (from && to) {
-      const pct = from.scrollTop / (from.scrollHeight - from.clientHeight || 1)
-      to.scrollTop = pct * (to.scrollHeight - to.clientHeight)
+    // For editor side, use textarea scroll if available, else the pane div
+    const fromEl = source === 'editor'
+      ? (taRef.current || editorPaneRef.current)
+      : previewPaneRef.current
+    const toEl = source === 'editor'
+      ? previewPaneRef.current
+      : (taRef.current || editorPaneRef.current)
+    if (fromEl && toEl) {
+      const pct = fromEl.scrollTop / Math.max(1, fromEl.scrollHeight - fromEl.clientHeight)
+      toEl.scrollTop = pct * Math.max(1, toEl.scrollHeight - toEl.clientHeight)
     }
     requestAnimationFrame(() => { syncingRef.current = false })
   }
@@ -302,7 +308,7 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
       {/* CONTENT */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <div ref={editorPaneRef} onScroll={() => { if (mode === 'split') syncScroll('editor') }} style={{ flex: 1, overflowY: 'auto', padding: mode === 'split' ? '32px' : '40px 60px', display: 'flex', flexDirection: 'column', maxWidth: mode === 'split' ? 'none' : '780px', margin: mode === 'split' ? '0' : '0 auto', width: '100%' }}>
+          <div ref={editorPaneRef} style={{ flex: 1, overflowY: mode === 'split' ? 'hidden' : 'auto', padding: mode === 'split' ? '32px' : '40px 60px', display: 'flex', flexDirection: 'column', maxWidth: mode === 'split' ? 'none' : '780px', margin: mode === 'split' ? '0' : '0 auto', width: '100%' }}>
             {canEdit ? (
               <input value={title} onChange={e => onTitleChange(e.target.value)} placeholder="Untitled"
                 style={{ fontFamily: 'var(--font-serif)', fontSize: '2rem', fontWeight: 600, border: 'none', background: 'transparent', color: 'var(--text)', outline: 'none', width: '100%', marginBottom: '8px', lineHeight: 1.2 }} />
@@ -316,12 +322,13 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
             </div>
 
             {(mode === 'edit' || mode === 'split') && canEdit && (
-              <textarea id="editor-ta" value={content}
+              <textarea id="editor-ta" ref={taRef} value={content}
                 onChange={e => onContentChange(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onPaste={handlePaste}
+                onScroll={() => { if (mode === 'split') syncScroll('editor') }}
                 placeholder="Start writing… Markdown supported. Paste or drag images."
-                style={{ flex: 1, border: mode === 'split' ? '1px solid var(--border)' : 'none', borderRadius: mode === 'split' ? '8px' : '0', background: mode === 'split' ? 'var(--bg)' : 'transparent', fontFamily: 'var(--font-sans)', fontSize: '0.9rem', lineHeight: 1.7, color: 'var(--text)', outline: 'none', resize: 'none', minHeight: '400px', padding: mode === 'split' ? '12px' : '0' }} />
+                style={{ flex: 1, border: mode === 'split' ? '1px solid var(--border)' : 'none', borderRadius: mode === 'split' ? '8px' : '0', background: mode === 'split' ? 'var(--bg)' : 'transparent', fontFamily: 'var(--font-sans)', fontSize: '0.9rem', lineHeight: 1.7, color: 'var(--text)', outline: 'none', resize: 'none', minHeight: mode === 'split' ? '100%' : '400px', height: mode === 'split' ? '100%' : 'auto', padding: mode === 'split' ? '12px' : '0' }} />
             )}
             {(mode === 'edit' && !canEdit) || mode === 'preview' ? (
               <div className="prose" dangerouslySetInnerHTML={{ __html: preview }} />
