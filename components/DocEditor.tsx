@@ -37,10 +37,17 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
   function renderPreview(md: string) {
     if (typeof window === 'undefined') return
     import('marked').then(({ marked }) => {
-      const processed = md.replace(/!video\[([^\]]*)\]\(([^)]+)\)/g, (_, t, url) => {
+      let processed = md
+      // Video embeds
+      processed = processed.replace(/!video\[([^\]]*)\]\(([^)]+)\)/g, (_, t, url) => {
         const m = url.match(/(?:v=|youtu\.be\/|embed\/)([a-zA-Z0-9_-]{11})/)
         if (m) return `<div class="video-embed"><iframe src="https://www.youtube.com/embed/${m[1]}" allowfullscreen title="${t}"></iframe></div>`
         return `<p><a href="${url}" target="_blank" rel="noopener">${t}</a></p>`
+      })
+      // Image sizing: ![alt|300](url) or ![alt|300x200](url)
+      processed = processed.replace(/!\[([^|\]]+)\|(\d+)(?:x(\d+))?\]\(([^)]+)\)/g, (_, alt, w, h, url) => {
+        const style = h ? `width:${w}px;height:${h}px;object-fit:cover` : `width:${w}px`
+        return `<img src="${url}" alt="${alt}" style="${style};border-radius:8px;margin:0.5em 0;display:block">`
       })
       // Make all links open in new tab
       const html = (marked.parse(processed) as string).replace(/<a href=/g, '<a target="_blank" rel="noopener" href=')
@@ -246,7 +253,11 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
           <TbBtn onClick={() => insertAt('[Link text](https://...)')} title="Link">🔗</TbBtn>
           <TbBtn onClick={() => insertAt('\n| Col 1 | Col 2 | Col 3 |\n|---|---|---|\n| Cell | Cell | Cell |\n')} title="Table">⊞</TbBtn>
           <TbBtn onClick={() => insertAt('\n!video[Title](https://youtube.com/watch?v=...)\n')} title="Embed video">▶</TbBtn>
-          <label title="Upload image" style={{ ...tbBtnBase, cursor: 'pointer' }}>
+          <label title="Upload image"
+            style={{ ...tbBtnBase, cursor: 'pointer' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--muted)'; (e.currentTarget as HTMLElement).style.borderColor = 'transparent' }}
+          >
             ⬚<input type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
               const file = e.target.files?.[0]; if (!file) return
               showToast('Uploading…')
