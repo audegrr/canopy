@@ -64,15 +64,20 @@ export default function AppShell({
 
   async function createDoc() {
     const title = inputVal.trim() || 'Untitled'
-    const folder_id = folderSelect || null
+    const folder_id = modalData.folderId || folderSelect || null
     const { data, error } = await supabase.from('documents').insert({
-      title, folder_id, owner_id: user.id, content: '', link_permission: 'none'
+      title, folder_id, content: '', link_permission: 'none'
     }).select().single()
-    if (!error && data) {
+    if (error) {
+      console.error('createDoc error:', error)
+      alert('Error creating document: ' + error.message)
+      return
+    }
+    if (data) {
       setDocs(d => [data, ...d])
+      closeModal()
       router.push(`/app/doc/${data.id}`)
     }
-    closeModal()
   }
 
   async function renameDoc() {
@@ -257,8 +262,8 @@ function TreeItem({ icon, label, active, onClick, prefix, suffix, actions }: {
       onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
     >
       {prefix}
-      <span style={{ fontSize: '13px', flexShrink: 0, width: '16px', textAlign: 'center' }}>{icon}</span>
-      <span style={{ flex: 1, fontSize: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+      <span style={{ fontSize: '15px', flexShrink: 0, width: '18px', textAlign: 'center' }}>{icon}</span>
+      <span style={{ flex: 1, fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
       {suffix}
       {actions && (
         <span className="tree-actions" style={{ display: 'none', gap: '2px' }}
@@ -278,7 +283,7 @@ function TreeItem({ icon, label, active, onClick, prefix, suffix, actions }: {
 
 function SideBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} title={title} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '5px', borderRadius: '6px', fontSize: '13px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+    <button onClick={onClick} title={title} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '6px 8px', borderRadius: '6px', fontSize: '17px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       onMouseEnter={e => (e.currentTarget.style.background = 'var(--border)')}
       onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
       {children}
