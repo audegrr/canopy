@@ -4,7 +4,7 @@ import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 type Folder = { id: string; name: string; expanded?: boolean }
-type Doc = { id: string; title: string; folder_id: string | null; link_permission: string }
+type Doc = { id: string; title: string; folder_id: string | null; parent_id: string | null; link_permission: string }
 type User = { id: string; email: string; name: string }
 type Database = { id: string; title: string }
 
@@ -20,6 +20,7 @@ export default function AppShell({
   const [folders, setFolders] = useState<Folder[]>(initialFolders.map(f => ({ ...f, expanded: true })))
   const [docs, setDocs] = useState<Doc[]>(initialDocs)
   const [databases, setDatabases] = useState<Database[]>(initialDatabases)
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [modal, setModal] = useState<null | 'newDoc' | 'newFolder' | 'renameFolder' | 'deleteFolder' | 'renameDoc' | 'deleteDoc'>(null)
   const [modalData, setModalData] = useState<any>({})
@@ -66,11 +67,17 @@ export default function AppShell({
   async function createDoc() {
     const title = inputVal.trim() || 'Untitled'
     const folder_id = modalData.folderId || folderSelect || null
+    const parent_id = modalData.parentId || null
     const { data, error } = await supabase.from('documents').insert({
-      title, folder_id, content: '', link_permission: 'none'
+      title, folder_id, parent_id, content: '', link_permission: 'none'
     }).select().single()
     if (error) { alert('Error: ' + error.message); return }
-    if (data) { setDocs(d => [data, ...d]); closeModal(); router.push(`/app/doc/${data.id}`) }
+    if (data) {
+      setDocs(d => [data, ...d])
+      if (parent_id) setExpanded(e => new Set([...e, parent_id]))
+      closeModal()
+      router.push(`/app/doc/${data.id}`)
+    }
   }
 
   async function renameDoc() {
@@ -81,10 +88,33 @@ export default function AppShell({
   }
 
   async function deleteDoc() {
+    // Also delete all subdocs recursively
+    const toDelete = getAllDescendants(modalData.id)
+    for (const id of toDelete) await supabase.from('documents').delete().eq('id', id)
     await supabase.from('documents').delete().eq('id', modalData.id)
-    setDocs(d => d.filter(x => x.id !== modalData.id))
-    if (currentDocId === modalData.id) router.push('/app')
+    setDocs(d => d.filter(x => x.id !== modalData.id && !toDelete.includes(x.id)))
+    if (currentDocId === modalData.id || toDelete.includes(currentDocId || '')) router.push('/app')
     closeModal()
+  }
+
+  function getAllDescendants(docId: string): string[] {
+    const children = docs.filter(d => d.parent_id === docId).map(d => d.id)
+    return children.flatMap(id => [id, ...getAllDescendants(id)])
+  }
+
+  function toggleExpanded(id: string) {
+    setExpanded(e => {
+      const next = new Set(e)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  async function moveDocToFolder(docId: string, folderId: string | null) {
+    const doc = docs.find(d => d.id === docId)
+    if (!doc || doc.folder_id === folderId) return
+    await supabase.from('documents').update({ folder_id: folderId, parent_id: null }).eq('id', docId)
+    setDocs(d => d.map(x => x.id === docId ? { ...x, folder_id: folderId, parent_id: null } : x))
   }
 
   async function createDatabase() {
@@ -93,23 +123,35 @@ export default function AppShell({
     if (data) { setDatabases(d => [data, ...d]); router.push(`/app/db/${data.id}`) }
   }
 
-  function toggleFolder(id: string) {
-    setFolders(f => f.map(x => x.id === id ? { ...x, expanded: !x.expanded } : x))
+  // Render doc tree recursively
+  function renderDocTree(parentId: string | null, folderId: string | null, depth = 0): React.ReactNode {
+    const children = docs.filter(d => d.parent_id === parentId && d.folder_id === folderId)
+    if (!children.length) return null
+    return children.map(doc => {
+      const hasChildren = docs.some(d => d.parent_id === doc.id)
+      const isExpanded = expanded.has(doc.id)
+      const isActive = currentDocId === doc.id
+      return (
+        <DocRow key={doc.id} doc={doc} active={isActive} depth={depth}
+          hasChildren={hasChildren} isExpanded={isExpanded}
+          onClick={() => router.push(`/app/doc/${doc.id}`)}
+          onToggle={() => toggleExpanded(doc.id)}
+          onNewSubDoc={() => openModal('newDoc', { parentId: doc.id, folderId: doc.folder_id })}
+          onRename={() => openModal('renameDoc', doc, doc.title)}
+          onDelete={() => openModal('deleteDoc', doc)}
+        >
+          {isExpanded && renderDocTree(doc.id, folderId, depth + 1)}
+        </DocRow>
+      )
+    })
   }
 
-  async function moveDocToFolder(docId: string, folderId: string | null) {
-    const doc = docs.find(d => d.id === docId)
-    if (!doc || doc.folder_id === folderId) return
-    await supabase.from('documents').update({ folder_id: folderId }).eq('id', docId)
-    setDocs(d => d.map(x => x.id === docId ? { ...x, folder_id: folderId } : x))
-  }
-
-  const rootDocs = docs.filter(d => !d.folder_id)
+  const rootDocs = docs.filter(d => !d.folder_id && !d.parent_id)
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
       <aside style={{
-        width: sidebarOpen ? '240px' : '0', minWidth: sidebarOpen ? '240px' : '0',
+        width: sidebarOpen ? '260px' : '0', minWidth: sidebarOpen ? '260px' : '0',
         background: 'var(--sidebar)', borderRight: '1px solid var(--border)',
         display: 'flex', flexDirection: 'column', height: '100vh',
         overflow: 'hidden', transition: 'width 0.2s, min-width 0.2s', flexShrink: 0
@@ -128,51 +170,41 @@ export default function AppShell({
         <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '12px' }}>
           <div style={{ padding: '8px 10px 4px', fontSize: '10px', fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.7px' }}>Workspace</div>
 
+          {/* Folders */}
           {folders.map(f => (
             <FolderZone key={f.id} folder={f}
               onDrop={moveDocToFolder}
-              onToggle={() => toggleFolder(f.id)}
+              onToggle={() => setFolders(fs => fs.map(x => x.id === f.id ? { ...x, expanded: !x.expanded } : x))}
               onNewDoc={() => openModal('newDoc', { folderId: f.id })}
               onRename={() => openModal('renameFolder', f, f.name)}
               onDelete={() => openModal('deleteFolder', f)}
             >
-              {docs.filter(d => d.folder_id === f.id).map(d => (
-                <DocRow key={d.id} doc={d} active={currentDocId === d.id}
-                  onClick={() => router.push(`/app/doc/${d.id}`)}
-                  onRename={() => openModal('renameDoc', d, d.title)}
-                  onDelete={() => openModal('deleteDoc', d)}
-                />
-              ))}
+              {renderDocTree(null, f.id)}
             </FolderZone>
           ))}
 
           {/* Root drop zone */}
           <RootDropZone onDrop={(docId) => moveDocToFolder(docId, null)}>
-            {rootDocs.map(d => (
-              <DocRow key={d.id} doc={d} active={currentDocId === d.id}
-                onClick={() => router.push(`/app/doc/${d.id}`)}
-                onRename={() => openModal('renameDoc', d, d.title)}
-                onDelete={() => openModal('deleteDoc', d)}
-              />
-            ))}
+            {renderDocTree(null, null)}
           </RootDropZone>
+
+          {/* Databases */}
+          {databases.length > 0 && (
+            <div style={{ marginTop: '8px' }}>
+              <div style={{ padding: '8px 10px 4px', fontSize: '10px', fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.7px' }}>Databases</div>
+              {databases.map(db => (
+                <div key={db.id} onClick={() => router.push(`/app/db/${db.id}`)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', cursor: 'pointer', borderRadius: '7px', margin: '1px 6px', userSelect: 'none', background: pathname === `/app/db/${db.id}` ? 'var(--accent-light)' : 'transparent', color: pathname === `/app/db/${db.id}` ? 'var(--accent)' : 'var(--text)', transition: 'background 0.1s' }}
+                  onMouseEnter={e => { if (pathname !== `/app/db/${db.id}`) (e.currentTarget as HTMLElement).style.background = 'var(--border)' }}
+                  onMouseLeave={e => { if (pathname !== `/app/db/${db.id}`) (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+                  <span style={{ fontSize: '16px' }}>🗄️</span>
+                  <span style={{ flex: 1, fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{db.title}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Databases */}
-        {databases.length > 0 && (
-          <div style={{ marginTop: '8px' }}>
-            <div style={{ padding: '8px 10px 4px', fontSize: '10px', fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.7px' }}>Databases</div>
-            {databases.map(db => (
-              <div key={db.id} onClick={() => router.push(`/app/db/${db.id}`)}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', cursor: 'pointer', borderRadius: '7px', margin: '1px 6px', userSelect: 'none', background: pathname === `/app/db/${db.id}` ? 'var(--accent-light)' : 'transparent', color: pathname === `/app/db/${db.id}` ? 'var(--accent)' : 'var(--text)' }}
-                onMouseEnter={e => { if (pathname !== `/app/db/${db.id}`) (e.currentTarget as HTMLElement).style.background = 'var(--border)' }}
-                onMouseLeave={e => { if (pathname !== `/app/db/${db.id}`) (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
-                <span style={{ fontSize: '16px' }}>🗄️</span>
-                <span style={{ flex: 1, fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{db.title}</span>
-              </div>
-            ))}
-          </div>
-        )}
         {/* User */}
         <div style={{ padding: '10px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', borderRadius: '8px' }}>
@@ -214,9 +246,9 @@ export default function AppShell({
               <MActions onCancel={closeModal} onConfirm={deleteFolder} confirmLabel="Delete" danger />
             </>}
             {modal === 'newDoc' && <>
-              <h2 style={modalTitle}>New document</h2>
+              <h2 style={modalTitle}>{modalData.parentId ? 'New sub-document' : 'New document'}</h2>
               <MInput label="Title" value={inputVal} onChange={setInputVal} placeholder="Untitled" autoFocus />
-              {!modalData.folderId && folders.length > 0 && (
+              {!modalData.folderId && !modalData.parentId && folders.length > 0 && (
                 <div style={{ marginBottom: '16px' }}>
                   <label style={labelSt}>Folder (optional)</label>
                   <select value={folderSelect} onChange={e => setFolderSelect(e.target.value)} style={selectSt}>
@@ -234,7 +266,11 @@ export default function AppShell({
             </>}
             {modal === 'deleteDoc' && <>
               <h2 style={modalTitle}>Delete document?</h2>
-              <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: '20px' }}>This cannot be undone.</p>
+              <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: '20px' }}>
+                {getAllDescendants(modalData.id).length > 0
+                  ? 'This document and all its sub-documents will be deleted.'
+                  : 'This cannot be undone.'}
+              </p>
               <MActions onCancel={closeModal} onConfirm={deleteDoc} confirmLabel="Delete" danger />
             </>}
           </div>
@@ -244,7 +280,46 @@ export default function AppShell({
   )
 }
 
-// ── DRAG & DROP COMPONENTS ─────────────────────────────────────────────
+// ── COMPONENTS ─────────────────────────────────────────────────────────
+
+function DocRow({ doc, active, depth, hasChildren, isExpanded, onClick, onToggle, onNewSubDoc, onRename, onDelete, children }: any) {
+  const [hovered, setHovered] = useState(false)
+  const permIcon = doc.link_permission === 'view' ? '👁' : doc.link_permission === 'edit' ? '🔓' : ''
+  return (
+    <div>
+      <div
+        draggable
+        onDragStart={e => { e.dataTransfer.setData('docId', doc.id); e.dataTransfer.effectAllowed = 'move' }}
+        onClick={onClick}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '4px',
+          padding: `6px 10px 6px ${10 + depth * 14}px`,
+          cursor: 'pointer', borderRadius: '7px', margin: '1px 6px', userSelect: 'none',
+          background: active ? 'var(--accent-light)' : hovered ? 'var(--border)' : 'transparent',
+          color: active ? 'var(--accent)' : 'var(--text)', transition: 'background 0.1s'
+        }}
+      >
+        {/* Expand toggle */}
+        <span
+          onClick={e => { e.stopPropagation(); onToggle() }}
+          style={{ fontSize: '10px', color: 'var(--muted)', width: '12px', flexShrink: 0, textAlign: 'center', transition: 'transform 0.15s', display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none', opacity: hasChildren ? 1 : 0, cursor: hasChildren ? 'pointer' : 'default' }}>
+          ▶
+        </span>
+        <span style={{ fontSize: '15px', flexShrink: 0 }}>📄</span>
+        <span style={{ flex: 1, fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.title || 'Untitled'}</span>
+        {permIcon && !hovered && <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{permIcon}</span>}
+        <span style={{ display: hovered ? 'flex' : 'none', gap: '2px', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+          <ActionBtn onClick={onNewSubDoc} title="New sub-document">+</ActionBtn>
+          <ActionBtn onClick={onRename} title="Rename">✎</ActionBtn>
+          <ActionBtn onClick={onDelete} title="Delete">✕</ActionBtn>
+        </span>
+      </div>
+      {children}
+    </div>
+  )
+}
 
 function FolderZone({ folder, children, onDrop, onToggle, onNewDoc, onRename, onDelete }: any) {
   const [over, setOver] = useState(false)
@@ -287,29 +362,6 @@ function RootDropZone({ children, onDrop }: { children: React.ReactNode; onDrop:
     >
       {over && <div style={{ padding: '4px 10px', fontSize: '11px', color: 'var(--accent)' }}>Drop to move to root</div>}
       {children}
-    </div>
-  )
-}
-
-function DocRow({ doc, active, onClick, onRename, onDelete }: any) {
-  const [hovered, setHovered] = useState(false)
-  const permIcon = doc.link_permission === 'view' ? '👁' : doc.link_permission === 'edit' ? '🔓' : ''
-  return (
-    <div
-      draggable
-      onDragStart={e => { e.dataTransfer.setData('docId', doc.id); e.dataTransfer.effectAllowed = 'move' }}
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', cursor: 'pointer', borderRadius: '7px', margin: '1px 6px', userSelect: 'none', background: active ? 'var(--accent-light)' : hovered ? 'var(--border)' : 'transparent', color: active ? 'var(--accent)' : 'var(--text)', transition: 'background 0.1s' }}
-    >
-      <span style={{ fontSize: '16px', flexShrink: 0 }}>📄</span>
-      <span style={{ flex: 1, fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.title || 'Untitled'}</span>
-      {permIcon && !hovered && <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{permIcon}</span>}
-      <span style={{ display: hovered ? 'flex' : 'none', gap: '2px', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
-        <ActionBtn onClick={onRename} title="Rename">✎</ActionBtn>
-        <ActionBtn onClick={onDelete} title="Delete">✕</ActionBtn>
-      </span>
     </div>
   )
 }

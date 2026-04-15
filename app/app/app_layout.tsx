@@ -8,8 +8,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect('/login')
 
   const { data: folders } = await supabase.from('folders').select('*').eq('owner_id', user.id).order('created_at')
-  const { data: docs } = await supabase.from('documents').select('id, title, folder_id, created_at, updated_at, link_permission').eq('owner_id', user.id).order('updated_at', { ascending: false })
-  const { data: databases } = await supabase.from('databases').select('id, title, created_at').eq('owner_id', user.id).order('created_at', { ascending: false })
+  const { data: docs } = await supabase.from('documents').select('id, title, folder_id, parent_id, link_permission').eq('owner_id', user.id).order('updated_at', { ascending: false })
+  const { data: databases } = await supabase.from('databases').select('id, title').eq('owner_id', user.id).order('created_at', { ascending: false })
 
   return (
     <AppShell
