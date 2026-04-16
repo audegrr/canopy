@@ -27,6 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Docs shared with this user — using security definer function to bypass RLS
   const { data: sharedDocsData } = await supabase
     .rpc('get_shared_documents', { user_uuid: user.id })
+  console.log('sharedDocsData:', JSON.stringify(sharedDocsData))
   const sharedDocs = (sharedDocsData || []).map((d: any) => ({
     id: d.id,
     title: d.title,
