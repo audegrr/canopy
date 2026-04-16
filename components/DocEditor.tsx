@@ -19,8 +19,6 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
   const [saved, setSaved] = useState(true)
   const [preview, setPreview] = useState('')
   const [shares, setShares] = useState<any[]>([])
-  const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState('view')
   const [toast, setToast] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const saveTimer = useRef<any>(null)
@@ -213,51 +211,7 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
     }
   }
 
-  async function getAllSubDocIds(docId: string): Promise<string[]> {
-    const { data } = await supabase.from('documents').select('id').eq('parent_id', docId)
-    if (!data || !data.length) return []
-    const childIds = data.map((d: any) => d.id)
-    const nested = await Promise.all(childIds.map((id: string) => getAllSubDocIds(id)))
-    return [...childIds, ...nested.flat()]
-  }
 
-  async function inviteUser() {
-    if (!inviteEmail.trim()) return
-    const { data: profile } = await supabase.from('profiles').select('id, email').eq('email', inviteEmail.trim()).single()
-    if (!profile) { showToast('User not found. They must have a Canopy account.'); return }
-
-    // Share this doc
-    const { error } = await supabase.from('document_shares').upsert({
-      document_id: doc.id, user_id: profile.id, permission: inviteRole
-    })
-    if (error) { showToast('Error: ' + error.message); return }
-
-    // Share all sub-docs recursively
-    const subDocIds = await getAllSubDocIds(doc.id)
-    for (const subId of subDocIds) {
-      await supabase.from('document_shares').upsert({
-        document_id: subId, user_id: profile.id, permission: inviteRole
-      })
-    }
-
-    // Send notification email
-    const { data: { user } } = await supabase.auth.getUser()
-    const { data: senderProfile } = await supabase.from('profiles').select('full_name, email').eq('id', user?.id).single()
-    const { error: fnError } = await supabase.functions.invoke('send-share-email', {
-      body: {
-        to: inviteEmail.trim(),
-        docTitle: title,
-        permission: inviteRole,
-        shareUrl: `${window.location.origin}/share/${doc.id}`,
-        fromName: senderProfile?.full_name || senderProfile?.email || 'A Canopy user'
-      }
-    })
-    if (fnError) console.error('Email error:', fnError)
-
-    setInviteEmail('')
-    loadShares()
-    showToast(`${inviteEmail.trim()} invited!`)
-  }
 
   async function removeShare(uid: string) {
     await supabase.from('document_shares').delete().eq('document_id', doc.id).eq('user_id', uid)
@@ -395,19 +349,7 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
                 <button onClick={copyLink} style={{ marginTop: '8px', width: '100%', padding: '7px', border: '1px solid var(--border)', borderRadius: '7px', background: 'var(--bg)', fontFamily: 'var(--font-sans)', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text)' }}>Copy link</button>
               )}
             </div>
-            <div style={{ marginBottom: '16px' }}>
-              <label style={shareLabelSt}>Invite by email</label>
-              <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="email@example.com"
-                style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: '8px', fontFamily: 'var(--font-sans)', fontSize: '0.875rem', background: 'var(--bg)', color: 'var(--text)', marginTop: '6px', outline: 'none', marginBottom: '6px' }} />
-              <div style={{ display: 'flex', gap: '6px' }}>
-                <select value={inviteRole} onChange={e => setInviteRole(e.target.value)}
-                  style={{ flex: 1, padding: '7px 8px', border: '1px solid var(--border)', borderRadius: '7px', fontFamily: 'var(--font-sans)', fontSize: '0.85rem', background: 'var(--bg)', color: 'var(--text)', outline: 'none' }}>
-                  <option value="view">Can view</option>
-                  <option value="edit">Can edit</option>
-                </select>
-                <button onClick={inviteUser} style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '7px 14px', borderRadius: '7px', fontFamily: 'var(--font-sans)', fontSize: '0.85rem', cursor: 'pointer', fontWeight: 500 }}>Invite</button>
-              </div>
-            </div>
+
             {shares.length > 0 && (
               <div>
                 <label style={shareLabelSt}>Shared with</label>
