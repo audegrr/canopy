@@ -209,7 +209,7 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
   }
 
   function copyLink() {
-    navigator.clipboard?.writeText(`${window.location.origin}/app/doc/${doc.id}`)
+    navigator.clipboard?.writeText(`${window.location.origin}/share/${doc.id}`)
     showToast('Link copied!')
   }
 
