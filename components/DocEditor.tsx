@@ -206,28 +206,53 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
   async function updateLinkPerm(perm: string) {
     await supabase.from('documents').update({ link_permission: perm }).eq('id', doc.id)
     setDoc(d => ({ ...d, link_permission: perm }))
+    // Propagate to sub-docs
+    const subDocIds = await getAllSubDocIds(doc.id)
+    for (const subId of subDocIds) {
+      await supabase.from('documents').update({ link_permission: perm }).eq('id', subId)
+    }
+  }
+
+  async function getAllSubDocIds(docId: string): Promise<string[]> {
+    const { data } = await supabase.from('documents').select('id').eq('parent_id', docId)
+    if (!data || !data.length) return []
+    const childIds = data.map((d: any) => d.id)
+    const nested = await Promise.all(childIds.map((id: string) => getAllSubDocIds(id)))
+    return [...childIds, ...nested.flat()]
   }
 
   async function inviteUser() {
     if (!inviteEmail.trim()) return
     const { data: profile } = await supabase.from('profiles').select('id, email').eq('email', inviteEmail.trim()).single()
     if (!profile) { showToast('User not found. They must have a Canopy account.'); return }
+
+    // Share this doc
     const { error } = await supabase.from('document_shares').upsert({
-      document_id: doc.id,
-      user_id: profile.id,
-      permission: inviteRole
+      document_id: doc.id, user_id: profile.id, permission: inviteRole
     })
     if (error) { showToast('Error: ' + error.message); return }
-    // Send notification email via Supabase
+
+    // Share all sub-docs recursively
+    const subDocIds = await getAllSubDocIds(doc.id)
+    for (const subId of subDocIds) {
+      await supabase.from('document_shares').upsert({
+        document_id: subId, user_id: profile.id, permission: inviteRole
+      })
+    }
+
+    // Send notification email
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: senderProfile } = await supabase.from('profiles').select('full_name, email').eq('id', user?.id).single()
     await supabase.functions.invoke('send-share-email', {
-      body: {
+      body: JSON.stringify({
         to: inviteEmail.trim(),
         docTitle: title,
         permission: inviteRole,
         shareUrl: `${window.location.origin}/share/${doc.id}`,
-        fromName: 'A Canopy user'
-      }
-    }).catch(() => {}) // Fail silently if function not deployed
+        fromName: senderProfile?.full_name || senderProfile?.email || 'A Canopy user'
+      })
+    }).catch(() => {})
+
     setInviteEmail('')
     loadShares()
     showToast(`${inviteEmail.trim()} invited!`)
