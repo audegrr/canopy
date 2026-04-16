@@ -243,15 +243,16 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
     // Send notification email
     const { data: { user } } = await supabase.auth.getUser()
     const { data: senderProfile } = await supabase.from('profiles').select('full_name, email').eq('id', user?.id).single()
-    await supabase.functions.invoke('send-share-email', {
-      body: JSON.stringify({
+    const { error: fnError } = await supabase.functions.invoke('send-share-email', {
+      body: {
         to: inviteEmail.trim(),
         docTitle: title,
         permission: inviteRole,
         shareUrl: `${window.location.origin}/share/${doc.id}`,
         fromName: senderProfile?.full_name || senderProfile?.email || 'A Canopy user'
-      })
-    }).catch(() => {})
+      }
+    })
+    if (fnError) console.error('Email error:', fnError)
 
     setInviteEmail('')
     loadShares()
