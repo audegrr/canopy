@@ -24,25 +24,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     link_permission: d.link_permission ?? 'none',
   }))
 
-  // Docs shared with this user
-  const { data: shareData } = await supabase
-    .from('document_shares')
-    .select('document_id, permission')
-    .eq('user_id', user.id)
-
-  const sharedDocIds = (shareData || []).map((s: any) => s.document_id)
-  let sharedDocs: any[] = []
-  if (sharedDocIds.length > 0) {
-    const { data: rawShared } = await supabase
-      .from('documents')
-      .select('id, title, owner_id')
-      .in('id', sharedDocIds)
-      .not('owner_id', 'eq', user.id) // exclude own docs
-    sharedDocs = (rawShared || []).map((d: any) => ({
-      ...d,
-      permission: shareData?.find((s: any) => s.document_id === d.id)?.permission
-    }))
-  }
+  // Docs shared with this user — using security definer function to bypass RLS
+  const { data: sharedDocsData } = await supabase
+    .rpc('get_shared_documents', { user_uuid: user.id })
+  const sharedDocs = (sharedDocsData || []).map((d: any) => ({
+    id: d.id,
+    title: d.title,
+    owner_id: d.owner_id,
+    permission: d.permission
+  }))
 
   const { data: databases } = await supabase
     .from('databases').select('id, title').eq('owner_id', user.id)
