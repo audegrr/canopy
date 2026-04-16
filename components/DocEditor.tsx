@@ -30,8 +30,21 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
   useEffect(() => { if (shareOpen && isOwner) loadShares() }, [shareOpen])
 
   async function loadShares() {
-    const { data } = await supabase.from('document_shares').select('*').eq('document_id', doc.id)
-    setShares(data || [])
+    const { data: shareData } = await supabase
+      .from('document_shares')
+      .select('*')
+      .eq('document_id', doc.id)
+    if (!shareData) return
+    // Enrich with email from profiles
+    const enriched = await Promise.all(shareData.map(async s => {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('email, full_name')
+        .eq('id', s.user_id)
+        .single()
+      return { ...s, email: profile?.email || s.user_id, name: profile?.full_name }
+    }))
+    setShares(enriched)
   }
 
   function renderPreview(md: string) {
@@ -197,10 +210,27 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
 
   async function inviteUser() {
     if (!inviteEmail.trim()) return
-    const { data: profile } = await supabase.from('profiles').select('id').eq('email', inviteEmail.trim()).single()
+    const { data: profile } = await supabase.from('profiles').select('id, email').eq('email', inviteEmail.trim()).single()
     if (!profile) { showToast('User not found. They must have a Canopy account.'); return }
-    await supabase.from('document_shares').upsert({ document_id: doc.id, user_id: profile.id, permission: inviteRole })
-    setInviteEmail(''); loadShares(); showToast('Invitation sent!')
+    const { error } = await supabase.from('document_shares').upsert({
+      document_id: doc.id,
+      user_id: profile.id,
+      permission: inviteRole
+    })
+    if (error) { showToast('Error: ' + error.message); return }
+    // Send notification email via Supabase
+    await supabase.functions.invoke('send-share-email', {
+      body: {
+        to: inviteEmail.trim(),
+        docTitle: title,
+        permission: inviteRole,
+        shareUrl: `${window.location.origin}/share/${doc.id}`,
+        fromName: 'A Canopy user'
+      }
+    }).catch(() => {}) // Fail silently if function not deployed
+    setInviteEmail('')
+    loadShares()
+    showToast(`${inviteEmail.trim()} invited!`)
   }
 
   async function removeShare(uid: string) {
@@ -359,10 +389,13 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
                   {shares.map(s => (
                     <div key={s.user_id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 8px', background: 'var(--bg)', borderRadius: '8px', border: '1px solid var(--border)' }}>
                       <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, color: 'var(--accent)', flexShrink: 0 }}>
-                        {(s.email || s.user_id)[0].toUpperCase()}
+                        {(s.email || '?')[0].toUpperCase()}
                       </div>
-                      <span style={{ flex: 1, fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.email || s.user_id.slice(0, 8)}</span>
-                      <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{s.permission}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        {s.name && <div style={{ fontSize: '12px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>}
+                        <div style={{ fontSize: '11px', color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.email}</div>
+                      </div>
+                      <span style={{ fontSize: '11px', color: 'var(--muted)', flexShrink: 0 }}>{s.permission}</span>
                       <button onClick={() => removeShare(s.user_id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '12px' }}>✕</button>
                     </div>
                   ))}
