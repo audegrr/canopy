@@ -7,19 +7,22 @@ type Folder = { id: string; name: string; expanded?: boolean }
 type Doc = { id: string; title: string; folder_id: string | null; parent_id: string | null; link_permission: string }
 type User = { id: string; email: string; name: string }
 type Database = { id: string; title: string }
+type SharedDoc = { id: string; title: string; owner_id: string; permission: string }
 
 export default function AppShell({
-  user, initialFolders, initialDocs, initialDatabases = [], children
+  user, initialFolders, initialDocs, initialDatabases = [], initialSharedDocs = [], children
 }: {
   user: User
   initialFolders: Folder[]
   initialDocs: Doc[]
   initialDatabases?: Database[]
+  initialSharedDocs?: SharedDoc[]
   children: React.ReactNode
 }) {
   const [folders, setFolders] = useState<Folder[]>(initialFolders.map(f => ({ ...f, expanded: true })))
   const [docs, setDocs] = useState<Doc[]>(initialDocs)
   const [databases, setDatabases] = useState<Database[]>(initialDatabases)
+  const [sharedDocs] = useState<SharedDoc[]>(initialSharedDocs)
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [modal, setModal] = useState<null | 'newDoc' | 'newFolder' | 'renameFolder' | 'deleteFolder' | 'renameDoc' | 'deleteDoc'>(null)
@@ -187,6 +190,23 @@ export default function AppShell({
           <RootDropZone onDrop={(docId) => moveDocToFolder(docId, null)}>
             {renderDocTree(null, null)}
           </RootDropZone>
+
+          {/* Shared with me */}
+          {sharedDocs.length > 0 && (
+            <div style={{ marginTop: '8px' }}>
+              <div style={{ padding: '8px 10px 4px', fontSize: '10px', fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.7px' }}>Shared with me</div>
+              {sharedDocs.map(doc => (
+                <div key={doc.id} onClick={() => router.push(`/app/doc/${doc.id}`)}
+                  onMouseEnter={e => { if (pathname !== `/app/doc/${doc.id}`) (e.currentTarget as HTMLElement).style.background = 'var(--border)' }}
+                  onMouseLeave={e => { if (pathname !== `/app/doc/${doc.id}`) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', cursor: 'pointer', borderRadius: '7px', margin: '1px 6px', userSelect: 'none', background: pathname === `/app/doc/${doc.id}` ? 'var(--accent-light)' : 'transparent', color: pathname === `/app/doc/${doc.id}` ? 'var(--accent)' : 'var(--text)', transition: 'background 0.1s' }}>
+                  <span style={{ fontSize: '15px', flexShrink: 0 }}>📄</span>
+                  <span style={{ flex: 1, fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.title || 'Untitled'}</span>
+                  <span style={{ fontSize: '10px', color: 'var(--muted)', flexShrink: 0 }}>{doc.permission === 'edit' ? '🔓' : '👁'}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Databases */}
           {databases.length > 0 && (
