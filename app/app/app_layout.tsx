@@ -1,4 +1,4 @@
-// @ts-nocheck
+// @ts-nocheck 
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AppShell from '@/components/AppShell'
