@@ -224,11 +224,9 @@ export default function DocEditor({ doc: initialDoc, canEdit, isOwner, userId }:
   }
 
   async function getAllSubDocIds(docId: string): Promise<string[]> {
-    const { data } = await supabase.from('documents').select('id').eq('parent_id', docId)
+    const { data } = await supabase.rpc('get_all_subdoc_ids', { doc_id: docId })
     if (!data || !data.length) return []
-    const childIds = data.map((d: any) => d.id)
-    const nested = await Promise.all(childIds.map((id: string) => getAllSubDocIds(id)))
-    return [...childIds, ...nested.flat()]
+    return data.map((d: any) => d.id)
   }
 
   async function updateLinkPerm(perm: string) {
