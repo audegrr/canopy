@@ -202,7 +202,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
           )}
 
           {/* Page body */}
-          <div style={{ maxWidth: '720px', margin: '0 auto', padding: page.cover_url ? '24px 60px 80px' : '64px 60px 80px' }}>
+          <div className='page-body-padding' style={{ maxWidth: '720px', margin: '0 auto', padding: page.cover_url ? '24px 60px 80px' : '64px 60px 80px' }}>
 
             {/* Icon area */}
             <div style={{ marginBottom: '4px', position: 'relative' }}>
@@ -274,7 +274,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                     editorEl?.focus()
                   }
                 }}
-                style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--text)', outline: 'none', marginBottom: '2px', lineHeight: 1.2, wordBreak: 'break-word', minHeight: '1.2em', fontFamily: 'var(--font-sans)' }}
+                className='page-title' style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--text)', outline: 'none', marginBottom: '2px', lineHeight: 1.2, wordBreak: 'break-word', minHeight: '1.2em', fontFamily: 'var(--font-sans)' }}
                 data-placeholder="Untitled"
               />
             ) : (
@@ -295,7 +295,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
 
         {/* Share panel */}
         {shareOpen && isOwner && (
-          <div style={{ width: '300px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', padding: '20px', overflowY: 'auto', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className='share-panel-mobile' style={{ width: '300px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', padding: '20px', overflowY: 'auto', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3 style={{ fontSize: '15px', fontWeight: 600 }}>Share</h3>
               <button onClick={() => setShareOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '16px', lineHeight: 1 }}>✕</button>

@@ -15,6 +15,7 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import Image from '@tiptap/extension-image'
 import { Node, mergeAttributes } from '@tiptap/core'
+import SubpageBlock from './SubpageBlock'
 import Link from '@tiptap/extension-link'
 import Youtube from '@tiptap/extension-youtube'
 import HorizontalRule from '@tiptap/extension-horizontal-rule'
@@ -176,6 +177,26 @@ const TocExtension = Node.create({
   },
 })
 
+// ── SUBPAGE EXTENSION ─────────────────────────────────────────────────
+const SubpageExtension = Node.create({
+  name: 'subpage',
+  group: 'block',
+  atom: true,
+  addAttributes() {
+    return {
+      pageId: { default: null },
+      expanded: { default: true },
+    }
+  },
+  parseHTML() { return [{ tag: 'div[data-type="subpage"]' }] },
+  renderHTML({ HTMLAttributes }) {
+    return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'subpage', 'data-page-id': HTMLAttributes.pageId })]
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(SubpageBlock)
+  },
+})
+
 // ── SLASH ITEMS ────────────────────────────────────────────────────────
 const SLASH_ITEMS = [
   { id: 'h1', label: 'Heading 1', hint: 'Big section heading', icon: 'H1', section: 'Basic blocks' },
@@ -192,6 +213,7 @@ const SLASH_ITEMS = [
   { id: 'table', label: 'Table', hint: 'Insert a table', icon: '⊞', section: 'Advanced' },
   { id: 'image', label: 'Image', hint: 'Upload or embed URL', icon: '🖼', section: 'Media' },
   { id: 'video', label: 'YouTube', hint: 'Embed a video', icon: '▶', section: 'Media' },
+  { id: 'subpage', label: 'Sub-page', hint: 'Embed a linked page', icon: '📄', section: 'Advanced' },
 ]
 
 const COLORS = [
@@ -250,6 +272,7 @@ export default function Editor({ content, editable, onUpdate }: Props) {
       Underline,
       CalloutExtension,
       TocExtension,
+      SubpageExtension,
     ],
     content: content || '',
     editable,
@@ -321,6 +344,11 @@ export default function Editor({ content, editable, onUpdate }: Props) {
       case 'video': {
         const url = window.prompt('YouTube URL:')
         if (url) editor.chain().focus().setYoutubeVideo({ src: url }).run()
+        break
+      }
+      case 'subpage': {
+        const pageId = window.prompt('Page ID (copy from the page URL):')
+        if (pageId) editor.chain().focus().insertContent({ type: 'subpage', attrs: { pageId: pageId.trim(), expanded: true } }).run()
         break
       }
     }

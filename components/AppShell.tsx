@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Workspace, Page, SharedPage, User } from '@/lib/types'
@@ -30,6 +30,19 @@ export default function AppShell({ user, workspaces: initialWorkspaces, currentW
   const pathname = usePathname()
   const supabase = createClient()
   const currentPageId = pathname.match(/\/app\/page\/([^\/]+)/)?.[1] || null
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
+
+  // Close sidebar on mobile when navigating
+  useEffect(() => {
+    if (isMobile) setSidebarOpen(false)
+  }, [pathname])
 
   // ── PAGE ACTIONS ────────────────────────────────────────────
   async function createPage(parentId: string | null = null) {
@@ -268,17 +281,24 @@ export default function AppShell({ user, workspaces: initialWorkspaces, currentW
         <div className="sidebar-overlay" style={{ display: 'none' }} onClick={() => setSidebarOpen(false)} />
       )}
 
+      {/* Mobile overlay */}
+      {isMobile && sidebarOpen && (
+        <div className="sidebar-mobile-overlay" onClick={() => setSidebarOpen(false)} />
+      )}
+
       {/* SIDEBAR */}
-      <aside style={{
-        width: sidebarOpen ? '240px' : '0',
-        minWidth: sidebarOpen ? '240px' : '0',
-        background: 'var(--sidebar-bg)',
-        borderRight: '1px solid var(--border)',
-        display: 'flex', flexDirection: 'column',
-        height: '100vh', overflow: 'hidden',
-        transition: 'width 0.2s, min-width 0.2s',
-        flexShrink: 0
-      }}>
+      <aside
+        className={isMobile ? 'sidebar-mobile' : ''}
+        style={{
+          width: sidebarOpen ? '240px' : (isMobile ? '0' : '0'),
+          minWidth: sidebarOpen ? '240px' : '0',
+          background: 'var(--sidebar-bg)',
+          borderRight: '1px solid var(--border)',
+          display: 'flex', flexDirection: 'column',
+          height: '100vh', overflow: 'hidden',
+          transition: 'width 0.2s, min-width 0.2s',
+          flexShrink: isMobile ? 0 : 0,
+        }}>
         {/* Workspace switcher */}
         <div style={{ padding: '10px 8px 4px', flexShrink: 0 }}>
           <div
