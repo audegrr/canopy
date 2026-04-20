@@ -242,11 +242,21 @@ export default function AppShell({ user, workspaces: initialWorkspaces, currentW
             <span style={{ fontSize: '14px', flexShrink: 0, width: '18px', textAlign: 'center' }}>{page.icon || '📄'}</span>
             <span style={{ flex: 1, fontSize: '13.5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{page.title || 'Untitled'}</span>
             <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{page.permission === 'edit' ? '✎' : '👁'}</span>
+            <span className="actions" onClick={e => e.stopPropagation()} style={{ gap: '2px' }}>
+              <SbBtn onClick={() => removeSharedPage(page.id)} title="Remove from my workspace">✕</SbBtn>
+            </span>
           </div>
           {isExpanded && <div>{renderSharedTree(page.id, depth + 1)}</div>}
         </div>
       )
     })
+  }
+
+  async function removeSharedPage(pageId: string) {
+    const supabaseClient = createClient()
+    await supabaseClient.from('page_shares').delete().eq('page_id', pageId).eq('user_id', user.id)
+    // Remove from local state by reloading
+    window.location.reload()
   }
 
   const rootShared = sharedPages.filter(p => !sharedPages.some(s => s.id === p.parent_id))
