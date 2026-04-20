@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useEditor, EditorContent, BubbleMenu, FloatingMenu } from '@tiptap/react'
+import { useEditor, EditorContent, BubbleMenu } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Typography from '@tiptap/extension-typography'
@@ -21,7 +21,7 @@ import TextAlign from '@tiptap/extension-text-align'
 import Underline from '@tiptap/extension-underline'
 
 const COLORS = [
-  { label: 'Default', value: 'inherit' },
+  { label: 'Default', value: '' },
   { label: 'Gray', value: '#787774' },
   { label: 'Red', value: '#eb5757' },
   { label: 'Orange', value: '#d9730d' },
@@ -41,6 +41,23 @@ const HIGHLIGHTS = [
   { label: 'Orange', value: '#fce5cd' },
 ]
 
+const SLASH_ITEMS = [
+  { id: 'h1', label: 'Heading 1', hint: 'Big section heading', icon: 'H1', section: 'Basic blocks' },
+  { id: 'h2', label: 'Heading 2', hint: 'Medium heading', icon: 'H2', section: 'Basic blocks' },
+  { id: 'h3', label: 'Heading 3', hint: 'Small heading', icon: 'H3', section: 'Basic blocks' },
+  { id: 'bullet', label: 'Bulleted list', hint: 'Simple bullet list', icon: '•', section: 'Basic blocks' },
+  { id: 'numbered', label: 'Numbered list', hint: 'Numbered list', icon: '1.', section: 'Basic blocks' },
+  { id: 'todo', label: 'To-do list', hint: 'Track tasks with checkboxes', icon: '☑', section: 'Basic blocks' },
+  { id: 'quote', label: 'Quote', hint: 'Capture a quote', icon: '❝', section: 'Basic blocks' },
+  { id: 'callout', label: 'Callout', hint: 'Make writing stand out', icon: '💡', section: 'Basic blocks' },
+  { id: 'code', label: 'Code block', hint: 'Capture a code snippet', icon: '<>', section: 'Basic blocks' },
+  { id: 'divider', label: 'Divider', hint: 'Visual divider', icon: '—', section: 'Basic blocks' },
+  { id: 'toc', label: 'Table of contents', hint: 'Show page headings', icon: '≡', section: 'Advanced' },
+  { id: 'table', label: 'Table', hint: 'Insert a table', icon: '⊞', section: 'Advanced' },
+  { id: 'image', label: 'Image', hint: 'Upload or embed', icon: '🖼', section: 'Media' },
+  { id: 'video', label: 'YouTube', hint: 'Embed a video', icon: '▶', section: 'Media' },
+]
+
 type Props = {
   content: any
   editable: boolean
@@ -48,15 +65,23 @@ type Props = {
 }
 
 export default function Editor({ content, editable, onUpdate }: Props) {
-  const [slashMenu, setSlashMenu] = useState<{ x: number; y: number; query: string } | null>(null)
+  const [slashMenu, setSlashMenu] = useState<{ x: number; y: number; query: string; fromPos: number } | null>(null)
   const [slashIndex, setSlashIndex] = useState(0)
   const [showColorPicker, setShowColorPicker] = useState(false)
-  const slashRef = useRef<string>('')
+  const [showHighlightPicker, setShowHighlightPicker] = useState(false)
+  const [toc, setToc] = useState<{ level: number; text: string; id: string }[]>([])
+  const slashQueryRef = useRef('')
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
-      Placeholder.configure({ placeholder: "Type '/' for commands…" }),
+      Placeholder.configure({
+        placeholder: ({ node }) => {
+          if (node.type.name === 'heading') return 'Heading'
+          return "Type '/' for commands…"
+        }
+      }),
       Typography,
       TextStyle,
       Color,
@@ -64,12 +89,10 @@ export default function Editor({ content, editable, onUpdate }: Props) {
       TaskList,
       TaskItem.configure({ nested: true }),
       Table.configure({ resizable: true }),
-      TableRow,
-      TableCell,
-      TableHeader,
+      TableRow, TableCell, TableHeader,
       Image.configure({ inline: false, allowBase64: true }),
       Link.configure({ openOnClick: true, autolink: true }),
-      Youtube.configure({ controls: true }),
+      Youtube.configure({ controls: true, width: 640, height: 360 }),
       HorizontalRule,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
       Underline,
@@ -78,31 +101,57 @@ export default function Editor({ content, editable, onUpdate }: Props) {
     editable,
     onUpdate: ({ editor }) => {
       onUpdate(editor.getJSON())
+      // Update TOC
+      const headings: typeof toc = []
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'heading') {
+          headings.push({ level: node.attrs.level, text: node.textContent, id: `h-${pos}` })
+        }
+      })
+      setToc(headings)
     },
     editorProps: {
       handleKeyDown(view, event) {
         if (event.key === '/') {
           const { from } = view.state.selection
-          const coords = view.coordsAtPos(from)
-          setSlashMenu({ x: coords.left, y: coords.bottom + 8, query: '' })
-          slashRef.current = ''
+          const domPos = view.coordsAtPos(from)
+          setSlashMenu({ x: domPos.left, y: domPos.bottom + 8, query: '', fromPos: from })
+          slashQueryRef.current = ''
+          setSlashIndex(0)
           return false
         }
         if (slashMenu) {
           if (event.key === 'Escape') { setSlashMenu(null); return true }
-          if (event.key === 'ArrowDown') { setSlashIndex(i => (i + 1) % getSlashItems(slashMenu.query).length); return true }
-          if (event.key === 'ArrowUp') { setSlashIndex(i => (i - 1 + getSlashItems(slashMenu.query).length) % getSlashItems(slashMenu.query).length); return true }
-          if (event.key === 'Enter') {
-            const items = getSlashItems(slashMenu.query)
-            if (items[slashIndex]) { executeSlashCommand(items[slashIndex].id); return true }
+          if (event.key === 'ArrowDown') {
+            setSlashIndex(i => (i + 1) % getFilteredItems(slashQueryRef.current).length)
+            return true
           }
-          if (event.key.length === 1) {
-            slashRef.current += event.key
-            setSlashMenu(m => m ? { ...m, query: slashRef.current } : null)
+          if (event.key === 'ArrowUp') {
+            setSlashIndex(i => (i - 1 + getFilteredItems(slashQueryRef.current).length) % getFilteredItems(slashQueryRef.current).length)
+            return true
+          }
+          if (event.key === 'Enter') {
+            const items = getFilteredItems(slashQueryRef.current)
+            if (items[slashIndex]) {
+              executeCommand(items[slashIndex].id, slashMenu.fromPos, slashQueryRef.current)
+              return true
+            }
           }
           if (event.key === 'Backspace') {
-            if (slashRef.current.length === 0) setSlashMenu(null)
-            else { slashRef.current = slashRef.current.slice(0, -1); setSlashMenu(m => m ? { ...m, query: slashRef.current } : null) }
+            if (slashQueryRef.current.length === 0) {
+              setSlashMenu(null)
+            } else {
+              slashQueryRef.current = slashQueryRef.current.slice(0, -1)
+              setSlashMenu(m => m ? { ...m, query: slashQueryRef.current } : null)
+              setSlashIndex(0)
+            }
+            return false
+          }
+          if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
+            slashQueryRef.current += event.key
+            setSlashMenu(m => m ? { ...m, query: slashQueryRef.current } : null)
+            setSlashIndex(0)
+            return false
           }
         }
         return false
@@ -110,30 +159,52 @@ export default function Editor({ content, editable, onUpdate }: Props) {
     },
   })
 
-  function getSlashItems(query: string) {
-    const items = [
-      { id: 'h1', label: 'Heading 1', hint: 'Big section heading', icon: 'H1', section: 'Basic blocks' },
-      { id: 'h2', label: 'Heading 2', hint: 'Medium section heading', icon: 'H2', section: 'Basic blocks' },
-      { id: 'h3', label: 'Heading 3', hint: 'Small section heading', icon: 'H3', section: 'Basic blocks' },
-      { id: 'bullet', label: 'Bulleted list', hint: 'Simple bullet list', icon: '•', section: 'Basic blocks' },
-      { id: 'numbered', label: 'Numbered list', hint: 'Numbered list', icon: '1.', section: 'Basic blocks' },
-      { id: 'todo', label: 'To-do list', hint: 'Track tasks', icon: '☑', section: 'Basic blocks' },
-      { id: 'quote', label: 'Quote', hint: 'Blockquote', icon: '❝', section: 'Basic blocks' },
-      { id: 'code', label: 'Code block', hint: 'Code snippet', icon: '<>', section: 'Basic blocks' },
-      { id: 'divider', label: 'Divider', hint: 'Horizontal rule', icon: '—', section: 'Basic blocks' },
-      { id: 'table', label: 'Table', hint: 'Insert a table', icon: '⊞', section: 'Advanced' },
-      { id: 'image', label: 'Image', hint: 'Insert from URL', icon: '🖼', section: 'Media' },
-      { id: 'video', label: 'YouTube', hint: 'Embed a video', icon: '▶', section: 'Media' },
-    ]
-    if (!query) return items
-    return items.filter(i => i.label.toLowerCase().includes(query.toLowerCase()))
+  // Handle image upload by drag & drop onto editor
+  const handleEditorDrop = useCallback((e: React.DragEvent) => {
+    if (!editable || !editor) return
+    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
+    if (!files.length) return
+    e.preventDefault()
+    files.forEach(file => {
+      const reader = new FileReader()
+      reader.onload = ev => {
+        if (ev.target?.result) {
+          editor.chain().focus().setImage({ src: ev.target.result as string }).run()
+        }
+      }
+      reader.readAsDataURL(file)
+    })
+  }, [editor, editable])
+
+  // Handle paste images
+  const handleEditorPaste = useCallback((e: React.ClipboardEvent) => {
+    if (!editable || !editor) return
+    const files = Array.from(e.clipboardData.files).filter(f => f.type.startsWith('image/'))
+    if (!files.length) return
+    files.forEach(file => {
+      const reader = new FileReader()
+      reader.onload = ev => {
+        if (ev.target?.result) {
+          editor.chain().focus().setImage({ src: ev.target.result as string }).run()
+        }
+      }
+      reader.readAsDataURL(file)
+    })
+  }, [editor, editable])
+
+  function getFilteredItems(query: string) {
+    if (!query) return SLASH_ITEMS
+    return SLASH_ITEMS.filter(i => i.label.toLowerCase().includes(query.toLowerCase()))
   }
 
-  function executeSlashCommand(id: string) {
+  function executeCommand(id: string, fromPos: number, query: string) {
     if (!editor) return
     setSlashMenu(null)
-    // Delete the slash character
-    editor.commands.deleteRange({ from: editor.state.selection.from - slashRef.current.length - 1, to: editor.state.selection.from })
+    // Delete the /query text
+    const deleteFrom = fromPos - query.length - 1
+    const deleteTo = fromPos + query.length
+    editor.chain().focus().deleteRange({ from: deleteFrom, to: editor.state.selection.from }).run()
+
     switch (id) {
       case 'h1': editor.chain().focus().toggleHeading({ level: 1 }).run(); break
       case 'h2': editor.chain().focus().toggleHeading({ level: 2 }).run(); break
@@ -142,16 +213,24 @@ export default function Editor({ content, editable, onUpdate }: Props) {
       case 'numbered': editor.chain().focus().toggleOrderedList().run(); break
       case 'todo': editor.chain().focus().toggleTaskList().run(); break
       case 'quote': editor.chain().focus().toggleBlockquote().run(); break
+      case 'callout':
+        editor.chain().focus().insertContent('<p>💡 </p>').run()
+        break
       case 'code': editor.chain().focus().toggleCodeBlock().run(); break
       case 'divider': editor.chain().focus().setHorizontalRule().run(); break
-      case 'table': editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); break
+      case 'toc':
+        editor.chain().focus().insertContent('<p>≡ <em>Table of contents</em></p>').run()
+        break
+      case 'table':
+        editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+        break
       case 'image': {
-        const url = prompt('Image URL:')
+        const url = window.prompt('Image URL (or leave empty to upload):')
         if (url) editor.chain().focus().setImage({ src: url }).run()
         break
       }
       case 'video': {
-        const url = prompt('YouTube URL:')
+        const url = window.prompt('YouTube URL:')
         if (url) editor.chain().focus().setYoutubeVideo({ src: url }).run()
         break
       }
@@ -160,26 +239,51 @@ export default function Editor({ content, editable, onUpdate }: Props) {
 
   if (!editor) return null
 
+  const filteredItems = getFilteredItems(slashMenu?.query || '')
+  let lastSection = ''
+
   return (
-    <div style={{ position: 'relative' }}>
-      {/* Bubble menu (selection toolbar) */}
-      <BubbleMenu editor={editor} tippyOptions={{ duration: 100 }}>
+    <div
+      style={{ position: 'relative' }}
+      onDrop={handleEditorDrop}
+      onDragOver={e => e.preventDefault()}
+      onPaste={handleEditorPaste}
+    >
+      {/* Bubble menu — appears on text selection */}
+      <BubbleMenu editor={editor} tippyOptions={{ duration: 100, placement: 'top' }}>
         <div className="floating-toolbar">
           <FBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title="Bold"><b>B</b></FBtn>
           <FBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title="Italic"><i>I</i></FBtn>
-          <FBtn onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} title="Strike"><s>S</s></FBtn>
-          <FBtn onClick={() => editor.chain().focus().toggleUnderline?.().run()} active={editor.isActive('underline')} title="Underline"><u>U</u></FBtn>
-          <FBtn onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} title="Code">{'<>'}</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title="Underline"><u>U</u></FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} title="Strikethrough"><s>S</s></FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} title="Code">{'`'}</FBtn>
           <div className="floating-sep" />
-          <FBtn onClick={() => editor.chain().focus().toggleHighlight({ color: '#fdf3a7' }).run()} active={editor.isActive('highlight')} title="Highlight">A</FBtn>
+          {/* Text color */}
           <div style={{ position: 'relative' }}>
-            <FBtn onClick={() => setShowColorPicker(o => !o)} title="Text color" active={showColorPicker}>A</FBtn>
+            <FBtn onClick={() => { setShowColorPicker(o => !o); setShowHighlightPicker(false) }} active={showColorPicker} title="Text color">
+              <span style={{ borderBottom: `2px solid ${editor.getAttributes('textStyle').color || '#37352f'}` }}>A</span>
+            </FBtn>
             {showColorPicker && (
-              <div style={{ position: 'absolute', bottom: '36px', left: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 100, display: 'flex', flexWrap: 'wrap', gap: '4px', width: '140px' }}>
-                {COLORS.map(c => (
-                  <div key={c.value} onClick={() => { editor.chain().focus().setColor(c.value).run(); setShowColorPicker(false) }}
-                    style={{ width: '20px', height: '20px', borderRadius: '50%', background: c.value === 'inherit' ? '#37352f' : c.value, cursor: 'pointer', border: '1px solid var(--border)' }}
-                    title={c.label} />
+              <div style={{ position: 'absolute', bottom: '40px', left: '-40px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 200, display: 'flex', flexWrap: 'wrap', gap: '4px', width: '160px' }}>
+                {COLORS.map(col => (
+                  <button key={col.value} title={col.label}
+                    onClick={() => { col.value ? editor.chain().focus().setColor(col.value).run() : editor.chain().focus().unsetColor().run(); setShowColorPicker(false) }}
+                    style={{ width: '22px', height: '22px', borderRadius: '50%', background: col.value || '#37352f', border: col.value === (editor.getAttributes('textStyle').color || '') ? '2px solid var(--accent)' : '1px solid var(--border)', cursor: 'pointer' }} />
+                ))}
+              </div>
+            )}
+          </div>
+          {/* Highlight */}
+          <div style={{ position: 'relative' }}>
+            <FBtn onClick={() => { setShowHighlightPicker(o => !o); setShowColorPicker(false) }} active={showHighlightPicker} title="Highlight">
+              <span style={{ background: '#fdf3a7', padding: '0 2px' }}>H</span>
+            </FBtn>
+            {showHighlightPicker && (
+              <div style={{ position: 'absolute', bottom: '40px', left: '-40px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 200, display: 'flex', flexWrap: 'wrap', gap: '4px', width: '160px' }}>
+                {HIGHLIGHTS.map(h => (
+                  <button key={h.value} title={h.label}
+                    onClick={() => { h.value ? editor.chain().focus().setHighlight({ color: h.value }).run() : editor.chain().focus().unsetHighlight().run(); setShowHighlightPicker(false) }}
+                    style={{ width: '22px', height: '22px', borderRadius: '4px', background: h.value || '#e9e9e7', border: '1px solid var(--border)', cursor: 'pointer' }} />
                 ))}
               </div>
             )}
@@ -188,7 +292,17 @@ export default function Editor({ content, editable, onUpdate }: Props) {
           <FBtn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title="H1">H1</FBtn>
           <FBtn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title="H2">H2</FBtn>
           <div className="floating-sep" />
-          <FBtn onClick={() => { const url = prompt('URL:'); if (url) editor.chain().focus().setLink({ href: url }).run() }} active={editor.isActive('link')} title="Link">🔗</FBtn>
+          <FBtn onClick={() => {
+            const prev = editor.getAttributes('link').href
+            const url = window.prompt('URL:', prev || 'https://')
+            if (url === null) return
+            if (url === '') { editor.chain().focus().unsetLink().run(); return }
+            editor.chain().focus().setLink({ href: url }).run()
+          }} active={editor.isActive('link')} title="Link">🔗</FBtn>
+          <div className="floating-sep" />
+          <FBtn onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title="Align left">⬅</FBtn>
+          <FBtn onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} title="Center">↔</FBtn>
+          <FBtn onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} title="Align right">➡</FBtn>
         </div>
       </BubbleMenu>
 
@@ -197,30 +311,40 @@ export default function Editor({ content, editable, onUpdate }: Props) {
       {/* Slash command menu */}
       {slashMenu && (
         <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 999 }} onClick={() => setSlashMenu(null)} />
-          <div className="slash-menu fade-in"
-            style={{ position: 'fixed', left: Math.min(slashMenu.x, window.innerWidth - 260), top: slashMenu.y, zIndex: 1000 }}>
-            {(() => {
-              const items = getSlashItems(slashMenu.query)
-              let lastSection = ''
-              return items.map((item, i) => {
-                const showSection = item.section !== lastSection
-                lastSection = item.section
-                return (
-                  <div key={item.id}>
-                    {showSection && <div className="slash-menu-section">{item.section}</div>}
-                    <div className={`slash-menu-item ${i === slashIndex ? 'active' : ''}`}
-                      onClick={() => executeSlashCommand(item.id)}>
-                      <div className="icon">{item.icon}</div>
-                      <div>
-                        <div className="label">{item.label}</div>
-                        <div className="hint">{item.hint}</div>
-                      </div>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setSlashMenu(null)} />
+          <div
+            ref={menuRef}
+            className="slash-menu fade-in"
+            style={{
+              position: 'fixed',
+              left: Math.min(slashMenu.x, (typeof window !== 'undefined' ? window.innerWidth : 800) - 260),
+              top: slashMenu.y,
+              zIndex: 999
+            }}
+          >
+            {filteredItems.length === 0 && (
+              <div style={{ padding: '10px 12px', color: 'var(--text-tertiary)', fontSize: '13px' }}>No results</div>
+            )}
+            {filteredItems.map((item, i) => {
+              const showSec = item.section !== lastSection
+              lastSection = item.section
+              return (
+                <div key={item.id}>
+                  {showSec && <div className="slash-menu-section">{item.section}</div>}
+                  <div
+                    className={`slash-menu-item ${i === slashIndex ? 'active' : ''}`}
+                    onMouseEnter={() => setSlashIndex(i)}
+                    onClick={() => executeCommand(item.id, slashMenu.fromPos, slashMenu.query)}
+                  >
+                    <div className="icon">{item.icon}</div>
+                    <div>
+                      <div className="label">{item.label}</div>
+                      <div className="hint">{item.hint}</div>
                     </div>
                   </div>
-                )
-              })
-            })()}
+                </div>
+              )
+            })}
           </div>
         </>
       )}
@@ -228,7 +352,7 @@ export default function Editor({ content, editable, onUpdate }: Props) {
   )
 }
 
-function FBtn({ onClick, active, title, children }: any) {
+function FBtn({ onClick, active, title, children }: { onClick: () => void; active: boolean; title: string; children: React.ReactNode }) {
   return (
     <button onClick={onClick} title={title} className={`floating-btn ${active ? 'active' : ''}`}>
       {children}

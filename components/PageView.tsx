@@ -1,297 +1,388 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import dynamic from 'next/dynamic'
 import type { Page } from '@/lib/types'
+import Editor from './Editor'
+import DatabaseView from './DatabaseView'
 
-const Editor = dynamic(() => import('./editor/Editor'), { ssr: false })
+const EMOJI_LIST = ['📄','📝','📌','⭐','🔥','💡','🎯','📊','🗂','🌿','🚀','💎','🎨','🔑','📦','🌍','💬','🧠','✅','🎉','🏠','🔧','📚','🎵','🌸','⚡','🦋','🌊','🏔','🎭','📐','🔬','🌈','🍀','🦁','🐋','🌙','☀️','🎪','🏆']
 
-const COVER_IMAGES = [
-  'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&q=80',
-  'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1200&q=80',
-  'https://images.unsplash.com/photo-1518020382113-a7e8fc38eac9?w=1200&q=80',
-]
+type Props = {
+  page: Page
+  canEdit: boolean
+  isOwner: boolean
+  userId: string
+}
 
-const EMOJIS = ['📄','📝','💡','🎯','🚀','⭐','🌿','🔥','💎','🎨','📊','🗂️','🌍','🏆','❤️','🧠','⚡','🌊','🎵','📚']
-
-export default function PageView({ page: initialPage, canEdit, isOwner }: {
-  page: Page; canEdit: boolean; isOwner: boolean
-}) {
+export default function PageView({ page: initialPage, canEdit, isOwner, userId }: Props) {
   const [page, setPage] = useState(initialPage)
-  const [title, setTitle] = useState(initialPage.title)
+  const [saved, setSaved] = useState(true)
+  const [showIconPicker, setShowIconPicker] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [shares, setShares] = useState<any[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('view')
-  const [saved, setSaved] = useState(true)
-  const [showCoverPicker, setShowCoverPicker] = useState(false)
-  const [showIconPicker, setShowIconPicker] = useState(false)
-  const [coverInput, setCoverInput] = useState('')
-  const [headerHovered, setHeaderHovered] = useState(false)
+  const [toast, setToast] = useState('')
+  const [isUploadingCover, setIsUploadingCover] = useState(false)
   const saveTimer = useRef<any>(null)
+  const titleRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
   const router = useRouter()
 
-  useEffect(() => { if (shareOpen && isOwner) loadShares() }, [shareOpen])
+  useEffect(() => {
+    if (shareOpen && isOwner) loadShares()
+  }, [shareOpen])
+
+  // Sync title display
+  useEffect(() => {
+    if (titleRef.current && titleRef.current.textContent !== page.title) {
+      titleRef.current.textContent = page.title
+    }
+  }, [page.id])
 
   async function loadShares() {
     const { data } = await supabase.from('page_shares').select('*').eq('page_id', page.id)
     if (!data) return
     const enriched = await Promise.all(data.map(async s => {
-      const { data: p } = await supabase.from('profiles').select('email, full_name').eq('id', s.user_id).single()
-      return { ...s, email: p?.email || s.user_id, name: p?.full_name }
+      const { data: profile } = await supabase.from('profiles').select('email, full_name').eq('id', s.user_id).single()
+      return { ...s, email: profile?.email || s.user_id, name: profile?.full_name }
     }))
     setShares(enriched)
   }
 
-  function scheduleContentSave(content: any) {
+  function scheduleSave(updates: Partial<Page>) {
     setSaved(false)
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(async () => {
-      await supabase.from('pages').update({ content, updated_at: new Date().toISOString() }).eq('id', page.id)
+      await supabase.from('pages').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', page.id)
       setSaved(true)
     }, 800)
   }
 
-  async function saveTitle(t: string) {
-    setTitle(t)
-    await supabase.from('pages').update({ title: t, updated_at: new Date().toISOString() }).eq('id', page.id)
+  function onTitleInput(e: React.FormEvent<HTMLDivElement>) {
+    const title = (e.target as HTMLDivElement).textContent || ''
+    setPage(p => ({ ...p, title }) as Page)
+    scheduleSave({ title })
   }
 
-  async function setIcon(icon: string) {
-    await supabase.from('pages').update({ icon }).eq('id', page.id)
-    setPage(p => ({ ...p, icon }))
+  function onContentUpdate(content: any) {
+    setPage(p => ({ ...p, content }) as Page)
+    scheduleSave({ content })
+  }
+
+  function setIcon(icon: string) {
+    setPage(p => ({ ...p, icon }) as Page)
+    scheduleSave({ icon })
     setShowIconPicker(false)
   }
 
-  async function setCover(url: string) {
-    await supabase.from('pages').update({ cover_url: url }).eq('id', page.id)
-    setPage(p => ({ ...p, cover_url: url }))
-    setShowCoverPicker(false)
+  async function uploadCover(file: File) {
+    setIsUploadingCover(true)
+    const path = `${userId}/covers/${Date.now()}.${file.name.split('.').pop()}`
+    const { error } = await supabase.storage.from('images').upload(path, file)
+    if (!error) {
+      const { data } = supabase.storage.from('images').getPublicUrl(path)
+      const url = data.publicUrl
+      setPage(p => ({ ...p, cover_url: url }) as Page)
+      scheduleSave({ cover_url: url })
+    } else {
+      showToast('Upload failed')
+    }
+    setIsUploadingCover(false)
   }
 
   async function removeCover() {
-    await supabase.from('pages').update({ cover_url: '' }).eq('id', page.id)
-    setPage(p => ({ ...p, cover_url: '' }))
-  }
-
-  async function updateLinkPerm(perm: string) {
-    await supabase.from('pages').update({ link_permission: perm }).eq('id', page.id)
-    setPage(p => ({ ...p, link_permission: perm as any }))
+    setPage(p => ({ ...p, cover_url: '' }) as Page)
+    scheduleSave({ cover_url: '' })
   }
 
   async function inviteUser() {
     if (!inviteEmail.trim()) return
     const { data: profile } = await supabase.from('profiles').select('id').eq('email', inviteEmail.trim()).single()
-    if (!profile) { alert('User not found'); return }
+    if (!profile) { showToast('User not found'); return }
     await supabase.from('page_shares').upsert({ page_id: page.id, user_id: profile.id, permission: inviteRole })
-    setInviteEmail(''); loadShares()
+    const { data: subIds } = await supabase.rpc('get_all_subpage_ids', { page_id: page.id })
+    if (subIds) for (const row of subIds) {
+      await supabase.from('page_shares').upsert({ page_id: row.id, user_id: profile.id, permission: inviteRole })
+    }
+    setInviteEmail('')
+    loadShares()
+    showToast(`${inviteEmail} added!`)
   }
 
-  async function removeShare(userId: string) {
-    await supabase.from('page_shares').delete().eq('page_id', page.id).eq('user_id', userId)
+  async function removeShare(uid: string) {
+    await supabase.from('page_shares').delete().eq('page_id', page.id).eq('user_id', uid)
     loadShares()
   }
 
-  function copyLink() {
-    navigator.clipboard?.writeText(`${window.location.origin}/share/${page.id}`)
-    alert('Link copied!')
+  async function updateLinkPerm(perm: string) {
+    await supabase.from('pages').update({ link_permission: perm }).eq('id', page.id)
+    setPage(p => ({ ...p, link_permission: perm }) as Page)
+    const { data: subIds } = await supabase.rpc('get_all_subpage_ids', { page_id: page.id })
+    if (subIds) for (const row of subIds) {
+      await supabase.from('pages').update({ link_permission: perm }).eq('id', row.id)
+    }
   }
 
+  async function deletePage() {
+    if (!confirm('Delete this page and all its sub-pages?')) return
+    await supabase.from('pages').delete().eq('id', page.id)
+    router.push('/app')
+  }
+
+  async function duplicatePage() {
+    const { data } = await supabase.from('pages').insert({
+      workspace_id: page.workspace_id,
+      parent_id: page.parent_id,
+      title: page.title + ' (copy)',
+      icon: page.icon,
+      content: page.content,
+      position: page.position + 0.5,
+      is_database: page.is_database,
+      link_permission: 'none'
+    }).select().single()
+    if (data) {
+      router.push(`/app/page/${data.id}`)
+      showToast('Page duplicated!')
+    }
+  }
+
+  function copyShareLink() {
+    navigator.clipboard?.writeText(`${window.location.origin}/share/${page.id}`)
+    showToast('Link copied!')
+  }
+
+  function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2500) }
+
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg)' }}>
-      {/* TOP BAR */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0, background: 'var(--bg)' }}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-          <span style={{ fontSize: '14px' }}>{page.icon || '📄'}</span>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '300px' }}>{title || 'Untitled'}</span>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+
+      {/* Top bar */}
+      <div style={{ height: '44px', padding: '0 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-tertiary)', overflow: 'hidden' }}>
+          {page.icon && <span style={{ fontSize: '14px' }}>{page.icon}</span>}
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{page.title || 'Untitled'}</span>
         </div>
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          {canEdit && <span style={{ fontSize: '11px', color: saved ? 'var(--text-tertiary)' : 'var(--orange)' }}>{saved ? 'Saved' : 'Saving…'}</span>}
-          {isOwner && (
-            <button onClick={() => setShareOpen(o => !o)}
-              style={{ background: 'var(--accent)', color: 'white', border: 'none', padding: '5px 12px', borderRadius: 'var(--radius)', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}>
-              Share
-            </button>
-          )}
-        </div>
+        <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{saved ? '' : 'Saving…'}</span>
+        {canEdit && (
+          <button onClick={duplicatePage} title="Duplicate page"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '13px', padding: '4px 6px', borderRadius: '4px', fontFamily: 'var(--font-sans)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+            ⧉
+          </button>
+        )}
+        {isOwner && (
+          <button onClick={() => setShareOpen(o => !o)}
+            style={{ background: shareOpen ? 'var(--accent)' : 'var(--sidebar-bg)', color: shareOpen ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border)', padding: '5px 14px', borderRadius: '5px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s' }}>
+            Share
+          </button>
+        )}
       </div>
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        {/* MAIN CONTENT */}
+        {/* Page content */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {/* COVER */}
+
+          {/* Cover */}
           {page.cover_url && (
-            <div style={{ position: 'relative', height: '200px', overflow: 'hidden' }}
-              onMouseEnter={() => setHeaderHovered(true)}
-              onMouseLeave={() => setHeaderHovered(false)}>
-              <img src={page.cover_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              {canEdit && headerHovered && (
-                <div style={{ position: 'absolute', bottom: '8px', right: '12px', display: 'flex', gap: '6px' }}>
-                  <button onClick={() => setShowCoverPicker(true)} style={coverBtnSt}>Change cover</button>
-                  <button onClick={removeCover} style={coverBtnSt}>Remove</button>
+            <div style={{ position: 'relative', height: '240px', overflow: 'hidden', background: '#f0ede8' }}>
+              <img src={page.cover_url} alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              {canEdit && (
+                <div style={{ position: 'absolute', bottom: '12px', right: '16px', display: 'flex', gap: '6px' }}>
+                  <label style={{ background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(4px)', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
+                    Change cover
+                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadCover(f) }} />
+                  </label>
+                  <button onClick={removeCover} style={{ background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(4px)', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Remove</button>
                 </div>
               )}
             </div>
           )}
 
-          {/* PAGE HEADER */}
-          <div className="page-content" style={{ padding: page.cover_url ? '24px 96px 0' : '64px 96px 0' }}
-            onMouseEnter={() => setHeaderHovered(true)}
-            onMouseLeave={() => setHeaderHovered(false)}>
-            {/* Icon */}
-            {page.icon && (
-              <div onClick={() => canEdit && setShowIconPicker(true)}
-                style={{ fontSize: '52px', marginBottom: '8px', cursor: canEdit ? 'pointer' : 'default', display: 'inline-block', lineHeight: 1 }}>
-                {page.icon}
-              </div>
-            )}
+          {/* Page body */}
+          <div style={{ maxWidth: '720px', margin: '0 auto', padding: page.cover_url ? '24px 60px 80px' : '64px 60px 80px' }}>
 
-            {/* Add cover / icon buttons */}
-            {canEdit && headerHovered && !page.icon && !page.cover_url && (
-              <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
-                <button onClick={() => setShowIconPicker(true)} style={addBtnSt}>+ Add icon</button>
-                <button onClick={() => setShowCoverPicker(true)} style={addBtnSt}>+ Add cover</button>
-              </div>
-            )}
-            {canEdit && headerHovered && (page.icon || page.cover_url) && (
-              <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
-                {!page.icon && <button onClick={() => setShowIconPicker(true)} style={addBtnSt}>+ Add icon</button>}
-                {!page.cover_url && <button onClick={() => setShowCoverPicker(true)} style={addBtnSt}>+ Add cover</button>}
-              </div>
-            )}
+            {/* Icon area */}
+            <div style={{ marginBottom: '4px', position: 'relative' }}>
+              {page.icon ? (
+                <span
+                  onClick={() => canEdit && setShowIconPicker(o => !o)}
+                  style={{ fontSize: '52px', lineHeight: 1, display: 'block', marginBottom: '12px', cursor: canEdit ? 'pointer' : 'default', userSelect: 'none', transition: 'transform 0.1s' }}
+                  onMouseEnter={e => { if (canEdit) (e.currentTarget as HTMLElement).style.transform = 'scale(1.05)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}>
+                  {page.icon}
+                </span>
+              ) : canEdit && (
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                  <button onClick={() => setShowIconPicker(o => !o)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                    😀 Add icon
+                  </button>
+                  {!page.cover_url && (
+                    <label
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                      🖼 Add cover
+                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadCover(f) }} />
+                    </label>
+                  )}
+                </div>
+              )}
+
+              {/* Icon picker */}
+              {showIconPicker && (
+                <>
+                  <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowIconPicker(false)} />
+                  <div style={{ position: 'absolute', top: page.icon ? '64px' : '36px', left: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px', boxShadow: 'var(--shadow-lg)', zIndex: 100, width: '280px' }} className="scale-in">
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                      {EMOJI_LIST.map(e => (
+                        <button key={e} onClick={() => setIcon(e)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '22px', padding: '4px 5px', borderRadius: '4px', lineHeight: 1 }}
+                          onMouseEnter={ev => { (ev.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                          onMouseLeave={ev => { (ev.currentTarget as HTMLElement).style.background = 'none' }}>
+                          {e}
+                        </button>
+                      ))}
+                    </div>
+                    {page.icon && (
+                      <button onClick={() => setIcon('')}
+                        style={{ width: '100%', background: 'none', border: '1px solid var(--border)', cursor: 'pointer', fontSize: '12px', padding: '5px', borderRadius: '5px', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)' }}>
+                        Remove icon
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* Title */}
-            {canEdit
-              ? <div
-                  contentEditable suppressContentEditableWarning
-                  onBlur={e => saveTitle(e.currentTarget.textContent || '')}
-                  style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--text)', outline: 'none', lineHeight: 1.2, marginBottom: '8px', minHeight: '3rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-                  data-placeholder="Untitled"
-                  onInput={e => { const el = e.currentTarget; if (!el.textContent) el.style.color = 'var(--text-tertiary)'; else el.style.color = 'var(--text)' }}>
-                  {title}
-                </div>
-              : <h1 style={{ fontSize: '2.5rem', fontWeight: 700, marginBottom: '8px', lineHeight: 1.2 }}>{title}</h1>
-            }
-          </div>
+            {canEdit ? (
+              <div
+                ref={titleRef}
+                contentEditable
+                suppressContentEditableWarning
+                onInput={onTitleInput}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    const editorEl = document.querySelector('.tiptap') as HTMLElement
+                    editorEl?.focus()
+                  }
+                }}
+                style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--text)', outline: 'none', marginBottom: '2px', lineHeight: 1.2, wordBreak: 'break-word', minHeight: '1.2em', fontFamily: 'var(--font-sans)' }}
+                data-placeholder="Untitled"
+              />
+            ) : (
+              <h1 style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--text)', marginBottom: '2px', lineHeight: 1.2, fontFamily: 'var(--font-sans)' }}>
+                {page.title || 'Untitled'}
+              </h1>
+            )}
 
-          {/* EDITOR */}
-          <div className="page-content" style={{ padding: '8px 96px 96px' }}>
-            {canEdit
-              ? <Editor content={page.content} onChange={scheduleContentSave} editable={true} />
-              : <Editor content={page.content} onChange={() => {}} editable={false} />
-            }
+            {/* Editor / Database */}
+            <div style={{ marginTop: '20px' }}>
+              {page.is_database
+                ? <DatabaseView page={page} canEdit={canEdit} />
+                : <Editor content={page.content} editable={canEdit} onUpdate={onContentUpdate} />
+              }
+            </div>
           </div>
         </div>
 
-        {/* SHARE PANEL */}
+        {/* Share panel */}
         {shareOpen && isOwner && (
-          <div style={{ width: '300px', background: 'var(--bg)', borderLeft: '1px solid var(--border)', padding: '20px', overflowY: 'auto', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '14px', fontWeight: 600 }}>Share</h3>
-              <button onClick={() => setShareOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '16px' }}>✕</button>
+          <div style={{ width: '300px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', padding: '20px', overflowY: 'auto', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 600 }}>Share</h3>
+              <button onClick={() => setShareOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '16px', lineHeight: 1 }}>✕</button>
             </div>
 
-            <div style={{ marginBottom: '16px' }}>
-              <label style={shareLabelSt}>Link access</label>
-              <select value={page.link_permission} onChange={e => updateLinkPerm(e.target.value)} style={selectSt}>
-                <option value="none">No access</option>
-                <option value="view">Anyone with link — view</option>
-                <option value="edit">Anyone with link — edit</option>
+            {/* Link access */}
+            <div>
+              <label style={labelSt}>Link access</label>
+              <select value={page.link_permission} onChange={e => updateLinkPerm(e.target.value)} style={{ ...inputSt, marginTop: '6px' }}>
+                <option value="none">🔒 No access</option>
+                <option value="view">👁 Anyone can view</option>
+                <option value="edit">✎ Anyone can edit</option>
               </select>
               {page.link_permission !== 'none' && (
-                <button onClick={copyLink} style={{ marginTop: '6px', width: '100%', padding: '6px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: '12px', cursor: 'pointer', color: 'var(--text)' }}>
-                  Copy link
+                <button onClick={copyShareLink}
+                  style={{ marginTop: '8px', width: '100%', padding: '7px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--sidebar-bg)', fontFamily: 'var(--font-sans)', fontSize: '13px', cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                  🔗 Copy link
                 </button>
               )}
             </div>
 
-            <div style={{ marginBottom: '16px' }}>
-              <label style={shareLabelSt}>Add person</label>
+            {/* Invite */}
+            <div>
+              <label style={labelSt}>Add person</label>
               <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && inviteUser()}
                 placeholder="email@example.com"
-                style={{ ...inputSt, marginBottom: '6px' }} />
+                onKeyDown={e => { if (e.key === 'Enter') inviteUser() }}
+                style={{ ...inputSt, marginTop: '6px', marginBottom: '6px' }} />
               <div style={{ display: 'flex', gap: '6px' }}>
-                <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} style={{ ...selectSt, flex: 1 }}>
+                <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} style={{ ...inputSt, flex: 1 }}>
                   <option value="view">Can view</option>
                   <option value="edit">Can edit</option>
                 </select>
-                <button onClick={inviteUser} style={{ background: 'var(--accent)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: 'var(--radius)', fontSize: '12px', cursor: 'pointer', fontWeight: 500 }}>Add</button>
+                <button onClick={inviteUser}
+                  style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '7px 16px', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
+                  Add
+                </button>
               </div>
             </div>
 
+            {/* People */}
             {shares.length > 0 && (
               <div>
-                <label style={shareLabelSt}>People with access</label>
-                <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={labelSt}>People with access</label>
+                <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   {shares.map(s => (
-                    <div key={s.user_id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', background: 'var(--bg-secondary)', borderRadius: 'var(--radius)', fontSize: '13px' }}>
-                      <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--bg-active)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 600, flexShrink: 0 }}>
+                    <div key={s.user_id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', background: 'var(--sidebar-bg)', borderRadius: '6px' }}>
+                      <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                         {(s.email || '?')[0].toUpperCase()}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        {s.name && <div style={{ fontSize: '12px', fontWeight: 500 }}>{s.name}</div>}
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.email}</div>
+                        {s.name && <div style={{ fontSize: '13px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>}
+                        <div style={{ fontSize: '12px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.email}</div>
                       </div>
-                      <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{s.permission}</span>
-                      <button onClick={() => removeShare(s.user_id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '12px' }}>✕</button>
+                      <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{s.permission}</span>
+                      <button onClick={() => removeShare(s.user_id)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '14px', lineHeight: 1, padding: '2px' }}>✕</button>
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Danger zone */}
+            {isOwner && (
+              <div style={{ paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+                <button onClick={deletePage}
+                  style={{ width: '100%', background: 'none', border: '1px solid #fecaca', color: 'var(--red)', padding: '7px', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontSize: '13px', cursor: 'pointer' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                  🗑 Delete page
+                </button>
               </div>
             )}
           </div>
         )}
       </div>
 
-      {/* ICON PICKER */}
-      {showIconPicker && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setShowIconPicker(false)}>
-          <div style={{ position: 'absolute', top: '120px', left: '120px', background: 'var(--surface)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius-lg)', padding: '12px', boxShadow: 'var(--shadow-lg)', width: '260px' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-              {EMOJIS.map(e => (
-                <button key={e} onClick={() => setIcon(e)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '22px', padding: '4px', borderRadius: 'var(--radius-sm)', lineHeight: 1 }}
-                  onMouseEnter={el => (el.currentTarget.style.background = 'var(--bg-hover)')}
-                  onMouseLeave={el => (el.currentTarget.style.background = 'none')}>
-                  {e}
-                </button>
-              ))}
-            </div>
-            {page.icon && <button onClick={() => setIcon('')} style={{ marginTop: '8px', width: '100%', padding: '5px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: '12px', cursor: 'pointer', color: 'var(--text-secondary)' }}>Remove icon</button>}
-          </div>
-        </div>
-      )}
-
-      {/* COVER PICKER */}
-      {showCoverPicker && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 50 }} onClick={() => setShowCoverPicker(false)}>
-          <div style={{ position: 'absolute', top: '120px', left: '120px', background: 'var(--surface)', border: '1px solid var(--border-strong)', borderRadius: 'var(--radius-lg)', padding: '16px', boxShadow: 'var(--shadow-lg)', width: '320px' }} onClick={e => e.stopPropagation()}>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Gallery</div>
-            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
-              {COVER_IMAGES.map(img => (
-                <img key={img} src={img} alt="" onClick={() => setCover(img)}
-                  style={{ width: '88px', height: '56px', objectFit: 'cover', borderRadius: 'var(--radius)', cursor: 'pointer', border: '2px solid transparent' }}
-                  onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--accent)')}
-                  onMouseLeave={e => (e.currentTarget.style.borderColor = 'transparent')} />
-              ))}
-            </div>
-            <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Link</div>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <input value={coverInput} onChange={e => setCoverInput(e.target.value)} placeholder="Paste image URL…" style={{ ...inputSt, flex: 1 }} />
-              <button onClick={() => coverInput && setCover(coverInput)} style={{ background: 'var(--accent)', color: 'white', border: 'none', padding: '6px 10px', borderRadius: 'var(--radius)', fontSize: '12px', cursor: 'pointer' }}>Add</button>
-            </div>
-          </div>
+      {/* Toast */}
+      {toast && (
+        <div style={{ position: 'fixed', bottom: '24px', right: '24px', background: '#37352f', color: '#fff', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', zIndex: 300, boxShadow: 'var(--shadow-lg)' }} className="fade-in">
+          {toast}
         </div>
       )}
     </div>
   )
 }
 
-const coverBtnSt: React.CSSProperties = { background: 'rgba(0,0,0,0.5)', color: 'white', border: 'none', padding: '4px 10px', borderRadius: 'var(--radius)', fontSize: '12px', cursor: 'pointer', backdropFilter: 'blur(4px)' }
-const addBtnSt: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-tertiary)', padding: '2px 6px', borderRadius: 'var(--radius-sm)' }
-const shareLabelSt: React.CSSProperties = { display: 'block', fontSize: '10px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }
-const selectSt: React.CSSProperties = { width: '100%', padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontFamily: 'var(--font-sans)', fontSize: '12px', background: 'var(--bg)', color: 'var(--text)', outline: 'none' }
-const inputSt: React.CSSProperties = { width: '100%', padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontFamily: 'var(--font-sans)', fontSize: '12px', background: 'var(--bg)', color: 'var(--text)', outline: 'none' }
+const labelSt: React.CSSProperties = { fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }
+const inputSt: React.CSSProperties = { width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontSize: '13px', background: 'var(--sidebar-bg)', color: 'var(--text)', outline: 'none', cursor: 'pointer' }

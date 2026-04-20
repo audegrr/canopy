@@ -40,7 +40,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const [newField, setNewField] = useState({ name: '', type: 'text' as DbField['type'] })
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null)
   const [showFilters, setShowFilters] = useState(false)
-  const [relatedPages, setRelatedPages] = useState<Page[]>([])
+  const [relatedPages, setRelatedPages] = useState<{id: string; title: string; icon: string}[]>([])
   const [relatedRecords, setRelatedRecords] = useState<Record<string, DbRecord[]>>({})
   const [relations, setRelations] = useState<any[]>([])
   const [toast, setToast] = useState('')
