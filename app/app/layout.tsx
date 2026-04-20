@@ -1,53 +1,43 @@
 // @ts-nocheck
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import AppShell from '@/components/AppShell'
+import Sidebar from '@/components/Sidebar'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: folders } = await supabase
-    .from('folders').select('*').eq('owner_id', user.id).order('created_at')
+  // Get or create default workspace
+  let { data: workspaces } = await supabase.from('workspaces').select('*').eq('owner_id', user.id).order('created_at')
+  if (!workspaces || workspaces.length === 0) {
+    const { data: ws } = await supabase.from('workspaces').insert({ name: 'My Workspace', icon: '🌿', owner_id: user.id }).select().single()
+    workspaces = ws ? [ws] : []
+  }
+  const currentWorkspace = workspaces[0]
 
-  const { data: rawDocs } = await supabase
-    .from('documents')
-    .select('id, title, folder_id, parent_id, link_permission')
-    .eq('owner_id', user.id)
-    .order('updated_at', { ascending: false })
+  const { data: pages } = await supabase.from('pages').select('*').eq('workspace_id', currentWorkspace?.id).order('position')
 
-  const docs = (rawDocs || []).map((d: any) => ({
-    id: d.id, title: d.title,
-    folder_id: d.folder_id ?? null,
-    parent_id: d.parent_id ?? null,
-    link_permission: d.link_permission ?? 'none',
+  const { data: sharedData } = await supabase.rpc('get_shared_pages', { user_uuid: user.id })
+  const sharedPages = (sharedData || []).map((p: any) => ({
+    id: p.id, title: p.title, icon: p.icon || '',
+    owner_id: p.owner_id, permission: p.permission, parent_id: p.parent_id
   }))
 
-  // Docs shared with this user — using security definer function to bypass RLS
-  const { data: sharedDocsData } = await supabase
-    .rpc('get_shared_documents', { user_uuid: user.id })
-  console.log('sharedDocsData:', JSON.stringify(sharedDocsData))
-  const sharedDocs = (sharedDocsData || []).map((d: any) => ({
-    id: d.id,
-    title: d.title,
-    owner_id: d.owner_id,
-    permission: d.permission
-  }))
-
-  const { data: databases } = await supabase
-    .from('databases').select('id, title').eq('owner_id', user.id)
-    .order('created_at', { ascending: false })
+  const profile = { id: user.id, email: user.email || '', name: user.user_metadata?.full_name || user.email || '' }
 
   return (
-    <AppShell
-      user={{ id: user.id, email: user.email, name: user.user_metadata?.full_name || user.email }}
-      initialFolders={folders || []}
-      initialDocs={docs}
-      initialDatabases={databases || []}
-      initialSharedDocs={sharedDocs}
-    >
-      {children}
-    </AppShell>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+      <Sidebar
+        user={profile}
+        workspaces={workspaces || []}
+        currentWorkspace={currentWorkspace}
+        pages={pages || []}
+        sharedPages={sharedPages}
+      />
+      <main style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {children}
+      </main>
+    </div>
   )
 }
