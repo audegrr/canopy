@@ -1,432 +1,436 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import type { Workspace, Page, SharedPage, User } from '@/lib/types'
 
-type Folder = { id: string; name: string; expanded?: boolean }
-type Doc = { id: string; title: string; folder_id: string | null; parent_id: string | null; link_permission: string }
-type User = { id: string; email: string; name: string }
-type Database = { id: string; title: string }
-type SharedDoc = { id: string; title: string; owner_id: string; permission: string }
-
-export default function AppShell({
-  user, initialFolders, initialDocs, initialDatabases = [], initialSharedDocs = [], children
-}: {
+type Props = {
   user: User
-  initialFolders: Folder[]
-  initialDocs: Doc[]
-  initialDatabases?: Database[]
-  initialSharedDocs?: SharedDoc[]
+  workspaces: Workspace[]
+  currentWorkspace: Workspace
+  pages: Page[]
+  sharedPages: SharedPage[]
   children: React.ReactNode
-}) {
-  const [folders, setFolders] = useState<Folder[]>(initialFolders.map(f => ({ ...f, expanded: true })))
-  const [docs, setDocs] = useState<Doc[]>(initialDocs)
-  const [databases, setDatabases] = useState<Database[]>(initialDatabases)
-  const [sharedDocs] = useState<SharedDoc[]>(initialSharedDocs)
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+}
+
+export default function AppShell({ user, workspaces: initialWorkspaces, currentWorkspace: initialWs, pages: initialPages, sharedPages, children }: Props) {
+  const [workspaces, setWorkspaces] = useState(initialWorkspaces)
+  const [currentWs, setCurrentWs] = useState(initialWs)
+  const [pages, setPages] = useState(initialPages)
+  const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set())
+  const [expandedShared, setExpandedShared] = useState<Set<string>>(new Set())
   const [sidebarOpen, setSidebarOpen] = useState(true)
-  const [modal, setModal] = useState<null | 'newDoc' | 'newFolder' | 'renameFolder' | 'deleteFolder' | 'renameDoc' | 'deleteDoc'>(null)
-  const [modalData, setModalData] = useState<any>({})
-  const [inputVal, setInputVal] = useState('')
-  const [folderSelect, setFolderSelect] = useState('')
+  const [wsMenuOpen, setWsMenuOpen] = useState(false)
+  const [renamingWs, setRenamingWs] = useState(false)
+  const [wsNameInput, setWsNameInput] = useState('')
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; pageId: string } | null>(null)
+  const [dragOverId, setDragOverId] = useState<string | null>(null)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
-  const currentDocId = pathname.startsWith('/app/doc/') ? pathname.split('/app/doc/')[1] : null
+  const currentPageId = pathname.match(/\/app\/page\/([^\/]+)/)?.[1] || null
 
-  async function signOut() {
-    await supabase.auth.signOut()
-    router.push('/login')
-  }
-
-  function openModal(type: typeof modal, data: any = {}, prefill = '') {
-    setModal(type); setModalData(data); setInputVal(prefill); setFolderSelect('')
-  }
-  function closeModal() { setModal(null); setModalData({}) }
-
-  async function createFolder() {
-    const name = inputVal.trim() || 'Untitled folder'
-    const { data, error } = await supabase.from('folders').insert({ name, owner_id: user.id }).select().single()
-    if (!error && data) setFolders(f => [...f, { ...data, expanded: true }])
-    closeModal()
-  }
-
-  async function renameFolder() {
-    const name = inputVal.trim() || modalData.name
-    const { error } = await supabase.from('folders').update({ name }).eq('id', modalData.id)
-    if (!error) setFolders(f => f.map(x => x.id === modalData.id ? { ...x, name } : x))
-    closeModal()
-  }
-
-  async function deleteFolder() {
-    await supabase.from('documents').delete().eq('folder_id', modalData.id)
-    await supabase.from('folders').delete().eq('id', modalData.id)
-    setFolders(f => f.filter(x => x.id !== modalData.id))
-    setDocs(d => d.filter(x => x.folder_id !== modalData.id))
-    if (currentDocId && docs.find(d => d.id === currentDocId && d.folder_id === modalData.id)) router.push('/app')
-    closeModal()
-  }
-
-  async function createDoc() {
-    const title = inputVal.trim() || 'Untitled'
-    const folder_id = modalData.folderId || folderSelect || null
-    const parent_id = modalData.parentId || null
-    const { data, error } = await supabase.from('documents').insert({
-      title, folder_id, parent_id, content: '', link_permission: 'none'
+  // ── PAGE ACTIONS ────────────────────────────────────────────
+  async function createPage(parentId: string | null = null) {
+    const maxPos = pages.filter(p => p.parent_id === parentId).reduce((m, p) => Math.max(m, p.position), 0)
+    const { data, error } = await supabase.from('pages').insert({
+      workspace_id: currentWs.id,
+      parent_id: parentId,
+      title: 'Untitled',
+      icon: '',
+      content: [],
+      position: maxPos + 1,
+      is_database: false,
+      link_permission: 'none'
     }).select().single()
-    if (error) { alert('Error: ' + error.message); return }
-    if (data) {
-      setDocs(d => [data, ...d])
-      if (parent_id) setExpanded(e => new Set([...e, parent_id]))
-      closeModal()
-      router.push(`/app/doc/${data.id}`)
+    if (!error && data) {
+      setPages(p => [...p, data])
+      if (parentId) setExpandedPages(e => new Set([...e, parentId]))
+      router.push(`/app/page/${data.id}`)
     }
   }
 
-  async function renameDoc() {
-    const title = inputVal.trim() || modalData.title
-    const { error } = await supabase.from('documents').update({ title }).eq('id', modalData.id)
-    if (!error) setDocs(d => d.map(x => x.id === modalData.id ? { ...x, title } : x))
-    closeModal()
+  async function createDatabase(parentId: string | null = null) {
+    const { data, error } = await supabase.from('pages').insert({
+      workspace_id: currentWs.id,
+      parent_id: parentId,
+      title: 'Untitled database',
+      icon: '🗄️',
+      content: [],
+      position: Date.now(),
+      is_database: true,
+      link_permission: 'none'
+    }).select().single()
+    if (!error && data) {
+      setPages(p => [...p, data])
+      router.push(`/app/page/${data.id}`)
+    }
   }
 
-  async function deleteDoc() {
-    // Also delete all subdocs recursively
-    const toDelete = getAllDescendants(modalData.id)
-    for (const id of toDelete) await supabase.from('documents').delete().eq('id', id)
-    await supabase.from('documents').delete().eq('id', modalData.id)
-    setDocs(d => d.filter(x => x.id !== modalData.id && !toDelete.includes(x.id)))
-    if (currentDocId === modalData.id || toDelete.includes(currentDocId || '')) router.push('/app')
-    closeModal()
+  async function deletePage(pageId: string) {
+    await supabase.from('pages').delete().eq('id', pageId)
+    setPages(p => p.filter(x => x.id !== pageId))
+    if (currentPageId === pageId) router.push('/app')
+    setContextMenu(null)
   }
 
-  function getAllDescendants(docId: string): string[] {
-    const children = docs.filter(d => d.parent_id === docId).map(d => d.id)
-    return children.flatMap(id => [id, ...getAllDescendants(id)])
+  async function duplicatePage(pageId: string) {
+    const page = pages.find(p => p.id === pageId)
+    if (!page) return
+    const { data, error } = await supabase.from('pages').insert({
+      ...page, id: undefined, title: page.title + ' (copy)', created_at: undefined, updated_at: undefined
+    }).select().single()
+    if (!error && data) {
+      setPages(p => [...p, data])
+      router.push(`/app/page/${data.id}`)
+    }
+    setContextMenu(null)
   }
 
-  function toggleExpanded(id: string) {
-    setExpanded(e => {
-      const next = new Set(e)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
+  async function renamePage(pageId: string, title: string) {
+    await supabase.from('pages').update({ title }).eq('id', pageId)
+    setPages(p => p.map(x => x.id === pageId ? { ...x, title } : x))
   }
 
-  async function moveDocToFolder(docId: string, folderId: string | null) {
-    const doc = docs.find(d => d.id === docId)
-    if (!doc || doc.folder_id === folderId) return
-    await supabase.from('documents').update({ folder_id: folderId, parent_id: null }).eq('id', docId)
-    setDocs(d => d.map(x => x.id === docId ? { ...x, folder_id: folderId, parent_id: null } : x))
+  async function movePage(pageId: string, newParentId: string | null) {
+    if (pageId === newParentId) return
+    await supabase.from('pages').update({ parent_id: newParentId }).eq('id', pageId)
+    setPages(p => p.map(x => x.id === pageId ? { ...x, parent_id: newParentId } : x))
   }
 
-  async function createDatabase() {
-    const { data, error } = await supabase.from('databases').insert({ title: 'Untitled database', owner_id: user.id, fields: [] }).select().single()
-    if (error) { alert('Error: ' + error.message); return }
-    if (data) { setDatabases(d => [data, ...d]); router.push(`/app/db/${data.id}`) }
+  // ── WORKSPACE ACTIONS ────────────────────────────────────────
+  async function createWorkspace() {
+    const { data, error } = await supabase.from('workspaces').insert({
+      name: 'New Workspace', icon: '📁'
+    }).select().single()
+    if (!error && data) {
+      setWorkspaces(w => [...w, data])
+      switchWorkspace(data)
+    }
+    setWsMenuOpen(false)
   }
 
-  // Render doc tree recursively
-  function renderDocTree(parentId: string | null, folderId: string | null, depth = 0): React.ReactNode {
-    const children = docs.filter(d => d.parent_id === parentId && d.folder_id === folderId)
-    if (!children.length) return null
-    return children.map(doc => {
-      const hasChildren = docs.some(d => d.parent_id === doc.id)
-      const isExpanded = expanded.has(doc.id)
-      const isActive = currentDocId === doc.id
+  async function deleteWorkspace(wsId: string) {
+    if (!confirm('Delete this workspace and all its pages? This cannot be undone.')) return
+    await supabase.from('pages').delete().eq('workspace_id', wsId)
+    await supabase.from('workspaces').delete().eq('id', wsId)
+    setWorkspaces(w => w.filter(x => x.id !== wsId))
+    if (currentWs.id === wsId && workspaces.length > 1) {
+      const next = workspaces.find(w => w.id !== wsId)!
+      switchWorkspace(next)
+    }
+  }
+
+  async function renameWorkspace(name: string) {
+    await supabase.from('workspaces').update({ name }).eq('id', currentWs.id)
+    setCurrentWs(w => ({ ...w, name }))
+    setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, name } : w))
+    setRenamingWs(false)
+  }
+
+  function switchWorkspace(ws: Workspace) {
+    setCurrentWs(ws)
+    router.push('/app')
+    setWsMenuOpen(false)
+  }
+
+  // ── DRAG & DROP ──────────────────────────────────────────────
+  function handleDragStart(e: React.DragEvent, pageId: string) {
+    setDraggingId(pageId)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('pageId', pageId)
+  }
+
+  function handleDragOver(e: React.DragEvent, targetId: string | null) {
+    e.preventDefault()
+    setDragOverId(targetId)
+  }
+
+  function handleDrop(e: React.DragEvent, targetParentId: string | null) {
+    e.preventDefault()
+    const pageId = e.dataTransfer.getData('pageId')
+    if (pageId && pageId !== targetParentId) movePage(pageId, targetParentId)
+    setDragOverId(null)
+    setDraggingId(null)
+  }
+
+  // ── CONTEXT MENU ─────────────────────────────────────────────
+  function openContextMenu(e: React.MouseEvent, pageId: string) {
+    e.preventDefault()
+    e.stopPropagation()
+    setContextMenu({ x: e.clientX, y: e.clientY, pageId })
+  }
+
+  // ── RENDER PAGE TREE ─────────────────────────────────────────
+  function renderPageTree(parentId: string | null, depth = 0): React.ReactNode {
+    const children = pages
+      .filter(p => p.parent_id === parentId && p.workspace_id === currentWs.id)
+      .sort((a, b) => a.position - b.position)
+    return children.map(page => {
+      const hasChildren = pages.some(p => p.parent_id === page.id)
+      const isExpanded = expandedPages.has(page.id)
+      const isActive = currentPageId === page.id
+      const isDragOver = dragOverId === page.id
       return (
-        <DocRow key={doc.id} doc={doc} active={isActive} depth={depth}
-          hasChildren={hasChildren} isExpanded={isExpanded}
-          onClick={() => router.push(`/app/doc/${doc.id}`)}
-          onToggle={() => toggleExpanded(doc.id)}
-          onNewSubDoc={() => openModal('newDoc', { parentId: doc.id, folderId: doc.folder_id })}
-          onRename={() => openModal('renameDoc', doc, doc.title)}
-          onDelete={() => openModal('deleteDoc', doc)}
-        >
-          {isExpanded && renderDocTree(doc.id, folderId, depth + 1)}
-        </DocRow>
+        <div key={page.id}>
+          <div
+            draggable
+            onDragStart={e => handleDragStart(e, page.id)}
+            onDragOver={e => handleDragOver(e, page.id)}
+            onDrop={e => handleDrop(e, page.id)}
+            onDragEnd={() => { setDraggingId(null); setDragOverId(null) }}
+            onContextMenu={e => openContextMenu(e, page.id)}
+            onClick={() => router.push(`/app/page/${page.id}`)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '2px',
+              paddingLeft: `${8 + depth * 14}px`, paddingRight: '8px',
+              paddingTop: '3px', paddingBottom: '3px',
+              borderRadius: '4px', cursor: 'pointer',
+              background: isActive ? 'var(--sidebar-active)' : isDragOver ? 'var(--accent-light)' : 'transparent',
+              opacity: draggingId === page.id ? 0.5 : 1,
+              margin: '1px 4px', userSelect: 'none',
+            }}
+            className="sidebar-item"
+          >
+            {/* Expand toggle */}
+            <span
+              onClick={e => { e.stopPropagation(); setExpandedPages(s => { const n = new Set(s); n.has(page.id) ? n.delete(page.id) : n.add(page.id); return n }) }}
+              style={{ width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'var(--text-tertiary)', fontSize: '10px', borderRadius: '3px', opacity: hasChildren ? 1 : 0 }}
+            >
+              {isExpanded ? '▾' : '▸'}
+            </span>
+            {/* Icon */}
+            <span style={{ fontSize: '14px', flexShrink: 0, width: '18px', textAlign: 'center' }}>
+              {page.icon || (page.is_database ? '🗄️' : '📄')}
+            </span>
+            {/* Title */}
+            <span style={{ flex: 1, fontSize: '13.5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isActive ? 'var(--text)' : 'var(--text)' }}>
+              {page.title || 'Untitled'}
+            </span>
+            {/* Actions */}
+            <span className="actions" onClick={e => e.stopPropagation()} style={{ gap: '2px' }}>
+              <SbBtn onClick={() => createPage(page.id)} title="Add sub-page">+</SbBtn>
+              <SbBtn onClick={e => openContextMenu(e as any, page.id)} title="More">···</SbBtn>
+            </span>
+          </div>
+          {isExpanded && hasChildren && (
+            <div>{renderPageTree(page.id, depth + 1)}</div>
+          )}
+        </div>
       )
     })
   }
 
-  const rootDocs = docs.filter(d => !d.folder_id && !d.parent_id)
+  function renderSharedTree(parentId: string | null, depth = 0): React.ReactNode {
+    const children = sharedPages.filter(p => p.parent_id === parentId)
+    return children.map(page => {
+      const hasChildren = sharedPages.some(p => p.parent_id === page.id)
+      const isExpanded = expandedShared.has(page.id)
+      const isActive = currentPageId === page.id
+      return (
+        <div key={page.id}>
+          <div
+            onClick={() => router.push(`/app/page/${page.id}`)}
+            style={{ display: 'flex', alignItems: 'center', gap: '2px', paddingLeft: `${8 + depth * 14}px`, paddingRight: '8px', paddingTop: '3px', paddingBottom: '3px', borderRadius: '4px', cursor: 'pointer', background: isActive ? 'var(--sidebar-active)' : 'transparent', margin: '1px 4px', userSelect: 'none' }}
+            className="sidebar-item"
+          >
+            <span onClick={e => { e.stopPropagation(); setExpandedShared(s => { const n = new Set(s); n.has(page.id) ? n.delete(page.id) : n.add(page.id); return n }) }}
+              style={{ width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'var(--text-tertiary)', fontSize: '10px', opacity: hasChildren ? 1 : 0 }}>
+              {isExpanded ? '▾' : '▸'}
+            </span>
+            <span style={{ fontSize: '14px', flexShrink: 0, width: '18px', textAlign: 'center' }}>{page.icon || '📄'}</span>
+            <span style={{ flex: 1, fontSize: '13.5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{page.title || 'Untitled'}</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{page.permission === 'edit' ? '✎' : '👁'}</span>
+          </div>
+          {isExpanded && <div>{renderSharedTree(page.id, depth + 1)}</div>}
+        </div>
+      )
+    })
+  }
+
+  const rootShared = sharedPages.filter(p => !sharedPages.some(s => s.id === p.parent_id))
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
+      {/* Mobile overlay */}
+      {!sidebarOpen && (
+        <div className="sidebar-overlay" style={{ display: 'none' }} onClick={() => setSidebarOpen(false)} />
+      )}
+
+      {/* SIDEBAR */}
       <aside style={{
-        width: sidebarOpen ? '260px' : '0', minWidth: sidebarOpen ? '260px' : '0',
-        background: 'var(--sidebar)', borderRight: '1px solid var(--border)',
-        display: 'flex', flexDirection: 'column', height: '100vh',
-        overflow: 'hidden', transition: 'width 0.2s, min-width 0.2s', flexShrink: 0
+        width: sidebarOpen ? '240px' : '0',
+        minWidth: sidebarOpen ? '240px' : '0',
+        background: 'var(--sidebar-bg)',
+        borderRight: '1px solid var(--border)',
+        display: 'flex', flexDirection: 'column',
+        height: '100vh', overflow: 'hidden',
+        transition: 'width 0.2s, min-width 0.2s',
+        flexShrink: 0
       }}>
-        {/* Logo + actions */}
-        <div style={{ padding: '16px 14px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.25rem', fontWeight: 600, color: 'var(--accent)' }}>Canopy</span>
-          <div style={{ display: 'flex', gap: '4px' }}>
-            <SideBtn title="New document" onClick={() => openModal('newDoc')}>✦</SideBtn>
-            <SideBtn title="New folder" onClick={() => openModal('newFolder')}>⊞</SideBtn>
-            <SideBtn title="New database" onClick={createDatabase}>🗄</SideBtn>
+        {/* Workspace switcher */}
+        <div style={{ padding: '10px 8px 4px', flexShrink: 0 }}>
+          <div
+            onClick={() => setWsMenuOpen(o => !o)}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', borderRadius: '6px', cursor: 'pointer', userSelect: 'none' }}
+            className="sidebar-item"
+          >
+            <span style={{ fontSize: '16px' }}>{currentWs.icon}</span>
+            {renamingWs
+              ? <input autoFocus value={wsNameInput} onChange={e => setWsNameInput(e.target.value)}
+                  onBlur={() => renameWorkspace(wsNameInput)}
+                  onKeyDown={e => { if (e.key === 'Enter') renameWorkspace(wsNameInput); if (e.key === 'Escape') setRenamingWs(false) }}
+                  onClick={e => e.stopPropagation()}
+                  style={{ flex: 1, border: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 600, color: 'var(--text)', outline: 'none' }} />
+              : <span style={{ flex: 1, fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentWs.name}</span>
+            }
+            <span style={{ color: 'var(--text-tertiary)', fontSize: '11px' }}>⌄</span>
           </div>
-        </div>
 
-        {/* Tree */}
-        <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '12px' }}>
-          <div style={{ padding: '8px 10px 4px', fontSize: '10px', fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.7px' }}>Workspace</div>
-
-          {/* Folders */}
-          {folders.map(f => (
-            <FolderZone key={f.id} folder={f}
-              onDrop={moveDocToFolder}
-              onToggle={() => setFolders(fs => fs.map(x => x.id === f.id ? { ...x, expanded: !x.expanded } : x))}
-              onNewDoc={() => openModal('newDoc', { folderId: f.id })}
-              onRename={() => openModal('renameFolder', f, f.name)}
-              onDelete={() => openModal('deleteFolder', f)}
-            >
-              {renderDocTree(null, f.id)}
-            </FolderZone>
-          ))}
-
-          {/* Root drop zone */}
-          <RootDropZone onDrop={(docId) => moveDocToFolder(docId, null)}>
-            {renderDocTree(null, null)}
-          </RootDropZone>
-
-          {/* Shared with me */}
-          {sharedDocs.length > 0 && (
-            <div style={{ marginTop: '8px' }}>
-              <div style={{ padding: '8px 10px 4px', fontSize: '10px', fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.7px' }}>Shared with me</div>
-              {sharedDocs.map(doc => (
-                <div key={doc.id} onClick={() => router.push(`/app/doc/${doc.id}`)}
-                  onMouseEnter={e => { if (pathname !== `/app/doc/${doc.id}`) (e.currentTarget as HTMLElement).style.background = 'var(--border)' }}
-                  onMouseLeave={e => { if (pathname !== `/app/doc/${doc.id}`) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', cursor: 'pointer', borderRadius: '7px', margin: '1px 6px', userSelect: 'none', background: pathname === `/app/doc/${doc.id}` ? 'var(--accent-light)' : 'transparent', color: pathname === `/app/doc/${doc.id}` ? 'var(--accent)' : 'var(--text)', transition: 'background 0.1s' }}>
-                  <span style={{ fontSize: '15px', flexShrink: 0 }}>📄</span>
-                  <span style={{ flex: 1, fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.title || 'Untitled'}</span>
-                  <span style={{ fontSize: '10px', color: 'var(--muted)', flexShrink: 0 }}>{doc.permission === 'edit' ? '🔓' : '👁'}</span>
+          {/* Workspace dropdown */}
+          {wsMenuOpen && (
+            <div style={{ position: 'absolute', top: '52px', left: '8px', width: '224px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 200, padding: '6px' }}
+              className="scale-in">
+              {workspaces.map(ws => (
+                <div key={ws.id}
+                  onClick={() => switchWorkspace(ws)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', background: ws.id === currentWs.id ? 'var(--sidebar-active)' : 'transparent' }}
+                  className="sidebar-item">
+                  <span>{ws.icon}</span>
+                  <span style={{ flex: 1, fontSize: '13px' }}>{ws.name}</span>
+                  {ws.id === currentWs.id && <span style={{ fontSize: '11px', color: 'var(--accent)' }}>✓</span>}
+                  {ws.id !== currentWs.id && (
+                    <span onClick={e => { e.stopPropagation(); deleteWorkspace(ws.id) }}
+                      style={{ fontSize: '11px', color: 'var(--text-tertiary)', padding: '1px 4px', borderRadius: '3px' }}>✕</span>
+                  )}
                 </div>
               ))}
+              <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+              <div onClick={() => { setWsNameInput(currentWs.name); setRenamingWs(true); setWsMenuOpen(false) }}
+                style={{ padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)' }}
+                className="sidebar-item">
+                ✎ Rename workspace
+              </div>
+              <div onClick={createWorkspace}
+                style={{ padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)' }}
+                className="sidebar-item">
+                + New workspace
+              </div>
             </div>
           )}
+        </div>
 
-          {/* Databases */}
-          {databases.length > 0 && (
-            <div style={{ marginTop: '8px' }}>
-              <div style={{ padding: '8px 10px 4px', fontSize: '10px', fontWeight: 500, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.7px' }}>Databases</div>
-              {databases.map(db => (
-                <div key={db.id} onClick={() => router.push(`/app/db/${db.id}`)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', cursor: 'pointer', borderRadius: '7px', margin: '1px 6px', userSelect: 'none', background: pathname === `/app/db/${db.id}` ? 'var(--accent-light)' : 'transparent', color: pathname === `/app/db/${db.id}` ? 'var(--accent)' : 'var(--text)', transition: 'background 0.1s' }}
-                  onMouseEnter={e => { if (pathname !== `/app/db/${db.id}`) (e.currentTarget as HTMLElement).style.background = 'var(--border)' }}
-                  onMouseLeave={e => { if (pathname !== `/app/db/${db.id}`) (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
-                  <span style={{ fontSize: '16px' }}>🗄️</span>
-                  <span style={{ flex: 1, fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{db.title}</span>
-                </div>
-              ))}
-            </div>
+        {/* Quick actions */}
+        <div style={{ padding: '2px 8px 8px', display: 'flex', gap: '2px', flexShrink: 0 }}>
+          <QuickBtn onClick={() => createPage(null)} title="New page">
+            <span style={{ fontSize: '14px' }}>✦</span>
+            <span style={{ fontSize: '12px' }}>New page</span>
+          </QuickBtn>
+        </div>
+
+        {/* Pages tree */}
+        <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '8px' }}>
+          {/* Section label */}
+          <SectionLabel>Pages</SectionLabel>
+          <div
+            onDragOver={e => handleDragOver(e, null)}
+            onDrop={e => handleDrop(e, null)}
+            style={{ minHeight: '4px', outline: dragOverId === null && draggingId ? '2px dashed var(--accent)' : 'none', borderRadius: '4px', margin: '0 4px' }}
+          />
+          {renderPageTree(null)}
+
+          {/* Shared with me */}
+          {sharedPages.length > 0 && (
+            <>
+              <SectionLabel style={{ marginTop: '8px' }}>Shared with me</SectionLabel>
+              {renderSharedTree(null)}
+            </>
           )}
         </div>
 
         {/* User */}
-        <div style={{ padding: '10px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', borderRadius: '8px' }}>
-            <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--accent-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 600, color: 'var(--accent)', flexShrink: 0 }}>
-              {user.name[0].toUpperCase()}
+        <div style={{ padding: '8px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', borderRadius: '6px' }} className="sidebar-item"
+            onClick={async () => { await supabase.auth.signOut(); router.push('/login') }}>
+            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, color: '#fff', flexShrink: 0 }}>
+              {user.name[0]?.toUpperCase()}
             </div>
-            <span style={{ fontSize: '13px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>{user.name}</span>
-            <button onClick={signOut} title="Sign out" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '16px', padding: '2px 4px', borderRadius: '4px' }}>⏻</button>
+            <span style={{ flex: 1, fontSize: '13px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</span>
+            <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }} title="Sign out">⏻</span>
           </div>
         </div>
       </aside>
 
-      {/* Main */}
+      {/* MAIN */}
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-        <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-          <button onClick={() => setSidebarOpen(o => !o)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: '18px', padding: '4px 6px', borderRadius: '6px' }}>☰</button>
+        {/* Top bar */}
+        <div style={{ height: '44px', padding: '0 12px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          <button onClick={() => setSidebarOpen(o => !o)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '16px', padding: '4px 6px', borderRadius: '4px', lineHeight: 1 }}
+            title="Toggle sidebar">
+            ☰
+          </button>
+          {/* Breadcrumb would go here */}
         </div>
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>{children}</div>
       </main>
 
-      {/* Modal */}
-      {modal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}
-          onClick={e => { if (e.target === e.currentTarget) closeModal() }}>
-          <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', padding: '28px', width: '100%', maxWidth: '380px', boxShadow: '0 8px 40px rgba(0,0,0,0.15)' }}>
-            {modal === 'newFolder' && <>
-              <h2 style={modalTitle}>New folder</h2>
-              <MInput label="Name" value={inputVal} onChange={setInputVal} placeholder="My folder" autoFocus />
-              <MActions onCancel={closeModal} onConfirm={createFolder} confirmLabel="Create" />
-            </>}
-            {modal === 'renameFolder' && <>
-              <h2 style={modalTitle}>Rename folder</h2>
-              <MInput label="Name" value={inputVal} onChange={setInputVal} autoFocus />
-              <MActions onCancel={closeModal} onConfirm={renameFolder} confirmLabel="Rename" />
-            </>}
-            {modal === 'deleteFolder' && <>
-              <h2 style={modalTitle}>Delete folder?</h2>
-              <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: '20px' }}>All documents inside will also be deleted.</p>
-              <MActions onCancel={closeModal} onConfirm={deleteFolder} confirmLabel="Delete" danger />
-            </>}
-            {modal === 'newDoc' && <>
-              <h2 style={modalTitle}>{modalData.parentId ? 'New sub-document' : 'New document'}</h2>
-              <MInput label="Title" value={inputVal} onChange={setInputVal} placeholder="Untitled" autoFocus />
-              {!modalData.folderId && !modalData.parentId && folders.length > 0 && (
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={labelSt}>Folder (optional)</label>
-                  <select value={folderSelect} onChange={e => setFolderSelect(e.target.value)} style={selectSt}>
-                    <option value="">No folder</option>
-                    {folders.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-                  </select>
-                </div>
-              )}
-              <MActions onCancel={closeModal} onConfirm={createDoc} confirmLabel="Create" />
-            </>}
-            {modal === 'renameDoc' && <>
-              <h2 style={modalTitle}>Rename document</h2>
-              <MInput label="Title" value={inputVal} onChange={setInputVal} autoFocus />
-              <MActions onCancel={closeModal} onConfirm={renameDoc} confirmLabel="Rename" />
-            </>}
-            {modal === 'deleteDoc' && <>
-              <h2 style={modalTitle}>Delete document?</h2>
-              <p style={{ color: 'var(--muted)', fontSize: '0.9rem', marginBottom: '20px' }}>
-                {getAllDescendants(modalData.id).length > 0
-                  ? 'This document and all its sub-documents will be deleted.'
-                  : 'This cannot be undone.'}
-              </p>
-              <MActions onCancel={closeModal} onConfirm={deleteDoc} confirmLabel="Delete" danger />
-            </>}
+      {/* Context menu */}
+      {contextMenu && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => setContextMenu(null)} />
+          <div className="context-menu scale-in"
+            style={{ position: 'fixed', left: contextMenu.x, top: contextMenu.y, zIndex: 2000 }}>
+            <div className="context-menu-item" onClick={() => { router.push(`/app/page/${contextMenu.pageId}`); setContextMenu(null) }}>
+              <span>↗</span> Open
+            </div>
+            <div className="context-menu-item" onClick={() => duplicatePage(contextMenu.pageId)}>
+              <span>⧉</span> Duplicate
+            </div>
+            <div className="context-menu-item" onClick={() => createPage(contextMenu.pageId)}>
+              <span>+</span> Add sub-page
+            </div>
+            <div className="context-menu-sep" />
+            <div className="context-menu-item danger" onClick={() => deletePage(contextMenu.pageId)}>
+              <span>🗑</span> Delete
+            </div>
           </div>
-        </div>
+        </>
       )}
+
+      {/* Click outside ws menu */}
+      {wsMenuOpen && <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setWsMenuOpen(false)} />}
     </div>
   )
 }
 
-// ── COMPONENTS ─────────────────────────────────────────────────────────
-
-function DocRow({ doc, active, depth, hasChildren, isExpanded, onClick, onToggle, onNewSubDoc, onRename, onDelete, children }: any) {
-  const [hovered, setHovered] = useState(false)
-  const permIcon = doc.link_permission === 'view' ? '👁' : doc.link_permission === 'edit' ? '🔓' : ''
+function SbBtn({ onClick, title, children }: { onClick: (e: React.MouseEvent) => void; title: string; children: React.ReactNode }) {
   return (
-    <div>
-      <div
-        draggable
-        onDragStart={e => { e.dataTransfer.setData('docId', doc.id); e.dataTransfer.effectAllowed = 'move' }}
-        onClick={onClick}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: '4px',
-          padding: `6px 10px 6px ${10 + depth * 14}px`,
-          cursor: 'pointer', borderRadius: '7px', margin: '1px 6px', userSelect: 'none',
-          background: active ? 'var(--accent-light)' : hovered ? 'var(--border)' : 'transparent',
-          color: active ? 'var(--accent)' : 'var(--text)', transition: 'background 0.1s'
-        }}
-      >
-        {/* Expand toggle */}
-        <span
-          onClick={e => { e.stopPropagation(); onToggle() }}
-          style={{ fontSize: '10px', color: 'var(--muted)', width: '12px', flexShrink: 0, textAlign: 'center', transition: 'transform 0.15s', display: 'inline-block', transform: isExpanded ? 'rotate(90deg)' : 'none', opacity: hasChildren ? 1 : 0, cursor: hasChildren ? 'pointer' : 'default' }}>
-          ▶
-        </span>
-        <span style={{ fontSize: '15px', flexShrink: 0 }}>📄</span>
-        <span style={{ flex: 1, fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.title || 'Untitled'}</span>
-        {permIcon && !hovered && <span style={{ fontSize: '11px', color: 'var(--muted)' }}>{permIcon}</span>}
-        <span style={{ display: hovered ? 'flex' : 'none', gap: '2px', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
-          <ActionBtn onClick={onNewSubDoc} title="New sub-document">+</ActionBtn>
-          <ActionBtn onClick={onRename} title="Rename">✎</ActionBtn>
-          <ActionBtn onClick={onDelete} title="Delete">✕</ActionBtn>
-        </span>
-      </div>
-      {children}
-    </div>
-  )
-}
-
-function FolderZone({ folder, children, onDrop, onToggle, onNewDoc, onRename, onDelete }: any) {
-  const [over, setOver] = useState(false)
-  const [hovered, setHovered] = useState(false)
-  return (
-    <div
-      onDragOver={e => { e.preventDefault(); setOver(true) }}
-      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false) }}
-      onDrop={e => { e.preventDefault(); setOver(false); const id = e.dataTransfer.getData('docId'); if (id) onDrop(id, folder.id) }}
-      style={{ borderRadius: '8px', outline: over ? '2px dashed var(--accent)' : '2px dashed transparent', transition: 'outline 0.1s' }}
-    >
-      <div
-        onClick={onToggle}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', cursor: 'pointer', borderRadius: '7px', margin: '1px 6px', userSelect: 'none', background: over ? 'var(--accent-light)' : hovered ? 'var(--border)' : 'transparent', transition: 'background 0.1s' }}
-      >
-        <span style={{ fontSize: '11px', color: 'var(--muted)', transition: 'transform 0.15s', display: 'inline-block', transform: folder.expanded ? 'rotate(90deg)' : 'none', width: '10px' }}>▶</span>
-        <span style={{ fontSize: '16px', flexShrink: 0 }}>📁</span>
-        <span style={{ flex: 1, fontSize: '13.5px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{folder.name}</span>
-        <span style={{ display: hovered ? 'flex' : 'none', gap: '2px', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
-          <ActionBtn onClick={onNewDoc} title="New doc">＋</ActionBtn>
-          <ActionBtn onClick={onRename} title="Rename">✎</ActionBtn>
-          <ActionBtn onClick={onDelete} title="Delete">✕</ActionBtn>
-        </span>
-      </div>
-      {folder.expanded && <div style={{ paddingLeft: '14px' }}>{children}</div>}
-    </div>
-  )
-}
-
-function RootDropZone({ children, onDrop }: { children: React.ReactNode; onDrop: (id: string) => void }) {
-  const [over, setOver] = useState(false)
-  return (
-    <div
-      onDragOver={e => { e.preventDefault(); setOver(true) }}
-      onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false) }}
-      onDrop={e => { e.preventDefault(); setOver(false); const id = e.dataTransfer.getData('docId'); if (id) onDrop(id) }}
-      style={{ minHeight: '40px', borderRadius: '8px', margin: '2px 6px', outline: over ? '2px dashed var(--accent)' : '2px dashed transparent', transition: 'outline 0.1s', background: over ? 'var(--accent-light)' : 'transparent' }}
-    >
-      {over && <div style={{ padding: '4px 10px', fontSize: '11px', color: 'var(--accent)' }}>Drop to move to root</div>}
-      {children}
-    </div>
-  )
-}
-
-function ActionBtn({ onClick, title, children }: any) {
-  return (
-    <button onClick={onClick} title={title}
-      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', padding: '2px 5px', borderRadius: '4px', fontSize: '13px', fontFamily: 'var(--font-sans)', lineHeight: 1 }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--muted)' }}>
+    <button onClick={e => { e.stopPropagation(); onClick(e) }} title={title}
+      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '2px 5px', borderRadius: '3px', fontSize: '13px', lineHeight: 1, fontFamily: 'var(--font-sans)' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-active)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>
       {children}
     </button>
   )
 }
 
-function SideBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
+function QuickBtn({ onClick, title, children }: { onClick: () => void; title: string; children: React.ReactNode }) {
   return (
     <button onClick={onClick} title={title}
-      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', padding: '5px 8px', borderRadius: '6px', fontSize: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, fontWeight: 500 }}
-      onMouseEnter={e => (e.currentTarget.style.background = 'var(--border)')}
-      onMouseLeave={e => (e.currentTarget.style.background = 'none')}>
+      style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '5px 8px', borderRadius: '5px', fontSize: '12px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '6px' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
       {children}
     </button>
   )
 }
 
-function MInput({ label, value, onChange, placeholder, autoFocus }: any) {
+function SectionLabel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ marginBottom: '16px' }}>
-      <label style={labelSt}>{label}</label>
-      <input value={value} onChange={(e: any) => onChange(e.target.value)} placeholder={placeholder} autoFocus={autoFocus}
-        style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '8px', fontFamily: 'var(--font-sans)', fontSize: '0.95rem', background: 'var(--bg)', color: 'var(--text)', outline: 'none' }} />
+    <div style={{ padding: '8px 14px 2px', fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', userSelect: 'none', ...style }}>
+      {children}
     </div>
   )
 }
-
-function MActions({ onCancel, onConfirm, confirmLabel, danger }: any) {
-  return (
-    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-      <button onClick={onCancel} style={{ background: 'var(--sidebar)', border: 'none', padding: '8px 16px', borderRadius: '8px', fontFamily: 'var(--font-sans)', fontSize: '0.9rem', cursor: 'pointer', color: 'var(--text)' }}>Cancel</button>
-      <button onClick={onConfirm} style={{ background: danger ? '#fde8e8' : 'var(--accent)', color: danger ? 'var(--danger)' : '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', fontFamily: 'var(--font-sans)', fontSize: '0.9rem', fontWeight: 500, cursor: 'pointer' }}>{confirmLabel}</button>
-    </div>
-  )
-}
-
-const modalTitle: React.CSSProperties = { fontFamily: 'var(--font-serif)', fontSize: '1.2rem', marginBottom: '20px' }
-const labelSt: React.CSSProperties = { display: 'block', fontSize: '0.75rem', fontWeight: 500, color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }
-const selectSt: React.CSSProperties = { width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '8px', fontFamily: 'var(--font-sans)', fontSize: '0.95rem', background: 'var(--bg)', color: 'var(--text)', outline: 'none' }

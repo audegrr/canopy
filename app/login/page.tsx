@@ -21,58 +21,41 @@ export default function LoginPage() {
   }
 
   async function handleGoogle() {
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: { redirectTo: `${location.origin}/auth/callback` }
-    })
+    await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/auth/callback` } })
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
-      <div style={{ width: '100%', maxWidth: '400px' }}>
+    <div style={{ minHeight: '100vh', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
+      <div style={{ width: '100%', maxWidth: '380px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '2rem', color: 'var(--accent)', marginBottom: '8px' }}>Canopy</h1>
-          <p style={{ color: 'var(--muted)', fontSize: '0.95rem' }}>Welcome back</p>
+          <div style={{ fontSize: '36px', marginBottom: '8px' }}>🌿</div>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#37352f', marginBottom: '4px' }}>Canopy</h1>
+          <p style={{ color: '#787774', fontSize: '14px' }}>Welcome back</p>
         </div>
-
-        <div style={{ background: 'var(--surface)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border)', padding: '32px', boxShadow: '0 2px 16px rgba(0,0,0,0.06)' }}>
-          <button onClick={handleGoogle} style={googleBtnStyle}>
+        <div style={{ background: '#fff', border: '1px solid #e9e9e7', borderRadius: '8px', padding: '28px', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
+          <button onClick={handleGoogle} style={googleBtn}>
             <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 009 18z"/><path fill="#FBBC05" d="M3.964 10.707A5.41 5.41 0 013.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.996 8.996 0 000 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.961L3.964 7.293C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
             Continue with Google
           </button>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '20px 0' }}>
-            <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
-            <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>or</span>
-            <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '18px 0' }}>
+            <div style={{ flex: 1, height: '1px', background: '#e9e9e7' }} />
+            <span style={{ color: '#acaba8', fontSize: '12px' }}>or</span>
+            <div style={{ flex: 1, height: '1px', background: '#e9e9e7' }} />
           </div>
-
-          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div>
-              <label style={labelStyle}>Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required style={inputStyle} placeholder="you@example.com" />
-            </div>
-            <div>
-              <label style={labelStyle}>Password</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} required style={inputStyle} placeholder="••••••••" />
-            </div>
-            {error && <p style={{ color: 'var(--danger)', fontSize: '0.85rem' }}>{error}</p>}
-            <button type="submit" disabled={loading} style={primaryBtnStyle}>
-              {loading ? 'Signing in…' : 'Sign in'}
-            </button>
+          <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required style={inputSt} placeholder="Email" />
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required style={inputSt} placeholder="Password" />
+            {error && <p style={{ color: '#eb5757', fontSize: '13px' }}>{error}</p>}
+            <button type="submit" disabled={loading} style={primaryBtn}>{loading ? 'Signing in…' : 'Continue'}</button>
           </form>
-
-          <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '0.875rem', color: 'var(--muted)' }}>
-            No account yet?{' '}
-            <Link href="/signup" style={{ color: 'var(--accent)', textDecoration: 'underline' }}>Sign up</Link>
+          <p style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: '#787774' }}>
+            No account? <Link href="/signup" style={{ color: '#2383e2', textDecoration: 'none' }}>Sign up</Link>
           </p>
         </div>
       </div>
     </div>
   )
 }
-
-const labelStyle: React.CSSProperties = { display: 'block', fontSize: '0.8rem', fontWeight: 500, color: 'var(--muted)', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }
-const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 14px', border: '1px solid var(--border)', borderRadius: '8px', fontFamily: 'var(--font-sans)', fontSize: '0.95rem', background: 'var(--bg)', color: 'var(--text)', outline: 'none', transition: 'border-color 0.15s' }
-const primaryBtnStyle: React.CSSProperties = { background: 'var(--accent)', color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', fontFamily: 'var(--font-sans)', fontSize: '0.95rem', fontWeight: 500, cursor: 'pointer', transition: 'opacity 0.15s', marginTop: '4px' }
-const googleBtnStyle: React.CSSProperties = { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--surface)', fontFamily: 'var(--font-sans)', fontSize: '0.95rem', cursor: 'pointer', color: 'var(--text)', transition: 'background 0.15s' }
+const inputSt: React.CSSProperties = { width: '100%', padding: '9px 12px', border: '1px solid #e9e9e7', borderRadius: '6px', fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#37352f', outline: 'none', background: '#fff' }
+const primaryBtn: React.CSSProperties = { background: '#2383e2', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', fontFamily: 'Inter, sans-serif', fontSize: '14px', fontWeight: 500, cursor: 'pointer', marginTop: '4px' }
+const googleBtn: React.CSSProperties = { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '9px', border: '1px solid #e9e9e7', borderRadius: '6px', background: '#fff', fontFamily: 'Inter, sans-serif', fontSize: '14px', cursor: 'pointer', color: '#37352f' }
