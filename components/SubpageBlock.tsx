@@ -67,7 +67,7 @@ export default function SubpageBlock({ node, updateAttributes, deleteNode, selec
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)' }}
         >
-          <span onClick={toggle} style={{ fontSize: '11px', color: 'var(--text-tertiary)', transition: 'transform 0.15s', display: 'inline-block', transform: expanded ? 'rotate(90deg)' : 'none', flexShrink: 0, width: '14px' }}>▸</span>
+          <span onClick={toggle} style={{ fontSize: '16px', color: 'var(--text-secondary)', transition: 'transform 0.15s', display: 'inline-block', transform: expanded ? 'rotate(90deg)' : 'none', flexShrink: 0, width: '22px', cursor: 'pointer', textAlign: 'center' }}>▶</span>
           <span style={{ fontSize: '15px', flexShrink: 0 }}>{page.icon || '📄'}</span>
           <span onClick={toggle} style={{ flex: 1, fontSize: '13.5px', fontWeight: 500, color: 'var(--text)' }}>{page.title || 'Untitled'}</span>
           <button

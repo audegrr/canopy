@@ -228,8 +228,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         )}
         <ExportMenu onPDF={exportPDF} onWord={exportWord} />
         {isOwner && (
-          <button onClick={() => setShareOpen(o => !o)}
-            style={{ background: shareOpen ? 'var(--accent)' : 'var(--sidebar-bg)', color: shareOpen ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border)', padding: '5px 14px', borderRadius: '5px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s' }}>
+          <button data-share-btn onClick={() => setShareOpen(o => !o)}
+            style={{ background: shareOpen ? 'var(--accent)' : 'var(--sidebar-bg)', color: shareOpen ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border)', padding: '5px 14px', borderRadius: '5px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s' }}
+            onMouseEnter={e => { if (!shareOpen) { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' } }}
+            onMouseLeave={e => { if (!shareOpen) { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)' } }}>
             Share
           </button>
         )}
@@ -421,17 +423,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
               </div>
             )}
 
-            {/* Danger zone */}
-            {isOwner && (
-              <div style={{ paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
-                <button onClick={deletePage}
-                  style={{ width: '100%', background: 'none', border: '1px solid #fecaca', color: 'var(--red)', padding: '7px', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontSize: '13px', cursor: 'pointer' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                  🗑 Delete page
-                </button>
-              </div>
-            )}
+
           </div>
         )}
       </div>

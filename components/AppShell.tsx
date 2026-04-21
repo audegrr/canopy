@@ -242,7 +242,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             onAddSubpage={() => {}} onMoreMenu={() => {}}
             isDragging={false}
             badge={page.permission === 'edit' ? '✏️' : '👁️'}
-            onRemove={() => removeSharedPage(page.id)}
           />
           {isExpanded && <div>{renderSharedTree(page.id, depth + 1)}</div>}
         </div>
@@ -325,8 +324,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             <span style={{ fontSize: '15px' }}>📄</span>
             <span style={{ fontSize: '12.5px' }}>New page</span>
           </QuickBtn>
-          <QuickBtn onClick={() => createDatabase(null)} title="New database">
+          <QuickBtn onClick={() => createDatabase(null)} title="New database" flex>
             <span style={{ fontSize: '15px' }}>🗄️</span>
+            <span style={{ fontSize: '12.5px' }}>Database</span>
           </QuickBtn>
         </div>
 
@@ -377,11 +377,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                   <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '2px' }}>{user.name}</div>
                   <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{user.email}</div>
                 </div>
-                <MenuItem onClick={() => { setUserMenuOpen(false); setWsMenuOpen(true) }}>⚙ Workspace settings</MenuItem>
-                <MenuItem onClick={() => { navigator.clipboard?.writeText(user.email); showToastMsg('Email copied!'); setUserMenuOpen(false) }}>📋 Copy email</MenuItem>
+                <MenuItem onClick={() => { setUserMenuOpen(false); setWsMenuOpen(true) }}>⚙️ Workspace settings</MenuItem>
                 <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-                <MenuItem onClick={() => { handleSignOut(); setUserMenuOpen(false) }}>⏻ Sign out</MenuItem>
-                <MenuItem danger onClick={() => { setShowDeleteAccount(true); setUserMenuOpen(false) }}>🗑 Delete account</MenuItem>
+                <MenuItem onClick={() => { handleSignOut(); setUserMenuOpen(false) }}>🚪 Sign out</MenuItem>
+                <MenuItem danger onClick={() => { setShowDeleteAccount(true); setUserMenuOpen(false) }}>🗑️ Delete account</MenuItem>
               </div>
             </>
           )}
@@ -414,14 +413,14 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             ))}
           </div>
 
-          {/* Cmd+K hint */}
+          {/* Cmd+K button */}
           <button
             onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))}
-            style={{ background: 'none', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '12px', padding: '3px 8px', borderRadius: '5px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, whiteSpace: 'nowrap' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}
-            title="Open command palette (⌘K)">
-            🔍 <kbd style={{ fontSize: '10px' }}>⌘K</kbd>
+            style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px', padding: '5px 12px', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap', transition: 'all 0.15s' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
+            title="Search & commands (⌘K)">
+            🔍 Search <kbd style={{ fontSize: '11px', background: 'var(--border)', border: 'none', borderRadius: '3px', padding: '1px 5px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)' }}>⌘K</kbd>
           </button>
 
           {navigating && (
@@ -449,7 +448,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             <MenuItem onClick={() => createDatabase(contextMenu.pageId)}>🗄 Add database</MenuItem>
             <MenuItem onClick={() => copyPageUrl(contextMenu.pageId)}>🔗 Copy URL</MenuItem>
             <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-            <MenuItem danger onClick={() => deletePage(contextMenu.pageId)}>🗑 Delete</MenuItem>
+            <MenuItem onClick={() => { navigate(`/app/page/${contextMenu.pageId}`); setTimeout(() => { const btn = document.querySelector('[data-share-btn]') as HTMLButtonElement; btn?.click() }, 500); setContextMenu(null) }}>🔗 Share…</MenuItem>
+            <MenuItem onClick={() => { navigate(`/app/page/${contextMenu.pageId}`); setTimeout(() => { const btn = document.querySelector('[data-export-btn]') as HTMLButtonElement; btn?.click() }, 500); setContextMenu(null) }}>⬇️ Export…</MenuItem>
+            <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+            <MenuItem danger onClick={() => deletePage(contextMenu.pageId)}>🗑️ Delete</MenuItem>
           </div>
         </>
       )}
@@ -502,7 +504,7 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
       style={{
         display: 'flex', alignItems: 'center',
         paddingLeft: `${6 + depth * 16}px`, paddingRight: '6px',
-        paddingTop: '3px', paddingBottom: '3px',
+        paddingTop: '5px', paddingBottom: '5px',
         borderRadius: '5px', cursor: 'pointer',
         background: isActive ? 'var(--sidebar-active)' : isDragOver ? 'var(--accent-light)' : hovered ? 'var(--sidebar-hover)' : 'transparent',
         opacity: isDragging ? 0.4 : 1,
@@ -585,7 +587,7 @@ function SbBtn({ onClick, title, children }: { onClick: (e: React.MouseEvent) =>
 function QuickBtn({ onClick, title, flex, children }: { onClick: () => void; title: string; flex?: boolean; children: React.ReactNode }) {
   return (
     <button onClick={onClick} title={title}
-      style={{ flex: flex ? 1 : 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '5px 8px', borderRadius: '5px', fontSize: '13px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+      style={{ flex: flex ? 1 : 'none', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '5px 8px', borderRadius: '5px', fontSize: '13px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
       {children}
