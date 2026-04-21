@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import type { Page } from '@/lib/types'
 import Editor from './Editor'
+import DragHandle from './DragHandle'
 import DatabaseView from './DatabaseView'
 
 const EMOJI_LIST = ['📄','📝','📌','⭐','🔥','💡','🎯','📊','🗂','🌿','🚀','💎','🎨','🔑','📦','🌍','💬','🧠','✅','🎉','🏠','🔧','📚','🎵','🌸','⚡','🦋','🌊','🏔','🎭','📐','🔬','🌈','🍀','🦁','🐋','🌙','☀️','🎪','🏆']
@@ -26,6 +27,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   const [toast, setToast] = useState('')
   const [isUploadingCover, setIsUploadingCover] = useState(false)
   const saveTimer = useRef<any>(null)
+  const [editorInstance, setEditorInstance] = useState<any>(null)
   const titleRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
   const router = useRouter()
@@ -284,10 +286,18 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
             )}
 
             {/* Editor / Database */}
-            <div style={{ marginTop: '20px' }}>
+            <div style={{ marginTop: '20px', position: 'relative' }}>
               {page.is_database
                 ? <DatabaseView page={page} canEdit={canEdit} />
-                : <Editor content={page.content} editable={canEdit} onUpdate={onContentUpdate} />
+                : <>
+                    {canEdit && <DragHandle editor={editorInstance} />}
+                    <Editor
+                      content={page.content}
+                      editable={canEdit}
+                      onUpdate={onContentUpdate}
+                      onEditorReady={setEditorInstance}
+                    />
+                  </>
               }
             </div>
           </div>

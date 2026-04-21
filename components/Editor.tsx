@@ -264,9 +264,10 @@ type Props = {
   content: any
   editable: boolean
   onUpdate: (content: any) => void
+  onEditorReady?: (editor: any) => void
 }
 
-export default function Editor({ content, editable, onUpdate }: Props) {
+export default function Editor({ content, editable, onUpdate, onEditorReady }: Props) {
   const [slashMenu, setSlashMenu] = useState<{ x: number; y: number; query: string; fromPos: number } | null>(null)
   const [slashIndex, setSlashIndex] = useState(0)
   const [showColorPicker, setShowColorPicker] = useState(false)
@@ -301,6 +302,7 @@ export default function Editor({ content, editable, onUpdate }: Props) {
     content: content || '',
     editable,
     onUpdate: ({ editor }) => onUpdate(editor.getJSON()),
+    onCreate: ({ editor }) => { if (onEditorReady) onEditorReady(editor) },
     editorProps: {
       handleKeyDown(view, event) {
         if (event.key === '/') {

@@ -401,11 +401,35 @@ export default function AppShell({ user, workspaces: initialWorkspaces, currentW
         {/* Top bar */}
         <div style={{ height: '44px', padding: '0 12px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <button onClick={() => setSidebarOpen(o => !o)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '16px', padding: '4px 6px', borderRadius: '4px', lineHeight: 1 }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '16px', padding: '4px 6px', borderRadius: '4px', lineHeight: 1, flexShrink: 0 }}
             title="Toggle sidebar">
             ☰
           </button>
-          {/* Breadcrumb would go here */}
+          {/* Breadcrumb */}
+          {currentPageId && (() => {
+            const crumbs: { id: string; title: string; icon: string }[] = []
+            let cur = pages.find(p => p.id === currentPageId)
+            while (cur) {
+              crumbs.unshift({ id: cur.id, title: cur.title || 'Untitled', icon: cur.icon || (cur.is_database ? '🗄️' : '📄') })
+              cur = cur.parent_id ? pages.find(p => p.id === cur!.parent_id) : undefined
+            }
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden', flex: 1 }}>
+                {crumbs.map((crumb, i) => (
+                  <div key={crumb.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: i < crumbs.length - 1 ? 1 : 0, minWidth: 0 }}>
+                    {i > 0 && <span style={{ color: 'var(--text-tertiary)', fontSize: '12px', flexShrink: 0 }}>/</span>}
+                    <button onClick={() => router.push(`/app/page/${crumb.id}`)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px', color: i === crumbs.length - 1 ? 'var(--text)' : 'var(--text-secondary)', padding: '2px 4px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: i < crumbs.length - 1 ? '120px' : 'none', fontWeight: i === crumbs.length - 1 ? 500 : 400 }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                      <span style={{ fontSize: '13px' }}>{crumb.icon}</span>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{crumb.title}</span>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
         </div>
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>{children}</div>
       </main>
