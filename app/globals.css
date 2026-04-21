@@ -157,7 +157,13 @@ html, body {
   display: flex; align-items: center; gap: 2px;
   box-shadow: var(--shadow-lg);
   z-index: 1000;
+  max-width: calc(100vw - 32px);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  flex-wrap: nowrap;
 }
+.floating-toolbar::-webkit-scrollbar { display: none; }
 .floating-btn {
   background: none; border: none; cursor: pointer;
   color: rgba(255,255,255,0.85); padding: 4px 6px;
@@ -242,3 +248,10 @@ html, body {
 /* ── SIDEBAR ACTIONS FIX ────────────────────────────────────── */
 .sidebar-item .actions { display: none !important; }
 .sidebar-item:hover .actions { display: flex !important; }
+
+/* ── PRINT STYLES (PDF export) ──────────────────────────────── */
+@media print {
+  .sidebar-bg, aside, header, button, [class*="toolbar"], [class*="share"], [class*="export"] { display: none !important; }
+  body { font-size: 12pt; }
+  .tiptap { max-width: 100%; }
+}

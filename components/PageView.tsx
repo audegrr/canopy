@@ -50,8 +50,14 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   useEffect(() => {
     async function onPicker(e: any) {
       const supabaseClient = createClient()
-      const { data } = await supabaseClient.from('pages').select('id, title, icon, parent_id').eq('workspace_id', page.workspace_id).order('title')
-      setSubpageList(data || [])
+      const { data } = await supabaseClient.from('pages').select('id, title, icon, parent_id').eq('workspace_id', page.workspace_id).neq('id', page.id).order('title')
+      // Show children of current page first, then others
+      const sorted = (data || []).sort((a: any, b: any) => {
+        const aIsChild = a.parent_id === page.id ? -1 : 0
+        const bIsChild = b.parent_id === page.id ? -1 : 0
+        return aIsChild - bIsChild
+      })
+      setSubpageList(sorted)
       setSubpagePickerCallback(() => e.detail.onSelect)
       setShowSubpagePicker(true)
     }
@@ -208,7 +214,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
           {page.icon && <span style={{ fontSize: '14px' }}>{page.icon}</span>}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{page.title || 'Untitled'}</span>
         </div>
-        <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{saved ? '' : 'Saving…'}</span>
+        <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0, transition: 'opacity 0.3s', opacity: saved ? 0 : 1 }}>Saving…</span>
         {canEdit && (
           <button onClick={duplicatePage} title="Duplicate page"
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '13px', padding: '4px 6px', borderRadius: '4px', fontFamily: 'var(--font-sans)' }}
@@ -217,10 +223,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
             ⧉
           </button>
         )}
-        {/* Export */}
-        <div style={{ position: 'relative' }}>
-          <ExportMenu onPDF={exportPDF} onWord={exportWord} />
-        </div>
+        <ExportMenu onPDF={exportPDF} onWord={exportWord} />
         {isOwner && (
           <button onClick={() => setShareOpen(o => !o)}
             style={{ background: shareOpen ? 'var(--accent)' : 'var(--sidebar-bg)', color: shareOpen ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border)', padding: '5px 14px', borderRadius: '5px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s' }}>
@@ -362,8 +365,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
               <label style={labelSt}>Link access</label>
               <select value={page.link_permission} onChange={e => updateLinkPerm(e.target.value)} style={{ ...inputSt, marginTop: '6px' }}>
                 <option value="none">🔒 No access</option>
-                <option value="view">👁 Anyone can view</option>
-                <option value="edit">✎ Anyone can edit</option>
+                <option value="view">👁️ Anyone can view</option>
+                <option value="edit">✏️ Anyone can edit</option>
               </select>
               {page.link_permission !== 'none' && (
                 <button onClick={copyShareLink}
@@ -443,8 +446,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
                   <span style={{ fontSize: '16px' }}>{p.icon || '📄'}</span>
-                  <span style={{ fontSize: '13.5px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || 'Untitled'}</span>
-                  {p.id === page.id && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>current</span>}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13.5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || 'Untitled'}</div>
+                    {p.parent_id === page.id && <div style={{ fontSize: '11px', color: 'var(--accent)' }}>Child of this page</div>}
+                  </div>
                 </div>
               ))}
             </div>
@@ -472,16 +477,16 @@ function ExportMenu({ onPDF, onWord }: { onPDF: () => void; onWord: () => void }
   return (
     <div style={{ position: 'relative' }}>
       <button onClick={() => setOpen(o => !o)}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '13px', padding: '4px 8px', borderRadius: '4px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '4px' }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
+        style={{ background: open ? 'var(--sidebar-hover)' : 'var(--sidebar-bg)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px', padding: '5px 14px', borderRadius: '5px', fontFamily: 'var(--font-sans)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 0.15s' }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' }}
+        onMouseLeave={e => { if (!open) { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' } }}
         title="Export">
         ⬇ Export
       </button>
       {open && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpen(false)} />
-          <div style={{ position: 'absolute', top: '100%', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 100, minWidth: '160px' }} className="scale-in">
+          <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 100, minWidth: '170px' }} className="scale-in">
             <div onClick={() => { onPDF(); setOpen(false) }}
               style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}

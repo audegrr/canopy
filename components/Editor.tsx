@@ -273,6 +273,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [showHighlightPicker, setShowHighlightPicker] = useState(false)
   const slashQueryRef = useRef('')
+  const [blockCtxMenu, setBlockCtxMenu] = useState<{ x: number; y: number; pos: number } | null>(null)
 
   const editor = useEditor({
     extensions: [
@@ -304,6 +305,15 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
     onUpdate: ({ editor }) => onUpdate(editor.getJSON()),
     onCreate: ({ editor }) => { if (onEditorReady) onEditorReady(editor) },
     editorProps: {
+      handleDOMEvents: {
+        contextmenu: (view, event) => {
+          if (!editable) return false
+          event.preventDefault()
+          const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })
+          setBlockCtxMenu({ x: event.clientX, y: event.clientY, pos: pos?.pos ?? 0 })
+          return true
+        }
+      },
       handleKeyDown(view, event) {
         if (event.key === '/') {
           const { from } = view.state.selection
@@ -533,6 +543,49 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           </div>
         </>
       )}
+    {/* Block context menu */}
+    {blockCtxMenu && (
+      <>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setBlockCtxMenu(null)} />
+        <div style={{ position: 'fixed', left: Math.min(blockCtxMenu.x, window.innerWidth - 200), top: Math.min(blockCtxMenu.y, window.innerHeight - 260), background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 999, minWidth: '190px' }} className="scale-in">
+          <CtxItem onClick={() => { editor?.chain().focus().selectAll().run(); document.execCommand('copy'); setBlockCtxMenu(null) }}>📋 Copy all</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleBold().run(); setBlockCtxMenu(null) }}>𝐁 Bold</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleItalic().run(); setBlockCtxMenu(null) }}>𝐼 Italic</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleUnderline().run(); setBlockCtxMenu(null) }}>U̲ Underline</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleHighlight({ color: '#fdf3a7' }).run(); setBlockCtxMenu(null) }}>🖊 Highlight</CtxItem>
+          <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+          <CtxItem onClick={() => { editor?.chain().focus().toggleHeading({ level: 1 }).run(); setBlockCtxMenu(null) }}>H1 Heading 1</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleHeading({ level: 2 }).run(); setBlockCtxMenu(null) }}>H2 Heading 2</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleBulletList().run(); setBlockCtxMenu(null) }}>• Bullet list</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleTaskList().run(); setBlockCtxMenu(null) }}>☑ To-do list</CtxItem>
+          <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+          <CtxItem onClick={() => { editor?.chain().focus().clearNodes().unsetAllMarks().run(); setBlockCtxMenu(null) }}>✕ Clear formatting</CtxItem>
+          <CtxItem danger onClick={() => {
+            if (!editor) return
+            const { from, to } = editor.state.selection
+            if (from !== to) editor.chain().focus().deleteSelection().run()
+            else {
+              // Delete current block
+              const pos = blockCtxMenu.pos
+              const node = editor.state.doc.nodeAt(pos)
+              if (node) editor.chain().focus().deleteRange({ from: pos, to: pos + node.nodeSize }).run()
+            }
+            setBlockCtxMenu(null)
+          }}>🗑 Delete block</CtxItem>
+        </div>
+      </>
+    )}
+    </div>
+  )
+}
+
+function CtxItem({ onClick, children, danger }: { onClick: () => void; children: React.ReactNode; danger?: boolean }) {
+  return (
+    <div onClick={onClick}
+      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', color: danger ? 'var(--red)' : 'var(--text)' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = danger ? '#fff0f0' : 'var(--sidebar-hover)' }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+      {children}
     </div>
   )
 }
