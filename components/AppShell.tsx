@@ -81,6 +81,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }, [])
 
   function navigate(path: string) { setNavigating(true); router.push(path) }
+  function prefetch(path: string) { router.prefetch(path) }
   function showToastMsg(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2500) }
 
   // ── PAGE ACTIONS ────────────────────────────────────────────
@@ -231,6 +232,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             onRenameCancel={() => setRenamingPageId(null)}
             onToggle={() => setExpandedPages(s => { const n = new Set(s); n.has(page.id) ? n.delete(page.id) : n.add(page.id); return n })}
             onClick={() => navigate(`/app/page/${page.id}`)}
+            onHover={() => prefetch(`/app/page/${page.id}`)}
             onDragStart={(e: React.DragEvent) => handleDragStart(e, page.id)}
             onDragOver={(e: React.DragEvent) => { e.preventDefault(); setDragOverId(page.id) }}
             onDragLeave={() => setDragOverId(null)}
@@ -476,13 +478,11 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
             <MenuItem onClick={() => {
               const pid = contextMenu.pageId; setContextMenu(null)
-              navigate(`/app/page/${pid}`)
-              setTimeout(() => window.dispatchEvent(new CustomEvent('canopy:openShare')), 600)
+              navigate(`/app/page/${pid}?panel=share`)
             }}>🔒 Share…</MenuItem>
             <MenuItem onClick={() => {
               const pid = contextMenu.pageId; setContextMenu(null)
-              navigate(`/app/page/${pid}`)
-              setTimeout(() => window.dispatchEvent(new CustomEvent('canopy:openExport')), 600)
+              navigate(`/app/page/${pid}?panel=export`)
             }}>⬇️ Export…</MenuItem>
             {isOwnPage(contextMenu.pageId) && <>
               <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
@@ -527,7 +527,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 }
 
 // ── PAGE ROW COMPONENT ───────────────────────────────────────
-function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, isRenaming, renameVal, onRenameChange, onRenameSubmit, onRenameCancel, onToggle, onClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu, onAddSubpage, onMoreMenu, isDragging, badge, onRemove }: any) {
+function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, isRenaming, renameVal, onRenameChange, onRenameSubmit, onRenameCancel, onToggle, onClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu, onAddSubpage, onMoreMenu, isDragging, badge, onRemove, onHover }: any) {
   const [hovered, setHovered] = useState(false)
   return (
     <div
@@ -535,7 +535,7 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
       onDragStart={onDragStart} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onDragEnd={onDragEnd}
       onContextMenu={onContextMenu}
       onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
+      onMouseEnter={() => { setHovered(true); onHover?.() }}
       onMouseLeave={() => setHovered(false)}
       style={{
         display: 'flex', alignItems: 'center',

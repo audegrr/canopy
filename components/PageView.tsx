@@ -42,6 +42,19 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     if (shareOpen && isOwner) loadShares()
   }, [shareOpen])
 
+  // Auto-open panel from URL param (e.g. ?panel=share from sidebar menu)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const panel = params.get('panel')
+    if (panel === 'share' && isOwner) setShareOpen(true)
+    if (panel === 'export') {
+      setTimeout(() => {
+        const btn = document.querySelector('[data-export-btn]') as HTMLButtonElement
+        btn?.click()
+      }, 200)
+    }
+  }, [])
+
   // Broadcast page updates to sidebar
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('canopy:pageUpdate', { detail: { id: page.id, title: page.title, icon: page.icon } }))
