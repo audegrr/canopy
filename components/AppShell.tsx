@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Workspace, Page, SharedPage, User } from '@/lib/types'
+import CommandPalette from './CommandPalette'
 
 type Props = {
   user: User
@@ -413,6 +414,16 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             ))}
           </div>
 
+          {/* Cmd+K hint */}
+          <button
+            onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))}
+            style={{ background: 'none', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '12px', padding: '3px 8px', borderRadius: '5px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, whiteSpace: 'nowrap' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}
+            title="Open command palette (⌘K)">
+            🔍 <kbd style={{ fontSize: '10px' }}>⌘K</kbd>
+          </button>
+
           {navigating && (
             <div style={{ width: '16px', height: '16px', border: '2px solid var(--border)', borderTop: '2px solid var(--accent)', borderRadius: '50%', animation: 'spin 0.6s linear infinite', flexShrink: 0 }} />
           )}
@@ -461,6 +472,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       )}
 
       {wsMenuOpen && <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setWsMenuOpen(false)} />}
+
+      <CommandPalette
+        workspaceId={currentWs.id}
+        onCreatePage={() => createPage(null)}
+        onCreateDatabase={() => createDatabase(null)}
+      />
 
       {toast && (
         <div style={{ position: 'fixed', bottom: '24px', right: '24px', background: '#37352f', color: '#fff', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', zIndex: 300, boxShadow: 'var(--shadow-lg)' }} className="fade-in">
