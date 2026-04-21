@@ -26,6 +26,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   const [inviteRole, setInviteRole] = useState('view')
   const [toast, setToast] = useState('')
   const [showSubpagePicker, setShowSubpagePicker] = useState(false)
+  const [showImagePicker, setShowImagePicker] = useState(false)
+  const [imagePickerCallback, setImagePickerCallback] = useState<{ onUrl: (u: string) => void; onFile: (s: string) => void } | null>(null)
+  const [imageUrl, setImageUrl] = useState('')
   const [subpagePickerCallback, setSubpagePickerCallback] = useState<((id: string) => void) | null>(null)
   const [subpageList, setSubpageList] = useState<any[]>([])
   const [isUploadingCover, setIsUploadingCover] = useState(false)
@@ -46,11 +49,31 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     document.title = (page.title || 'Untitled') + ' — Canopy'
   }, [page.title, page.icon])
 
+  // Listen for share/export open from sidebar context menu
+  useEffect(() => {
+    const onShare = () => setShareOpen(true)
+    const onExport = () => {
+      const btn = document.querySelector('[data-export-btn]') as HTMLButtonElement
+      btn?.click()
+    }
+    window.addEventListener('canopy:openShare', onShare)
+    window.addEventListener('canopy:openExport', onExport)
+    return () => {
+      window.removeEventListener('canopy:openShare', onShare)
+      window.removeEventListener('canopy:openExport', onExport)
+    }
+  }, [])
+
   // Listen for subpage picker request from editor
   useEffect(() => {
     async function onPicker(e: any) {
       const supabaseClient = createClient()
-      const { data } = await supabaseClient.from('pages').select('id, title, icon, parent_id').eq('workspace_id', page.workspace_id).neq('id', page.id).order('title')
+      const { data: ownPages } = await supabaseClient.from('pages').select('id, title, icon, parent_id').eq('workspace_id', page.workspace_id).neq('id', page.id).order('title')
+      const { data: sharedPagesData } = await supabaseClient.rpc('get_shared_pages', { user_uuid: (await supabaseClient.auth.getUser()).data.user?.id || '' })
+      const data = [
+        ...(ownPages || []),
+        ...(sharedPagesData || []).filter((sp: any) => sp.id !== page.id).map((sp: any) => ({ id: sp.id, title: sp.title, icon: sp.icon, parent_id: sp.parent_id, isShared: true }))
+      ]
       // Show children of current page first, then others
       const sorted = (data || []).sort((a: any, b: any) => {
         const aIsChild = a.parent_id === page.id ? -1 : 0
@@ -64,6 +87,17 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     window.addEventListener('canopy:showSubpagePicker', onPicker)
     return () => window.removeEventListener('canopy:showSubpagePicker', onPicker)
   }, [page.workspace_id])
+
+  // Image picker listener
+  useEffect(() => {
+    function onImagePicker(e: any) {
+      setImagePickerCallback({ onUrl: e.detail.onUrl, onFile: e.detail.onFile })
+      setImageUrl('')
+      setShowImagePicker(true)
+    }
+    window.addEventListener('canopy:showImagePicker', onImagePicker)
+    return () => window.removeEventListener('canopy:showImagePicker', onImagePicker)
+  }, [])
 
   // Sync title display
   useEffect(() => {
@@ -130,16 +164,44 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
 
   async function inviteUser() {
     if (!inviteEmail.trim()) return
-    const { data: profile } = await supabase.from('profiles').select('id').eq('email', inviteEmail.trim()).single()
-    if (!profile) { showToast('User not found'); return }
-    await supabase.from('page_shares').upsert({ page_id: page.id, user_id: profile.id, permission: inviteRole })
+    // Try profiles table first, then auth.users via RPC
+    let userId: string | null = null
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('id')
+      .ilike('email', inviteEmail.trim())
+      .single()
+    if (profile) {
+      userId = profile.id
+    } else {
+      // Try finding by exact email match in profiles
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .ilike('email', inviteEmail.trim())
+      if (profiles && profiles.length > 0) userId = profiles[0].id
+    }
+    if (!userId) {
+      showToast('User not found — make sure they have a Canopy account')
+      return
+    }
+    // Share the page
+    const { error } = await supabase.from('page_shares').upsert({
+      page_id: page.id, user_id: userId, permission: inviteRole
+    }, { onConflict: 'page_id,user_id' })
+    if (error) { showToast('Error: ' + error.message); return }
+    // Share all sub-pages automatically
     const { data: subIds } = await supabase.rpc('get_all_subpage_ids', { page_id: page.id })
-    if (subIds) for (const row of subIds) {
-      await supabase.from('page_shares').upsert({ page_id: row.id, user_id: profile.id, permission: inviteRole })
+    if (subIds) {
+      for (const row of subIds) {
+        await supabase.from('page_shares').upsert({
+          page_id: row.id, user_id: userId, permission: inviteRole
+        }, { onConflict: 'page_id,user_id' })
+      }
     }
     setInviteEmail('')
     loadShares()
-    showToast(`${inviteEmail} added!`)
+    showToast(`✅ Shared with ${inviteEmail}`)
   }
 
   async function removeShare(uid: string) {
@@ -230,8 +292,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         {isOwner && (
           <button data-share-btn onClick={() => setShareOpen(o => !o)}
             style={{ background: shareOpen ? 'var(--accent)' : 'var(--sidebar-bg)', color: shareOpen ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border)', padding: '5px 14px', borderRadius: '5px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s' }}
-            onMouseEnter={e => { if (!shareOpen) { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' } }}
-            onMouseLeave={e => { if (!shareOpen) { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)' } }}>
+            onMouseEnter={e => { if (!shareOpen) { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' } }}
+            onMouseLeave={e => { if (!shareOpen) { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' } }}>
             Share
           </button>
         )}
@@ -427,6 +489,60 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
           </div>
         )}
       </div>
+
+      {/* Image picker */}
+      {showImagePicker && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200 }} onClick={() => setShowImagePicker(false)} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '24px', width: '400px', boxShadow: 'var(--shadow-lg)', zIndex: 201 }} className="scale-in">
+            <h3 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '16px' }}>Insert image</h3>
+            {/* URL input */}
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '6px' }}>Image URL</label>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://..."
+                  onKeyDown={e => { if (e.key === 'Enter' && imageUrl) { imagePickerCallback?.onUrl(imageUrl); setShowImagePicker(false) } }}
+                  style={{ flex: 1, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontSize: '13px', outline: 'none' }} autoFocus />
+                <button onClick={() => { if (imageUrl) { imagePickerCallback?.onUrl(imageUrl); setShowImagePicker(false) } }}
+                  style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500 }}>Insert</button>
+              </div>
+            </div>
+            {/* Divider */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '14px 0' }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+              <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>or</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+            </div>
+            {/* File upload + drag drop */}
+            <label
+              style={{ display: 'block', border: '2px dashed var(--border)', borderRadius: '8px', padding: '20px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.15s' }}
+              onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)'; (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
+              onDragLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.background = 'none' }}
+              onDrop={e => {
+                e.preventDefault()
+                const file = e.dataTransfer.files[0]
+                if (file?.type.startsWith('image/')) {
+                  const reader = new FileReader()
+                  reader.onload = ev => { if (ev.target?.result) { imagePickerCallback?.onFile(ev.target.result as string); setShowImagePicker(false) } }
+                  reader.readAsDataURL(file)
+                }
+              }}>
+              <div style={{ fontSize: '28px', marginBottom: '8px' }}>🖼️</div>
+              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Drag & drop an image here</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>or click to browse</div>
+              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => {
+                const file = e.target.files?.[0]
+                if (file) {
+                  const reader = new FileReader()
+                  reader.onload = ev => { if (ev.target?.result) { imagePickerCallback?.onFile(ev.target.result as string); setShowImagePicker(false) } }
+                  reader.readAsDataURL(file)
+                }
+              }} />
+            </label>
+            <button onClick={() => setShowImagePicker(false)} style={{ marginTop: '12px', width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '4px' }}>Cancel</button>
+          </div>
+        </>
+      )}
 
       {/* Subpage picker */}
       {showSubpagePicker && (

@@ -57,20 +57,20 @@ export default function AppHome() {
         <summary style={{ fontSize: '12px', color: 'var(--text-tertiary)', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
           <span>⌨</span> Keyboard shortcuts
         </summary>
-        <div style={{ marginTop: '10px', background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 20px' }}>
+        <div style={{ marginTop: '10px', background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 20px', alignItems: 'start' }}>
           {[
-            ['⌘ + S', 'Save'],
-            ['⌘ + B', 'Bold'],
-            ['⌘ + I', 'Italic'],
-            ['⌘ + U', 'Underline'],
-            ['⌘ + K', 'Link'],
-            ['⌘ + Z', 'Undo'],
-            ['/', 'Commands menu'],
-            ['Tab', 'Indent list'],
+            ['⌘ + S', 'Save page'],
+            ['⌘ + B', 'Bold text'],
+            ['⌘ + I', 'Italic text'],
+            ['⌘ + U', 'Underline text'],
+            ['⌘ + K', 'Insert link'],
+            ['⌘ + Z', 'Undo last action'],
+            ['/', 'Open commands menu'],
+            ['Tab', 'Indent list item'],
           ].map(([key, label]) => (
-            <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <kbd style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{key}</kbd>
-              <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{label}</span>
+            <div key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              <kbd style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0 }}>{key}</kbd>
+              <span style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>{label}</span>
             </div>
           ))}
         </div>
@@ -82,7 +82,7 @@ export default function AppHome() {
 function QuickAction({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
   return (
     <button onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px', color: 'var(--text)', fontWeight: 500, transition: 'all 0.15s' }}
+      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 18px', width: '160px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px', color: 'var(--text)', fontWeight: 500, transition: 'all 0.15s' }}
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
       <span style={{ fontSize: '16px' }}>{icon}</span>

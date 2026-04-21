@@ -1,237 +1,193 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 
-type Props = {
-  editor: any
-}
+type Props = { editor: any }
 
 export default function DragHandle({ editor }: Props) {
+  const [handleTop, setHandleTop] = useState(0)
   const [visible, setVisible] = useState(false)
-  const [top, setTop] = useState(0)
-  const [isDragging, setIsDragging] = useState(false)
-  const [dropLineTop, setDropLineTop] = useState<number | null>(null)
-  const srcIndexRef = useRef<number | null>(null)
-  const hoverIndexRef = useRef<number | null>(null)
-  const handleRef = useRef<HTMLDivElement>(null)
-  const containerRef = useRef<HTMLDivElement | null>(null)
-  const leaveTimer = useRef<any>(null)
+  const [dragging, setDragging] = useState(false)
+  const [dropLine, setDropLine] = useState<number | null>(null)
+  const hoverIdx = useRef<number>(-1)
+  const dragIdx = useRef<number>(-1)
+  const dropIdx = useRef<number>(-1)
+  const hideTimer = useRef<any>(null)
 
   useEffect(() => {
-    const el = document.querySelector('.tiptap') as HTMLDivElement
-    if (!el) return
-    // The container is the relative-positioned parent of .tiptap
-    containerRef.current = el.parentElement as HTMLDivElement
+    const tiptap = document.querySelector('.tiptap') as HTMLElement
+    if (!tiptap) return
 
-    function getBlockRects() {
+    function getBlockEls(): HTMLElement[] {
       if (!editor) return []
-      const rects: { top: number; bottom: number; height: number; index: number; domNode: HTMLElement }[] = []
-      let i = 0
-      editor.state.doc.forEach((_node: any, offset: number) => {
+      const els: HTMLElement[] = []
+      editor.state.doc.forEach((_: any, offset: number) => {
         const dom = editor.view.nodeDOM(offset) as HTMLElement
-        if (dom && dom.getBoundingClientRect) {
-          const r = dom.getBoundingClientRect()
-          rects.push({ top: r.top, bottom: r.bottom, height: r.height, index: i, domNode: dom })
-        }
-        i++
+        if (dom) els.push(dom)
       })
-      return rects
+      return els
     }
 
     function onMouseMove(e: MouseEvent) {
-      if (isDragging) return
-      clearTimeout(leaveTimer.current)
-
-      const rects = getBlockRects()
-      const container = containerRef.current
-      if (!container) return
-      const containerRect = container.getBoundingClientRect()
-
+      if (dragging) return
+      clearTimeout(hideTimer.current)
+      const els = getBlockEls()
+      const parent = tiptap.parentElement!
+      const parentRect = parent.getBoundingClientRect()
       let found = -1
-      for (let i = 0; i < rects.length; i++) {
-        if (e.clientY >= rects[i].top - 4 && e.clientY <= rects[i].bottom + 4) {
-          found = i; break
-        }
+      for (let i = 0; i < els.length; i++) {
+        const r = els[i].getBoundingClientRect()
+        if (e.clientY >= r.top - 2 && e.clientY <= r.bottom + 2) { found = i; break }
       }
-
       if (found >= 0) {
-        hoverIndexRef.current = found
-        const r = rects[found]
-        setTop(r.top - containerRect.top + r.height / 2 - 10)
+        hoverIdx.current = found
+        const r = els[found].getBoundingClientRect()
+        setHandleTop(r.top - parentRect.top + r.height / 2 - 10)
         setVisible(true)
       } else {
-        hoverIndexRef.current = null
-        leaveTimer.current = setTimeout(() => setVisible(false), 300)
+        hideTimer.current = setTimeout(() => setVisible(false), 400)
       }
     }
 
-    el.addEventListener('mousemove', onMouseMove)
-    return () => {
-      el.removeEventListener('mousemove', onMouseMove)
-      clearTimeout(leaveTimer.current)
+    tiptap.addEventListener('mousemove', onMouseMove)
+    return () => tiptap.removeEventListener('mousemove', onMouseMove)
+  }, [editor, dragging])
+
+  useEffect(() => {
+    if (!dragging || !editor) return
+    const tiptap = document.querySelector('.tiptap') as HTMLElement
+    const parent = tiptap?.parentElement
+    if (!tiptap || !parent) return
+
+    function getBlockEls(): { el: HTMLElement; rect: DOMRect }[] {
+      const result: { el: HTMLElement; rect: DOMRect }[] = []
+      editor.state.doc.forEach((_: any, offset: number) => {
+        const dom = editor.view.nodeDOM(offset) as HTMLElement
+        if (dom && typeof dom.getBoundingClientRect === 'function') result.push({ el: dom, rect: dom.getBoundingClientRect() })
+      })
+      return result
     }
-  }, [editor, isDragging])
+
+    function onDragOver(e: DragEvent) {
+      e.preventDefault()
+      e.dataTransfer!.dropEffect = 'move'
+      const els = getBlockEls()
+      const parentRect = parent!.getBoundingClientRect()
+      let idx = els.length
+      for (let i = 0; i < els.length; i++) {
+        if (e.clientY < els[i].rect.top + els[i].rect.height / 2) { idx = i; break }
+      }
+      dropIdx.current = idx
+      // Set drop line position
+      if (idx < els.length) {
+        setDropLine(els[idx].rect.top - parentRect.top - 1)
+      } else if (els.length > 0) {
+        const last = els[els.length - 1]
+        setDropLine(last.rect.bottom - parentRect.top + 1)
+      }
+    }
+
+    function onDrop(e: DragEvent) {
+      e.preventDefault()
+      const src = dragIdx.current
+      const dst = dropIdx.current
+      if (src < 0 || dst < 0 || !editor) return
+
+      // Get all node positions
+      const positions: { from: number; size: number; node: any }[] = []
+      editor.state.doc.forEach((node: any, offset: number) => {
+        positions.push({ from: offset, size: node.nodeSize, node })
+      })
+
+      if (src >= positions.length) return
+      if (src === dst || src === dst - 1) {
+        setDragging(false); setDropLine(null); dragIdx.current = -1; return
+      }
+
+      const srcPos = positions[src]
+      try {
+        const tr = editor.state.tr
+        tr.delete(srcPos.from, srcPos.from + srcPos.size)
+
+        // Recalculate positions after deletion
+        const newPositions: { from: number; size: number }[] = []
+        let pos = 0
+        editor.state.doc.forEach((node: any, offset: number) => {
+          newPositions.push({ from: offset, size: node.nodeSize })
+          pos = offset + node.nodeSize
+        })
+
+        let insertAt: number
+        if (dst === 0) {
+          insertAt = 0
+        } else if (dst > src) {
+          const adjDst = Math.min(dst - 1, newPositions.length - 1)
+          insertAt = adjDst >= 0 ? newPositions[adjDst].from + newPositions[adjDst].size : tr.doc.content.size
+        } else {
+          insertAt = dst < newPositions.length ? newPositions[dst].from : tr.doc.content.size
+        }
+
+        insertAt = Math.max(0, Math.min(insertAt, tr.doc.content.size))
+        tr.insert(insertAt, srcPos.node)
+        editor.view.dispatch(tr)
+      } catch (err) {
+        console.warn('Drag drop error:', err)
+      }
+
+      setDragging(false); setDropLine(null); setVisible(false)
+      dragIdx.current = -1; dropIdx.current = -1
+    }
+
+    tiptap.addEventListener('dragover', onDragOver)
+    tiptap.addEventListener('drop', onDrop)
+    return () => {
+      tiptap.removeEventListener('dragover', onDragOver)
+      tiptap.removeEventListener('drop', onDrop)
+    }
+  }, [dragging, editor])
 
   function onDragStart(e: React.DragEvent) {
-    if (hoverIndexRef.current === null) return
-    srcIndexRef.current = hoverIndexRef.current
-    setIsDragging(true)
+    dragIdx.current = hoverIdx.current
+    setDragging(true)
     e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('blockIndex', String(hoverIndexRef.current))
-
-    // Create ghost
+    e.dataTransfer.setData('text/plain', String(hoverIdx.current))
+    // Ghost image
     const ghost = document.createElement('div')
-    ghost.style.cssText = 'position:fixed;top:-999px;left:0;padding:8px 12px;background:white;border:1px solid #e9e9e7;border-radius:6px;font-size:13px;max-width:280px;'
+    ghost.style.cssText = 'position:fixed;top:-999px;padding:6px 12px;background:#fff;border:1px solid #e9e9e7;border-radius:6px;font-size:13px;max-width:260px;font-family:Inter,sans-serif;'
     if (editor) {
-      let text = ''
-      let idx = 0
-      editor.state.doc.forEach((node: any, _: number) => {
-        if (idx === hoverIndexRef.current) text = node.textContent?.slice(0, 50) || '…'
-        idx++
-      })
-      ghost.textContent = text || '…'
+      let txt = ''; let i = 0
+      editor.state.doc.forEach((node: any) => { if (i === hoverIdx.current) txt = node.textContent?.slice(0, 50) || '…'; i++ })
+      ghost.textContent = txt || '…'
     }
     document.body.appendChild(ghost)
     e.dataTransfer.setDragImage(ghost, 10, 10)
     requestAnimationFrame(() => document.body.removeChild(ghost))
   }
 
-  function onDragEnd() {
-    setIsDragging(false)
-    setDropLineTop(null)
-    setVisible(false)
-    srcIndexRef.current = null
-  }
-
-  useEffect(() => {
-    if (!isDragging || !editor) return
-    const el = document.querySelector('.tiptap') as HTMLElement
-    const container = containerRef.current
-    if (!el || !container) return
-
-    function getPositions() {
-      const positions: { from: number; to: number; node: any; rect: DOMRect }[] = []
-      editor.state.doc.forEach((node: any, offset: number) => {
-        const dom = editor.view.nodeDOM(offset) as HTMLElement
-        if (dom) positions.push({ from: offset, to: offset + node.nodeSize, node, rect: dom.getBoundingClientRect() })
-      })
-      return positions
-    }
-
-    function onDragOver(e: DragEvent) {
-      e.preventDefault()
-      e.dataTransfer!.dropEffect = 'move'
-      const positions = getPositions()
-      const containerRect = container!.getBoundingClientRect()
-      let dropIdx = positions.length
-      for (let i = 0; i < positions.length; i++) {
-        const midY = positions[i].rect.top + positions[i].rect.height / 2
-        if (e.clientY < midY) { dropIdx = i; break }
-      }
-      // Show drop line
-      if (dropIdx === 0 && positions.length > 0) {
-        setDropLineTop(positions[0].rect.top - containerRect.top - 2)
-      } else if (dropIdx >= positions.length && positions.length > 0) {
-        const last = positions[positions.length - 1]
-        setDropLineTop(last.rect.bottom - containerRect.top + 2)
-      } else if (positions[dropIdx]) {
-        setDropLineTop(positions[dropIdx].rect.top - containerRect.top - 2)
-      }
-      hoverIndexRef.current = dropIdx
-    }
-
-    function onDrop(e: DragEvent) {
-      e.preventDefault()
-      const src = srcIndexRef.current
-      const dest = hoverIndexRef.current
-      if (src === null || dest === null || !editor) return
-
-      const positions = getPositions()
-      if (src >= positions.length) return
-
-      const srcPos = positions[src]
-      const srcNode = srcPos.node
-
-      try {
-        const tr = editor.state.tr
-        // Delete source
-        tr.delete(srcPos.from, srcPos.to)
-        // Recalculate destination after deletion
-        let insertAt: number
-        if (dest <= src) {
-          // Moving up
-          insertAt = dest < positions.length ? positions[dest].from : 0
-        } else {
-          // Moving down — account for deleted node
-          const adjustedIdx = dest - 1
-          if (adjustedIdx < positions.length) {
-            insertAt = positions[adjustedIdx].to - srcNode.nodeSize
-          } else {
-            insertAt = editor.state.doc.content.size - srcNode.nodeSize
-          }
-        }
-        tr.insert(Math.max(0, Math.min(insertAt, editor.state.doc.content.size - srcNode.nodeSize)), srcNode)
-        editor.view.dispatch(tr)
-      } catch {}
-
-      setIsDragging(false)
-      setDropLineTop(null)
-      setVisible(false)
-      srcIndexRef.current = null
-    }
-
-    el.addEventListener('dragover', onDragOver)
-    el.addEventListener('drop', onDrop)
-    return () => {
-      el.removeEventListener('dragover', onDragOver)
-      el.removeEventListener('drop', onDrop)
-    }
-  }, [isDragging, editor])
+  function onDragEnd() { setDragging(false); setDropLine(null); setVisible(false); dragIdx.current = -1 }
 
   return (
     <>
       <div
-        ref={handleRef}
         draggable
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
-        onMouseEnter={() => clearTimeout(leaveTimer.current)}
-        onMouseLeave={() => { leaveTimer.current = setTimeout(() => setVisible(false), 400) }}
+        onMouseEnter={() => { clearTimeout(hideTimer.current); setVisible(true) }}
+        onMouseLeave={() => { if (!dragging) { clearTimeout(hideTimer.current); hideTimer.current = setTimeout(() => setVisible(false), 400) } }}
         style={{
-          position: 'absolute',
-          top,
-          left: -26,
-          width: '20px',
-          height: '20px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          cursor: isDragging ? 'grabbing' : 'grab',
-          opacity: visible && !isDragging ? 1 : 0,
+          position: 'absolute', left: -26, top: handleTop,
+          width: 20, height: 20,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          cursor: dragging ? 'grabbing' : 'grab',
+          opacity: visible && !dragging ? 1 : 0,
           transition: 'opacity 0.15s',
-          borderRadius: '3px',
-          color: 'var(--text-tertiary)',
-          fontSize: '14px',
-          userSelect: 'none',
-          zIndex: 20,
+          color: 'var(--text-tertiary)', fontSize: 14,
+          borderRadius: 3, userSelect: 'none', zIndex: 20,
           pointerEvents: visible ? 'all' : 'none',
         }}
-      >
-        ⠿
-      </div>
-
-      {/* Drop indicator line */}
-      {isDragging && dropLineTop !== null && (
-        <div style={{
-          position: 'absolute',
-          left: 0, right: 0,
-          top: dropLineTop,
-          height: '2px',
-          background: 'var(--accent)',
-          borderRadius: '1px',
-          zIndex: 30,
-          pointerEvents: 'none',
-          boxShadow: '0 0 4px var(--accent)',
-        }} />
+        title="Drag to reorder"
+      >⠿</div>
+      {dragging && dropLine !== null && (
+        <div style={{ position: 'absolute', left: 0, right: 0, top: dropLine, height: 2, background: 'var(--accent)', borderRadius: 1, zIndex: 30, pointerEvents: 'none', boxShadow: '0 0 6px var(--accent)' }} />
       )}
     </>
   )

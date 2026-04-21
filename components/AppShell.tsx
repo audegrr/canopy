@@ -142,6 +142,16 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     setContextMenu(null)
   }
 
+  // Get any page (own or shared) by id for context menu
+  function getAnyPage(pageId: string) {
+    return pages.find(p => p.id === pageId) || sharedPages.find(p => p.id === pageId) || null
+  }
+
+  // Is this page owned by the current user?
+  function isOwnPage(pageId: string) {
+    return pages.some(p => p.id === pageId)
+  }
+
   async function removeSharedPage(pageId: string) {
     await supabase.from('page_shares').delete().eq('page_id', pageId).eq('user_id', user.id)
     window.location.reload()
@@ -294,7 +304,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', userSelect: 'none' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-            <span style={{ fontSize: '18px', lineHeight: 1 }}>{currentWs.icon}</span>
+            <span style={{ fontSize: '24px', lineHeight: 1 }}>{currentWs.icon}</span>
             {renamingWs ? (
               <input autoFocus value={wsNameInput} onChange={e => setWsNameInput(e.target.value)}
                 onBlur={() => renameWorkspace(wsNameInput)}
@@ -456,16 +466,28 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           <div className="context-menu scale-in"
             style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 220), top: Math.min(contextMenu.y, window.innerHeight - 220), zIndex: 2000 }}>
             <MenuItem onClick={() => { navigate(`/app/page/${contextMenu.pageId}`); setContextMenu(null) }}>↗️ Open</MenuItem>
-            <MenuItem onClick={() => { setRenamingPageId(contextMenu.pageId); setRenameVal(pages.find(p => p.id === contextMenu.pageId)?.title || ''); setContextMenu(null) }}>✏️ Rename</MenuItem>
-            <MenuItem onClick={() => duplicatePage(contextMenu.pageId)}>📋 Duplicate</MenuItem>
-            <MenuItem onClick={() => createPage(contextMenu.pageId)}>📄 Add sub-page</MenuItem>
-            <MenuItem onClick={() => createDatabase(contextMenu.pageId)}>🗄️ Add database</MenuItem>
+            {isOwnPage(contextMenu.pageId) && <>
+              <MenuItem onClick={() => { setRenamingPageId(contextMenu.pageId); setRenameVal(pages.find(p => p.id === contextMenu.pageId)?.title || ''); setContextMenu(null) }}>✏️ Rename</MenuItem>
+              <MenuItem onClick={() => duplicatePage(contextMenu.pageId)}>📋 Duplicate</MenuItem>
+              <MenuItem onClick={() => createPage(contextMenu.pageId)}>📄 Add sub-page</MenuItem>
+              <MenuItem onClick={() => createDatabase(contextMenu.pageId)}>🗄️ Add database</MenuItem>
+            </>}
             <MenuItem onClick={() => copyPageUrl(contextMenu.pageId)}>🔗 Copy URL</MenuItem>
             <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-            <MenuItem onClick={() => { setContextMenu(null); navigate(`/app/page/${contextMenu.pageId}`) }}>🔒 Share…</MenuItem>
-            <MenuItem onClick={() => { setContextMenu(null); navigate(`/app/page/${contextMenu.pageId}`) }}>⬇️ Export…</MenuItem>
-            <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-            <MenuItem danger onClick={() => deletePage(contextMenu.pageId)}>🗑️ Delete</MenuItem>
+            <MenuItem onClick={() => {
+              const pid = contextMenu.pageId; setContextMenu(null)
+              navigate(`/app/page/${pid}`)
+              setTimeout(() => window.dispatchEvent(new CustomEvent('canopy:openShare')), 600)
+            }}>🔒 Share…</MenuItem>
+            <MenuItem onClick={() => {
+              const pid = contextMenu.pageId; setContextMenu(null)
+              navigate(`/app/page/${pid}`)
+              setTimeout(() => window.dispatchEvent(new CustomEvent('canopy:openExport')), 600)
+            }}>⬇️ Export…</MenuItem>
+            {isOwnPage(contextMenu.pageId) && <>
+              <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+              <MenuItem danger onClick={() => deletePage(contextMenu.pageId)}>🗑️ Delete</MenuItem>
+            </>}
           </div>
         </>
       )}

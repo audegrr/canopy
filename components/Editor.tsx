@@ -371,28 +371,24 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
       case 'code': editor.chain().focus().toggleCodeBlock().run(); break
       case 'divider': editor.chain().focus().setHorizontalRule().run(); break
       case 'toc': editor.chain().focus().insertContent({ type: 'toc' }).run(); break
-      case 'table': editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); break
+      case 'table':
+        editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()
+        // Add paragraph after table so user can continue writing
+        setTimeout(() => {
+          const { state } = editor
+          const end = state.doc.content.size - 1
+          editor.chain().insertContentAt(end, { type: 'paragraph' }).focus(end + 2).run()
+        }, 50)
+        break
       case 'image': {
-        // Show choice dialog
-        const choice = window.confirm('Click OK to paste a URL, Cancel to upload a file from your computer.')
-        if (choice) {
-          const url = window.prompt('Image URL:')
-          if (url) editor.chain().focus().setImage({ src: url }).run()
-        } else {
-          const input = document.createElement('input')
-          input.type = 'file'
-          input.accept = 'image/*'
-          input.onchange = () => {
-            const file = input.files?.[0]
-            if (!file) return
-            const reader = new FileReader()
-            reader.onload = ev => {
-              if (ev.target?.result) editor.chain().focus().setImage({ src: ev.target.result as string }).run()
-            }
-            reader.readAsDataURL(file)
-          }
-          input.click()
-        }
+        window.dispatchEvent(new CustomEvent('canopy:showImagePicker', { detail: {
+          onUrl: (url: string) => {
+            editor.chain().focus().setImage({ src: url }).insertContentAt(editor.state.selection.to + 1, { type: 'paragraph' }).run()
+          },
+          onFile: (src: string) => {
+            editor.chain().focus().setImage({ src }).insertContentAt(editor.state.selection.to + 1, { type: 'paragraph' }).run()
+          },
+        }}))
         break
       }
       case 'video': {
@@ -487,8 +483,12 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
             {showHighlightPicker && (
               <div style={{ position: 'absolute', bottom: '40px', left: '-40px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 200, display: 'flex', flexWrap: 'wrap', gap: '4px', width: '160px' }}>
                 {HIGHLIGHTS.map(h => (
-                  <button key={h.value} title={h.label}
-                    onClick={() => { h.value ? editor.chain().focus().setHighlight({ color: h.value }).run() : editor.chain().focus().unsetHighlight().run(); setShowHighlightPicker(false) }}
+                  <button key={h.value || 'none'} title={h.label}
+                    onClick={() => {
+                      if (!h.value) { editor.chain().focus().unsetHighlight().run() }
+                      else { editor.chain().focus().toggleHighlight({ color: h.value }).run() }
+                      setShowHighlightPicker(false)
+                    }}
                     style={{ width: '22px', height: '22px', borderRadius: '4px', background: h.value || '#e9e9e7', border: '1px solid var(--border)', cursor: 'pointer' }} />
                 ))}
               </div>
@@ -504,6 +504,9 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
             if (url === null) return
             url === '' ? editor.chain().focus().unsetLink().run() : editor.chain().focus().setLink({ href: url }).run()
           }} active={editor.isActive('link')}>🔗</FBtn>
+          <div className="floating-sep" />
+          <FBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')}>•</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')}>1.</FBtn>
           <div className="floating-sep" />
           <FBtn onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })}>⬅</FBtn>
           <FBtn onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })}>↔</FBtn>
@@ -547,19 +550,21 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
     {blockCtxMenu && (
       <>
         <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setBlockCtxMenu(null)} />
-        <div style={{ position: 'fixed', left: Math.min(blockCtxMenu.x, window.innerWidth - 200), top: Math.min(blockCtxMenu.y, window.innerHeight - 260), background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 999, minWidth: '190px' }} className="scale-in">
+        <div style={{ position: 'fixed', left: Math.min(blockCtxMenu.x, window.innerWidth - 210), top: Math.min(blockCtxMenu.y, window.innerHeight - 320), maxHeight: '320px', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 999, minWidth: '190px' }} className="scale-in">
           <CtxItem onClick={() => { editor?.chain().focus().selectAll().run(); document.execCommand('copy'); setBlockCtxMenu(null) }}>📋 Copy all</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleBold().run(); setBlockCtxMenu(null) }}>𝐁 Bold</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleItalic().run(); setBlockCtxMenu(null) }}>𝐼 Italic</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleUnderline().run(); setBlockCtxMenu(null) }}>U̲ Underline</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleHighlight({ color: '#fdf3a7' }).run(); setBlockCtxMenu(null) }}>🖊 Highlight</CtxItem>
           <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-          <CtxItem onClick={() => { editor?.chain().focus().toggleHeading({ level: 1 }).run(); setBlockCtxMenu(null) }}>H1 Heading 1</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleHeading({ level: 2 }).run(); setBlockCtxMenu(null) }}>H2 Heading 2</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleBulletList().run(); setBlockCtxMenu(null) }}>• Bullet list</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleTaskList().run(); setBlockCtxMenu(null) }}>☑ To-do list</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleBold().run(); setBlockCtxMenu(null) }}>🅱️ Bold</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleItalic().run(); setBlockCtxMenu(null) }}>✏️ Italic</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleUnderline().run(); setBlockCtxMenu(null) }}>🔤 Underline</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleHighlight({ color: '#fdf3a7' }).run(); setBlockCtxMenu(null) }}>🖊️ Highlight</CtxItem>
           <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-          <CtxItem onClick={() => { editor?.chain().focus().clearNodes().unsetAllMarks().run(); setBlockCtxMenu(null) }}>✕ Clear formatting</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleHeading({ level: 1 }).run(); setBlockCtxMenu(null) }}>📌 Heading 1</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleHeading({ level: 2 }).run(); setBlockCtxMenu(null) }}>📍 Heading 2</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleBulletList().run(); setBlockCtxMenu(null) }}>📝 Bullet list</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleOrderedList().run(); setBlockCtxMenu(null) }}>🔢 Numbered list</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleTaskList().run(); setBlockCtxMenu(null) }}>☑️ To-do list</CtxItem>
+          <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+          <CtxItem onClick={() => { editor?.chain().focus().clearNodes().unsetAllMarks().run(); setBlockCtxMenu(null) }}>🧹 Clear formatting</CtxItem>
           <CtxItem danger onClick={() => {
             if (!editor) return
             const { from, to } = editor.state.selection
