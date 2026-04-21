@@ -357,6 +357,10 @@ export default function AppShell({ user, workspaces: initialWorkspaces, currentW
             <span style={{ fontSize: '14px' }}>✦</span>
             <span style={{ fontSize: '12px' }}>New page</span>
           </QuickBtn>
+          <QuickBtn onClick={() => createDatabase(null)} title="New database">
+            <span style={{ fontSize: '14px' }}>🗄</span>
+            <span style={{ fontSize: '12px' }}>Database</span>
+          </QuickBtn>
         </div>
 
         {/* Pages tree */}
@@ -420,6 +424,9 @@ export default function AppShell({ user, workspaces: initialWorkspaces, currentW
             </div>
             <div className="context-menu-item" onClick={() => createPage(contextMenu.pageId)}>
               <span>+</span> Add sub-page
+            </div>
+            <div className="context-menu-item" onClick={() => { createDatabase(contextMenu.pageId); setContextMenu(null) }}>
+              <span>🗄</span> Add database
             </div>
             <div className="context-menu-sep" />
             <div className="context-menu-item danger" onClick={() => deletePage(contextMenu.pageId)}>

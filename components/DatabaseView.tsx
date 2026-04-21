@@ -357,12 +357,10 @@ export default function DatabaseView({ page, canEdit }: Props) {
                       }
                       {/* Relation page selector */}
                       {f.type === 'relation' && canEdit && (
-                        <select value={f.relation_page_id || ''} onChange={e => updateField(f.id, { relation_page_id: e.target.value || null })}
-                          style={{ fontSize: '10px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--accent)', outline: 'none', fontFamily: 'var(--font-sans)', maxWidth: '80px' }}
-                          onClick={e => e.stopPropagation()}>
-                          <option value="">— link to</option>
-                          {/* Would need to load available pages */}
-                        </select>
+                        <RelationPagePicker
+                          value={f.relation_page_id || ''}
+                          onChange={pageId => updateField(f.id, { relation_page_id: pageId || null })}
+                        />
                       )}
                       {canEdit && (
                         <button onClick={() => deleteField(f.id)}
@@ -505,6 +503,31 @@ export default function DatabaseView({ page, canEdit }: Props) {
         </div>
       )}
     </div>
+  )
+}
+
+function RelationPagePicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
+  const [pages, setPages] = useState<{id: string; title: string; icon: string}[]>([])
+  const [loaded, setLoaded] = useState(false)
+  const supabase = createClient()
+
+  async function load() {
+    if (loaded) return
+    const { data } = await supabase.from('pages').select('id, title, icon').eq('is_database', true).order('title')
+    setPages(data || [])
+    setLoaded(true)
+  }
+
+  return (
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      onFocus={load}
+      onClick={e => e.stopPropagation()}
+      style={{ fontSize: '10px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--accent)', outline: 'none', fontFamily: 'var(--font-sans)', maxWidth: '90px' }}>
+      <option value="">— link to</option>
+      {pages.map(p => <option key={p.id} value={p.id}>{p.icon} {p.title}</option>)}
+    </select>
   )
 }
 

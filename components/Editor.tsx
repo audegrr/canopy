@@ -16,6 +16,7 @@ import TableHeader from '@tiptap/extension-table-header'
 import Image from '@tiptap/extension-image'
 import { Node, mergeAttributes } from '@tiptap/core'
 import SubpageBlock from './SubpageBlock'
+import DatabaseBlock from './DatabaseBlock'
 import Link from '@tiptap/extension-link'
 import Youtube from '@tiptap/extension-youtube'
 import HorizontalRule from '@tiptap/extension-horizontal-rule'
@@ -197,6 +198,27 @@ const SubpageExtension = Node.create({
   },
 })
 
+// ── DATABASE BLOCK EXTENSION ──────────────────────────────────────────
+const DatabaseBlockExtension = Node.create({
+  name: 'databaseBlock',
+  group: 'block',
+  atom: true,
+  addAttributes() {
+    return {
+      pageId: { default: null },
+      view: { default: 'table' },
+      collapsed: { default: false },
+    }
+  },
+  parseHTML() { return [{ tag: 'div[data-type="database-block"]' }] },
+  renderHTML({ HTMLAttributes }) {
+    return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'database-block' })]
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(DatabaseBlock)
+  },
+})
+
 // ── SLASH ITEMS ────────────────────────────────────────────────────────
 const SLASH_ITEMS = [
   { id: 'h1', label: 'Heading 1', hint: 'Big section heading', icon: 'H1', section: 'Basic blocks' },
@@ -214,6 +236,7 @@ const SLASH_ITEMS = [
   { id: 'image', label: 'Image', hint: 'Upload or embed URL', icon: '🖼', section: 'Media' },
   { id: 'video', label: 'YouTube', hint: 'Embed a video', icon: '▶', section: 'Media' },
   { id: 'subpage', label: 'Sub-page', hint: 'Embed a linked page', icon: '📄', section: 'Advanced' },
+  { id: 'database', label: 'Database', hint: 'Embed a database', icon: '🗄️', section: 'Advanced' },
 ]
 
 const COLORS = [
@@ -273,6 +296,7 @@ export default function Editor({ content, editable, onUpdate }: Props) {
       CalloutExtension,
       TocExtension,
       SubpageExtension,
+      DatabaseBlockExtension,
     ],
     content: content || '',
     editable,
@@ -349,6 +373,11 @@ export default function Editor({ content, editable, onUpdate }: Props) {
       case 'subpage': {
         const pageId = window.prompt('Page ID (copy from the page URL):')
         if (pageId) editor.chain().focus().insertContent({ type: 'subpage', attrs: { pageId: pageId.trim(), expanded: true } }).run()
+        break
+      }
+      case 'database': {
+        const pageId = window.prompt('Database page ID (copy from the URL):')
+        if (pageId) editor.chain().focus().insertContent({ type: 'databaseBlock', attrs: { pageId: pageId.trim(), view: 'table', collapsed: false } }).run()
         break
       }
     }
