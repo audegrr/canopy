@@ -234,3 +234,11 @@ html, body {
   .floating-toolbar { flex-wrap: wrap; max-width: 280px; }
   .slash-menu { min-width: 200px; }
 }
+
+/* ── LOADING ANIMATIONS ─────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes loadingBar { from { transform: scaleX(0); transform-origin: left; } to { transform: scaleX(1); transform-origin: left; } }
+
+/* ── SIDEBAR ACTIONS FIX ────────────────────────────────────── */
+.sidebar-item .actions { display: none !important; }
+.sidebar-item:hover .actions { display: flex !important; }

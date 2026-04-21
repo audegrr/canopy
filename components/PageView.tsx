@@ -25,6 +25,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('view')
   const [toast, setToast] = useState('')
+  const [showSubpagePicker, setShowSubpagePicker] = useState(false)
+  const [subpagePickerCallback, setSubpagePickerCallback] = useState<((id: string) => void) | null>(null)
+  const [subpageList, setSubpageList] = useState<any[]>([])
   const [isUploadingCover, setIsUploadingCover] = useState(false)
   const saveTimer = useRef<any>(null)
   const [editorInstance, setEditorInstance] = useState<any>(null)
@@ -35,6 +38,26 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   useEffect(() => {
     if (shareOpen && isOwner) loadShares()
   }, [shareOpen])
+
+  // Broadcast page updates to sidebar
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('canopy:pageUpdate', { detail: { id: page.id, title: page.title, icon: page.icon } }))
+    // Update page title in browser tab
+    document.title = (page.title || 'Untitled') + ' — Canopy'
+  }, [page.title, page.icon])
+
+  // Listen for subpage picker request from editor
+  useEffect(() => {
+    async function onPicker(e: any) {
+      const supabaseClient = createClient()
+      const { data } = await supabaseClient.from('pages').select('id, title, icon, parent_id').eq('workspace_id', page.workspace_id).order('title')
+      setSubpageList(data || [])
+      setSubpagePickerCallback(() => e.detail.onSelect)
+      setShowSubpagePicker(true)
+    }
+    window.addEventListener('canopy:showSubpagePicker', onPicker)
+    return () => window.removeEventListener('canopy:showSubpagePicker', onPicker)
+  }, [page.workspace_id])
 
   // Sync title display
   useEffect(() => {
@@ -150,6 +173,25 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     }
   }
 
+  async function exportPDF() {
+    window.print()
+    showToast('Opening print dialog…')
+  }
+
+  async function exportWord() {
+    // Simple HTML to docx via browser download
+    const content = document.querySelector('.tiptap')?.innerHTML || ''
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${page.title}</title><style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;font-size:14px;line-height:1.6;}h1{font-size:24px;}h2{font-size:20px;}h3{font-size:16px;}table{border-collapse:collapse;width:100%;}td,th{border:1px solid #ccc;padding:6px 10px;}</style></head><body><h1>${page.icon} ${page.title}</h1>${content}</body></html>`
+    const blob = new Blob([html], { type: 'application/msword' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = (page.title || 'page') + '.doc'
+    a.click()
+    URL.revokeObjectURL(url)
+    showToast('Downloading Word document…')
+  }
+
   function copyShareLink() {
     navigator.clipboard?.writeText(`${window.location.origin}/share/${page.id}`)
     showToast('Link copied!')
@@ -175,6 +217,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
             ⧉
           </button>
         )}
+        {/* Export */}
+        <div style={{ position: 'relative' }}>
+          <ExportMenu onPDF={exportPDF} onWord={exportWord} />
+        </div>
         {isOwner && (
           <button onClick={() => setShareOpen(o => !o)}
             style={{ background: shareOpen ? 'var(--accent)' : 'var(--sidebar-bg)', color: shareOpen ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border)', padding: '5px 14px', borderRadius: '5px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s' }}>
@@ -384,11 +430,72 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         )}
       </div>
 
+      {/* Subpage picker */}
+      {showSubpagePicker && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200 }} onClick={() => setShowSubpagePicker(false)} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '20px', width: '340px', maxHeight: '400px', boxShadow: 'var(--shadow-lg)', zIndex: 201, display: 'flex', flexDirection: 'column', gap: '12px' }} className="scale-in">
+            <h3 style={{ fontSize: '15px', fontWeight: 600 }}>Choose a page to embed</h3>
+            <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
+              {subpageList.map(p => (
+                <div key={p.id} onClick={() => { subpagePickerCallback?.(p.id); setShowSubpagePicker(false); setSubpagePickerCallback(null) }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', borderRadius: '6px', cursor: 'pointer' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                  <span style={{ fontSize: '16px' }}>{p.icon || '📄'}</span>
+                  <span style={{ fontSize: '13.5px', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || 'Untitled'}</span>
+                  {p.id === page.id && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>current</span>}
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input placeholder="Or paste a page ID…" style={{ flex: 1, padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontSize: '13px', outline: 'none' }}
+                onKeyDown={e => { if (e.key === 'Enter') { const v = (e.target as HTMLInputElement).value.trim(); if (v) { subpagePickerCallback?.(v); setShowSubpagePicker(false) } } }} />
+              <button onClick={() => setShowSubpagePicker(false)} style={{ background: 'var(--sidebar-bg)', border: 'none', padding: '7px 14px', borderRadius: '6px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px' }}>Cancel</button>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Toast */}
       {toast && (
         <div style={{ position: 'fixed', bottom: '24px', right: '24px', background: '#37352f', color: '#fff', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', zIndex: 300, boxShadow: 'var(--shadow-lg)' }} className="fade-in">
           {toast}
         </div>
+      )}
+    </div>
+  )
+}
+
+function ExportMenu({ onPDF, onWord }: { onPDF: () => void; onWord: () => void }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(o => !o)}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '13px', padding: '4px 8px', borderRadius: '4px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '4px' }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
+        title="Export">
+        ⬇ Export
+      </button>
+      {open && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpen(false)} />
+          <div style={{ position: 'absolute', top: '100%', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 100, minWidth: '160px' }} className="scale-in">
+            <div onClick={() => { onPDF(); setOpen(false) }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+              📄 Export as PDF
+            </div>
+            <div onClick={() => { onWord(); setOpen(false) }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+              📝 Export as Word
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

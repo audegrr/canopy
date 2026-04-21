@@ -1,194 +1,182 @@
 'use client'
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { Editor } from '@tiptap/core'
+import { useState, useEffect, useRef } from 'react'
 
 type Props = {
-  editor: Editor | null
-}
-
-type BlockInfo = {
-  el: HTMLElement
-  top: number
-  height: number
-  pos: number
+  editor: any
 }
 
 export default function DragHandle({ editor }: Props) {
-  const [handlePos, setHandlePos] = useState<{ top: number; left: number } | null>(null)
+  const [visible, setVisible] = useState(false)
+  const [top, setTop] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
-  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
-  const [blocks, setBlocks] = useState<BlockInfo[]>([])
-  const dragSourceIndex = useRef<number | null>(null)
+  const [dropLineTop, setDropLineTop] = useState<number | null>(null)
+  const srcIndexRef = useRef<number | null>(null)
+  const hoverIndexRef = useRef<number | null>(null)
   const handleRef = useRef<HTMLDivElement>(null)
-  const editorContainerRef = useRef<HTMLElement | null>(null)
-  const hoverBlockIndex = useRef<number | null>(null)
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const leaveTimer = useRef<any>(null)
 
   useEffect(() => {
-    if (!editor) return
-    const el = document.querySelector('.tiptap') as HTMLElement
-    editorContainerRef.current = el
+    const el = document.querySelector('.tiptap') as HTMLDivElement
     if (!el) return
+    // The container is the relative-positioned parent of .tiptap
+    containerRef.current = el.parentElement as HTMLDivElement
 
-    function getBlocks(): BlockInfo[] {
+    function getBlockRects() {
       if (!editor) return []
-      const result: BlockInfo[] = []
-      const editorEl = document.querySelector('.tiptap')
-      if (!editorEl) return []
-
-      editor.state.doc.forEach((node, offset) => {
-        const domNode = editor.view.nodeDOM(offset) as HTMLElement
-        if (!domNode) return
-        const rect = domNode.getBoundingClientRect()
-        result.push({ el: domNode, top: rect.top, height: rect.height, pos: offset })
+      const rects: { top: number; bottom: number; height: number; index: number; domNode: HTMLElement }[] = []
+      let i = 0
+      editor.state.doc.forEach((_node: any, offset: number) => {
+        const dom = editor.view.nodeDOM(offset) as HTMLElement
+        if (dom && dom.getBoundingClientRect) {
+          const r = dom.getBoundingClientRect()
+          rects.push({ top: r.top, bottom: r.bottom, height: r.height, index: i, domNode: dom })
+        }
+        i++
       })
-      return result
+      return rects
     }
 
     function onMouseMove(e: MouseEvent) {
       if (isDragging) return
-      const bks = getBlocks()
-      setBlocks(bks)
+      clearTimeout(leaveTimer.current)
 
-      let found: BlockInfo | null = null
-      let foundIdx = -1
-      for (let i = 0; i < bks.length; i++) {
-        const b = bks[i]
-        if (e.clientY >= b.top && e.clientY <= b.top + b.height) {
-          found = b
-          foundIdx = i
-          break
+      const rects = getBlockRects()
+      const container = containerRef.current
+      if (!container) return
+      const containerRect = container.getBoundingClientRect()
+
+      let found = -1
+      for (let i = 0; i < rects.length; i++) {
+        if (e.clientY >= rects[i].top - 4 && e.clientY <= rects[i].bottom + 4) {
+          found = i; break
         }
       }
 
-      if (found) {
-        const editorRect = editorContainerRef.current!.getBoundingClientRect()
-        hoverBlockIndex.current = foundIdx
-        setHandlePos({
-          top: found.top - editorRect.top + (found.height / 2) - 10,
-          left: -28,
-        })
+      if (found >= 0) {
+        hoverIndexRef.current = found
+        const r = rects[found]
+        setTop(r.top - containerRect.top + r.height / 2 - 10)
+        setVisible(true)
       } else {
-        hoverBlockIndex.current = null
-        setHandlePos(null)
+        hoverIndexRef.current = null
+        leaveTimer.current = setTimeout(() => setVisible(false), 300)
       }
     }
 
-    function onMouseLeave() {
-      if (!isDragging) setHandlePos(null)
-    }
-
     el.addEventListener('mousemove', onMouseMove)
-    el.addEventListener('mouseleave', onMouseLeave)
     return () => {
       el.removeEventListener('mousemove', onMouseMove)
-      el.removeEventListener('mouseleave', onMouseLeave)
+      clearTimeout(leaveTimer.current)
     }
   }, [editor, isDragging])
 
   function onDragStart(e: React.DragEvent) {
-    if (hoverBlockIndex.current === null || !editor) return
-    dragSourceIndex.current = hoverBlockIndex.current
+    if (hoverIndexRef.current === null) return
+    srcIndexRef.current = hoverIndexRef.current
     setIsDragging(true)
     e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', String(hoverBlockIndex.current))
+    e.dataTransfer.setData('blockIndex', String(hoverIndexRef.current))
 
-    // Ghost image
+    // Create ghost
     const ghost = document.createElement('div')
-    ghost.style.cssText = 'position:fixed;top:-1000px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:8px 12px;font-size:13px;color:var(--text);max-width:300px;opacity:0.9;'
-    const bks = blocks.length > 0 ? blocks : (() => {
-      const result: BlockInfo[] = []
-      editor.state.doc.forEach((node, offset) => {
-        const domNode = editor.view.nodeDOM(offset) as HTMLElement
-        if (!domNode) return
-        const rect = domNode.getBoundingClientRect()
-        result.push({ el: domNode, top: rect.top, height: rect.height, pos: offset })
+    ghost.style.cssText = 'position:fixed;top:-999px;left:0;padding:8px 12px;background:white;border:1px solid #e9e9e7;border-radius:6px;font-size:13px;max-width:280px;'
+    if (editor) {
+      let text = ''
+      let idx = 0
+      editor.state.doc.forEach((node: any, _: number) => {
+        if (idx === hoverIndexRef.current) text = node.textContent?.slice(0, 50) || '…'
+        idx++
       })
-      return result
-    })()
-    const srcBlock = bks[hoverBlockIndex.current]
-    if (srcBlock) ghost.textContent = srcBlock.el.textContent?.slice(0, 60) || '...'
+      ghost.textContent = text || '…'
+    }
     document.body.appendChild(ghost)
-    e.dataTransfer.setDragImage(ghost, 0, 0)
-    setTimeout(() => document.body.removeChild(ghost), 0)
+    e.dataTransfer.setDragImage(ghost, 10, 10)
+    requestAnimationFrame(() => document.body.removeChild(ghost))
   }
 
   function onDragEnd() {
     setIsDragging(false)
-    setDragOverIndex(null)
-    dragSourceIndex.current = null
+    setDropLineTop(null)
+    setVisible(false)
+    srcIndexRef.current = null
   }
 
-  // Track drag over on editor
   useEffect(() => {
     if (!isDragging || !editor) return
-
     const el = document.querySelector('.tiptap') as HTMLElement
-    if (!el) return
+    const container = containerRef.current
+    if (!el || !container) return
+
+    function getPositions() {
+      const positions: { from: number; to: number; node: any; rect: DOMRect }[] = []
+      editor.state.doc.forEach((node: any, offset: number) => {
+        const dom = editor.view.nodeDOM(offset) as HTMLElement
+        if (dom) positions.push({ from: offset, to: offset + node.nodeSize, node, rect: dom.getBoundingClientRect() })
+      })
+      return positions
+    }
 
     function onDragOver(e: DragEvent) {
       e.preventDefault()
       e.dataTransfer!.dropEffect = 'move'
-
-      const bks: BlockInfo[] = []
-      editor!.state.doc.forEach((node, offset) => {
-        const domNode = editor!.view.nodeDOM(offset) as HTMLElement
-        if (!domNode) return
-        const rect = domNode.getBoundingClientRect()
-        bks.push({ el: domNode, top: rect.top, height: rect.height, pos: offset })
-      })
-
-      let idx = bks.length
-      for (let i = 0; i < bks.length; i++) {
-        if (e.clientY < bks[i].top + bks[i].height / 2) { idx = i; break }
+      const positions = getPositions()
+      const containerRect = container!.getBoundingClientRect()
+      let dropIdx = positions.length
+      for (let i = 0; i < positions.length; i++) {
+        const midY = positions[i].rect.top + positions[i].rect.height / 2
+        if (e.clientY < midY) { dropIdx = i; break }
       }
-      setDragOverIndex(idx)
+      // Show drop line
+      if (dropIdx === 0 && positions.length > 0) {
+        setDropLineTop(positions[0].rect.top - containerRect.top - 2)
+      } else if (dropIdx >= positions.length && positions.length > 0) {
+        const last = positions[positions.length - 1]
+        setDropLineTop(last.rect.bottom - containerRect.top + 2)
+      } else if (positions[dropIdx]) {
+        setDropLineTop(positions[dropIdx].rect.top - containerRect.top - 2)
+      }
+      hoverIndexRef.current = dropIdx
     }
 
     function onDrop(e: DragEvent) {
       e.preventDefault()
-      if (dragSourceIndex.current === null || !editor) return
+      const src = srcIndexRef.current
+      const dest = hoverIndexRef.current
+      if (src === null || dest === null || !editor) return
 
-      const src = dragSourceIndex.current
-      const dest = dragOverIndex ?? 0
-      if (src === dest || src === dest - 1) return
-
-      // Get node positions
-      const positions: { from: number; to: number; node: any }[] = []
-      editor.state.doc.forEach((node, offset) => {
-        positions.push({ from: offset, to: offset + node.nodeSize, node })
-      })
-
-      if (src >= positions.length || dest > positions.length) return
+      const positions = getPositions()
+      if (src >= positions.length) return
 
       const srcPos = positions[src]
-      const tr = editor.state.tr
-
-      // Cut the source node
       const srcNode = srcPos.node
-      const srcFrom = srcPos.from
-      const srcTo = srcPos.to
-
-      // Compute destination after deletion
-      let destPos: number
-      if (dest > src) {
-        const afterDel = dest - 1
-        destPos = afterDel < positions.length ? positions[afterDel].to - srcNode.nodeSize : editor.state.doc.content.size - srcNode.nodeSize
-      } else {
-        destPos = dest < positions.length ? positions[dest].from : editor.state.doc.content.size
-      }
 
       try {
-        tr.delete(srcFrom, srcTo)
-        const insertPos = dest > src ? destPos : destPos
-        tr.insert(dest > src ? insertPos : insertPos, srcNode)
+        const tr = editor.state.tr
+        // Delete source
+        tr.delete(srcPos.from, srcPos.to)
+        // Recalculate destination after deletion
+        let insertAt: number
+        if (dest <= src) {
+          // Moving up
+          insertAt = dest < positions.length ? positions[dest].from : 0
+        } else {
+          // Moving down — account for deleted node
+          const adjustedIdx = dest - 1
+          if (adjustedIdx < positions.length) {
+            insertAt = positions[adjustedIdx].to - srcNode.nodeSize
+          } else {
+            insertAt = editor.state.doc.content.size - srcNode.nodeSize
+          }
+        }
+        tr.insert(Math.max(0, Math.min(insertAt, editor.state.doc.content.size - srcNode.nodeSize)), srcNode)
         editor.view.dispatch(tr)
-      } catch (err) {
-        // If transaction fails, ignore
-      }
+      } catch {}
 
       setIsDragging(false)
-      setDragOverIndex(null)
-      dragSourceIndex.current = null
+      setDropLineTop(null)
+      setVisible(false)
+      srcIndexRef.current = null
     }
 
     el.addEventListener('dragover', onDragOver)
@@ -197,78 +185,54 @@ export default function DragHandle({ editor }: Props) {
       el.removeEventListener('dragover', onDragOver)
       el.removeEventListener('drop', onDrop)
     }
-  }, [isDragging, dragOverIndex, editor])
-
-  if (!handlePos) return null
+  }, [isDragging, editor])
 
   return (
     <>
-      {/* Drag handle */}
       <div
         ref={handleRef}
         draggable
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
+        onMouseEnter={() => clearTimeout(leaveTimer.current)}
+        onMouseLeave={() => { leaveTimer.current = setTimeout(() => setVisible(false), 400) }}
         style={{
           position: 'absolute',
-          top: handlePos.top,
-          left: handlePos.left,
+          top,
+          left: -26,
           width: '20px',
           height: '20px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           cursor: isDragging ? 'grabbing' : 'grab',
-          color: 'var(--text-tertiary)',
+          opacity: visible && !isDragging ? 1 : 0,
+          transition: 'opacity 0.15s',
           borderRadius: '3px',
-          fontSize: '13px',
+          color: 'var(--text-tertiary)',
+          fontSize: '14px',
           userSelect: 'none',
-          opacity: isDragging ? 0 : 1,
-          transition: 'opacity 0.1s',
-          zIndex: 10,
+          zIndex: 20,
+          pointerEvents: visible ? 'all' : 'none',
         }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)' }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}
-        title="Drag to reorder"
       >
         ⠿
       </div>
 
-      {/* Drop indicator */}
-      {isDragging && dragOverIndex !== null && (
-        <DropIndicator blocks={blocks} index={dragOverIndex} />
+      {/* Drop indicator line */}
+      {isDragging && dropLineTop !== null && (
+        <div style={{
+          position: 'absolute',
+          left: 0, right: 0,
+          top: dropLineTop,
+          height: '2px',
+          background: 'var(--accent)',
+          borderRadius: '1px',
+          zIndex: 30,
+          pointerEvents: 'none',
+          boxShadow: '0 0 4px var(--accent)',
+        }} />
       )}
     </>
-  )
-}
-
-function DropIndicator({ blocks, index }: { blocks: BlockInfo[]; index: number }) {
-  const editorEl = document.querySelector('.tiptap')
-  if (!editorEl) return null
-  const editorRect = editorEl.getBoundingClientRect()
-
-  let top: number
-  if (index === 0 && blocks.length > 0) {
-    top = blocks[0].top - editorRect.top - 2
-  } else if (index >= blocks.length && blocks.length > 0) {
-    const last = blocks[blocks.length - 1]
-    top = last.top - editorRect.top + last.height + 2
-  } else if (blocks[index]) {
-    top = blocks[index].top - editorRect.top - 2
-  } else {
-    return null
-  }
-
-  return (
-    <div style={{
-      position: 'absolute',
-      left: 0, right: 0,
-      top,
-      height: '2px',
-      background: 'var(--accent)',
-      borderRadius: '1px',
-      zIndex: 20,
-      pointerEvents: 'none',
-    }} />
   )
 }

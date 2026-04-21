@@ -363,8 +363,26 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
       case 'toc': editor.chain().focus().insertContent({ type: 'toc' }).run(); break
       case 'table': editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(); break
       case 'image': {
-        const url = window.prompt('Image URL:')
-        if (url) editor.chain().focus().setImage({ src: url }).run()
+        // Show choice dialog
+        const choice = window.confirm('Click OK to paste a URL, Cancel to upload a file from your computer.')
+        if (choice) {
+          const url = window.prompt('Image URL:')
+          if (url) editor.chain().focus().setImage({ src: url }).run()
+        } else {
+          const input = document.createElement('input')
+          input.type = 'file'
+          input.accept = 'image/*'
+          input.onchange = () => {
+            const file = input.files?.[0]
+            if (!file) return
+            const reader = new FileReader()
+            reader.onload = ev => {
+              if (ev.target?.result) editor.chain().focus().setImage({ src: ev.target.result as string }).run()
+            }
+            reader.readAsDataURL(file)
+          }
+          input.click()
+        }
         break
       }
       case 'video': {
@@ -373,8 +391,19 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
         break
       }
       case 'subpage': {
-        const pageId = window.prompt('Page ID (copy from the page URL):')
-        if (pageId) editor.chain().focus().insertContent({ type: 'subpage', attrs: { pageId: pageId.trim(), expanded: true } }).run()
+        // Get current page ID from URL
+        const currentPath = window.location.pathname
+        const currentId = currentPath.match(/\/app\/page\/([^/]+)/)?.[1]
+        if (currentId) {
+          // Show subpage picker modal
+          const event = new CustomEvent('canopy:showSubpagePicker', { detail: { onSelect: (pageId: string) => {
+            editor.chain().focus().insertContent({ type: 'subpage', attrs: { pageId, expanded: true } }).run()
+          }}})
+          window.dispatchEvent(event)
+        } else {
+          const pageId = window.prompt('Page ID (copy from the URL):')
+          if (pageId) editor.chain().focus().insertContent({ type: 'subpage', attrs: { pageId: pageId.trim(), expanded: true } }).run()
+        }
         break
       }
       case 'database': {
