@@ -201,7 +201,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   // ── RENDER PAGE TREE ─────────────────────────────────────────
   function renderPageTree(parentId: string | null, depth = 0): React.ReactNode {
     const children = pages
-      .filter(p => p.parent_id === parentId && p.workspace_id === currentWs.id && p.owner_id === user.id)
+      .filter(p => p.parent_id === parentId && p.workspace_id === currentWs.id)
       .sort((a, b) => a.position - b.position)
 
     return children.map(page => {
