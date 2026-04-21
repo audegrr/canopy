@@ -32,7 +32,7 @@ export default function CommandPalette({ workspaceId, onCreatePage, onCreateData
   // Open on Cmd+K
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault()
         setOpen(o => !o)
         setQuery('')
@@ -148,7 +148,7 @@ export default function CommandPalette({ workspaceId, onCreatePage, onCreateData
           <span>↑↓ Navigate</span>
           <span>↵ Open</span>
           <span>ESC Close</span>
-          <span style={{ marginLeft: 'auto' }}>⌘K to open</span>
+          <span style={{ marginLeft: 'auto' }}>⌘F to open</span>
         </div>
       </div>
     </>

@@ -46,6 +46,15 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     return () => window.removeEventListener('resize', check)
   }, [])
 
+  // Restore last active workspace from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('canopy_workspace')
+    if (saved) {
+      const found = workspaces.find(w => w.id === saved)
+      if (found) setCurrentWs(found)
+    }
+  }, [])
+
   useEffect(() => {
     if (isMobile) setSidebarOpen(false)
     setNavigating(false)
@@ -160,7 +169,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     setRenamingWs(false)
   }
 
-  function switchWorkspace(ws: Workspace) { setCurrentWs(ws); navigate('/app'); setWsMenuOpen(false) }
+  function switchWorkspace(ws: Workspace) {
+    setCurrentWs(ws)
+    localStorage.setItem('canopy_workspace', ws.id)
+    navigate('/app')
+    setWsMenuOpen(false)
+  }
 
   async function handleSignOut() { await supabase.auth.signOut(); router.push('/login') }
 
@@ -187,7 +201,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   // ── RENDER PAGE TREE ─────────────────────────────────────────
   function renderPageTree(parentId: string | null, depth = 0): React.ReactNode {
     const children = pages
-      .filter(p => p.parent_id === parentId && p.workspace_id === currentWs.id)
+      .filter(p => p.parent_id === parentId && p.workspace_id === currentWs.id && p.owner_id === user.id)
       .sort((a, b) => a.position - b.position)
 
     return children.map(page => {
@@ -415,12 +429,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
           {/* Cmd+K button */}
           <button
-            onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))}
+            onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', metaKey: true, bubbles: true }))}
             style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px', padding: '5px 12px', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap', transition: 'all 0.15s' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
-            title="Search & commands (⌘K)">
-            🔍 Search <kbd style={{ fontSize: '11px', background: 'var(--border)', border: 'none', borderRadius: '3px', padding: '1px 5px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)' }}>⌘K</kbd>
+            title="Search & commands (⌘F)">
+            🔍 Search <kbd style={{ fontSize: '11px', background: 'var(--border)', border: 'none', borderRadius: '3px', padding: '1px 5px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)' }}>⌘F</kbd>
           </button>
 
           {navigating && (

@@ -36,7 +36,7 @@ export default function AppHome() {
 
       {/* Quick actions */}
       <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
-        <QuickAction icon="✦" label="New page" onClick={() => {
+        <QuickAction icon="📄" label="New page" onClick={() => {
           const btn = document.querySelector('[title="New page"]') as HTMLButtonElement
           btn?.click()
         }} />

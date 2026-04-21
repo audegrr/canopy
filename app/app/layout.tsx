@@ -8,17 +8,20 @@ export default async function AppLayout({ children }) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  let { data: workspaces } = await supabase.from('workspaces').select('*').eq('owner_id', user.id).order('created_at')
+  let { data: workspaces } = await supabase
+    .from('workspaces').select('*').eq('owner_id', user.id).order('created_at')
   if (!workspaces || workspaces.length === 0) {
-    const { data: ws } = await supabase.from('workspaces').insert({ name: 'My Workspace', icon: '🌿', owner_id: user.id }).select().single()
+    const { data: ws } = await supabase.from('workspaces')
+      .insert({ name: 'My Workspace', icon: '🌿', owner_id: user.id }).select().single()
     workspaces = ws ? [ws] : []
   }
-  const currentWorkspace = workspaces[0]
 
+  // Load ALL pages across ALL workspaces — client will filter by active workspace
+  const wsIds = (workspaces || []).map(w => w.id)
   const { data: rawPages } = await supabase
     .from('pages')
     .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
-    .eq('workspace_id', currentWorkspace?.id)
+    .in('workspace_id', wsIds.length > 0 ? wsIds : ['none'])
     .order('position')
 
   const pages = (rawPages || []).map((p) => ({
@@ -42,7 +45,7 @@ export default async function AppLayout({ children }) {
     <AppShell
       user={{ id: user.id, email: user.email || '', name: user.user_metadata?.full_name || user.email || '' }}
       workspaces={workspaces || []}
-      currentWorkspace={currentWorkspace || { id: '', name: 'Workspace', icon: '🌿', owner_id: user.id, created_at: '' }}
+      currentWorkspace={workspaces[0] || { id: '', name: 'Workspace', icon: '🌿', owner_id: user.id, created_at: '' }}
       pages={pages}
       sharedPages={sharedPages}
     >
