@@ -455,15 +455,15 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => setContextMenu(null)} />
           <div className="context-menu scale-in"
             style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 220), top: Math.min(contextMenu.y, window.innerHeight - 220), zIndex: 2000 }}>
-            <MenuItem onClick={() => { navigate(`/app/page/${contextMenu.pageId}`); setContextMenu(null) }}>↗ Open</MenuItem>
-            <MenuItem onClick={() => { setRenamingPageId(contextMenu.pageId); setRenameVal(pages.find(p => p.id === contextMenu.pageId)?.title || ''); setContextMenu(null) }}>✎ Rename</MenuItem>
-            <MenuItem onClick={() => duplicatePage(contextMenu.pageId)}>⧉ Duplicate</MenuItem>
+            <MenuItem onClick={() => { navigate(`/app/page/${contextMenu.pageId}`); setContextMenu(null) }}>↗️ Open</MenuItem>
+            <MenuItem onClick={() => { setRenamingPageId(contextMenu.pageId); setRenameVal(pages.find(p => p.id === contextMenu.pageId)?.title || ''); setContextMenu(null) }}>✏️ Rename</MenuItem>
+            <MenuItem onClick={() => duplicatePage(contextMenu.pageId)}>📋 Duplicate</MenuItem>
             <MenuItem onClick={() => createPage(contextMenu.pageId)}>📄 Add sub-page</MenuItem>
-            <MenuItem onClick={() => createDatabase(contextMenu.pageId)}>🗄 Add database</MenuItem>
+            <MenuItem onClick={() => createDatabase(contextMenu.pageId)}>🗄️ Add database</MenuItem>
             <MenuItem onClick={() => copyPageUrl(contextMenu.pageId)}>🔗 Copy URL</MenuItem>
             <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-            <MenuItem onClick={() => { navigate(`/app/page/${contextMenu.pageId}`); setTimeout(() => { const btn = document.querySelector('[data-share-btn]') as HTMLButtonElement; btn?.click() }, 500); setContextMenu(null) }}>🔗 Share…</MenuItem>
-            <MenuItem onClick={() => { navigate(`/app/page/${contextMenu.pageId}`); setTimeout(() => { const btn = document.querySelector('[data-export-btn]') as HTMLButtonElement; btn?.click() }, 500); setContextMenu(null) }}>⬇️ Export…</MenuItem>
+            <MenuItem onClick={() => { setContextMenu(null); navigate(`/app/page/${contextMenu.pageId}`) }}>🔒 Share…</MenuItem>
+            <MenuItem onClick={() => { setContextMenu(null); navigate(`/app/page/${contextMenu.pageId}`) }}>⬇️ Export…</MenuItem>
             <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
             <MenuItem danger onClick={() => deletePage(contextMenu.pageId)}>🗑️ Delete</MenuItem>
           </div>
@@ -518,7 +518,7 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
       style={{
         display: 'flex', alignItems: 'center',
         paddingLeft: `${6 + depth * 16}px`, paddingRight: '6px',
-        paddingTop: '5px', paddingBottom: '5px',
+        paddingTop: '6px', paddingBottom: '6px',
         borderRadius: '5px', cursor: 'pointer',
         background: isActive ? 'var(--sidebar-active)' : isDragOver ? 'var(--accent-light)' : hovered ? 'var(--sidebar-hover)' : 'transparent',
         opacity: isDragging ? 0.4 : 1,

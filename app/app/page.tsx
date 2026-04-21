@@ -47,9 +47,9 @@ export default function AppHome() {
       </div>
 
       {/* Rotating tip */}
-      <div style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '14px 20px', maxWidth: '340px', textAlign: 'center', transition: 'all 0.3s' }}>
+      <div style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '14px 20px', maxWidth: '340px', textAlign: 'center', minHeight: '80px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ fontSize: '22px', marginBottom: '6px' }}>{TIPS[tipIndex].icon}</div>
-        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{TIPS[tipIndex].text}</p>
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }}>{TIPS[tipIndex].text}</p>
       </div>
 
       {/* Keyboard shortcuts */}
