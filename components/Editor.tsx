@@ -147,9 +147,9 @@ function TocView({ editor: editorInstance }: any) {
       <div style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '6px', padding: '12px 16px', margin: '4px 0' }}>
         <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Table of contents</div>
         {headings.length === 0
-          ? <div style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>No headings yet</div>
+          ? <div style={{ fontSize: '15px', color: 'var(--text-tertiary)' }}>No headings yet</div>
           : headings.map((h, i) => (
-            <div key={i} style={{ fontSize: '13px', color: 'var(--text-secondary)', paddingLeft: `${(h.level - 1) * 12}px`, marginBottom: '3px', cursor: 'pointer' }}
+            <div key={i} style={{ fontSize: '15px', color: 'var(--text)', paddingLeft: `${(h.level - 1) * 12}px`, marginBottom: '3px', cursor: 'pointer' }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)' }}>
               {h.text}

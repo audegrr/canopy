@@ -447,8 +447,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             <span style={{ fontSize: '15px' }}>📄</span>
             <span style={{ fontSize: '12.5px' }}>New page</span>
           </QuickBtn>
-          <QuickBtn onClick={() => createDatabase(null)} title="New database">
+          <QuickBtn onClick={() => createDatabase(null)} title="New database" flex>
             <span style={{ fontSize: '15px' }}>🗄️</span>
+            <span style={{ fontSize: '12.5px' }}>Database</span>
           </QuickBtn>
         </div>
 
