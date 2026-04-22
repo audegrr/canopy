@@ -389,7 +389,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
       {/* SIDEBAR */}
       <aside style={{
-        width: sidebarOpen ? '260px' : '0', minWidth: sidebarOpen ? '260px' : '0',
+        width: sidebarOpen ? '290px' : '0', minWidth: sidebarOpen ? '290px' : '0',
         background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)',
         display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden',
         transition: 'width 0.2s, min-width 0.2s', flexShrink: 0,
@@ -417,7 +417,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           </div>
 
           {wsMenuOpen && (
-            <div style={{ position: 'absolute', top: '54px', left: '8px', width: '244px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 200, padding: '6px' }} className="scale-in">
+            <div style={{ position: 'absolute', top: '54px', left: '8px', width: '274px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 200, padding: '6px' }} className="scale-in">
               {workspaces.map(ws => (
                 <div key={ws.id} onClick={() => switchWorkspace(ws)}
                   style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', background: ws.id === currentWs.id ? 'var(--sidebar-active)' : 'transparent' }}
@@ -445,11 +445,11 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         <div style={{ padding: '2px 10px 8px', display: 'flex', gap: '4px', flexShrink: 0 }}>
           <QuickBtn onClick={() => createPage(null)} title="New page" flex>
             <span style={{ fontSize: '15px' }}>📄</span>
-            <span style={{ fontSize: '12.5px' }}>New page</span>
+            <span style={{ fontSize: '12.5px', whiteSpace: 'nowrap' }}>New page</span>
           </QuickBtn>
           <QuickBtn onClick={() => createDatabase(null)} title="New database" flex>
             <span style={{ fontSize: '15px' }}>🗄️</span>
-            <span style={{ fontSize: '12.5px' }}>New database</span>
+            <span style={{ fontSize: '12.5px', whiteSpace: 'nowrap' }}>New database</span>
           </QuickBtn>
         </div>
 
@@ -553,7 +553,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         </div>
 
         {navigating && (
-          <div style={{ height: '2px', background: 'var(--accent)', position: 'absolute', top: '44px', left: sidebarOpen && !isMobile ? '260px' : '0', right: 0, zIndex: 10, animation: 'loadingBar 0.8s ease-out forwards' }} />
+          <div style={{ height: '2px', background: 'var(--accent)', position: 'absolute', top: '44px', left: sidebarOpen && !isMobile ? '290px' : '0', right: 0, zIndex: 10, animation: 'loadingBar 0.8s ease-out forwards' }} />
         )}
 
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>{children}</div>

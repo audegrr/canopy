@@ -1,6 +1,5 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 
 const TIPS = [
   { icon: '/', text: "Type '/' in any page to open the command menu" },
@@ -13,8 +12,18 @@ const TIPS = [
   { icon: '🗄️', text: "Use '/database' to embed a database in a page" },
 ]
 
+const SHORTCUTS = [
+  ['⌘B', 'Bold text'],
+  ['⌘I', 'Italic text'],
+  ['⌘U', 'Underline text'],
+  ['⌘Z', 'Undo last action'],
+  ['⌘F', 'Search pages and commands'],
+  ['⌘K', 'Insert a link'],
+  ['/', 'Open the commands menu'],
+  ['Tab', 'Indent a list item'],
+]
+
 export default function AppHome() {
-  const router = useRouter()
   const [tipIndex, setTipIndex] = useState(0)
 
   useEffect(() => {
@@ -23,7 +32,12 @@ export default function AppHome() {
   }, [])
 
   return (
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '24px', padding: '40px', background: 'var(--bg)' }}>
+    <div style={{
+      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      flexDirection: 'column', gap: '24px', padding: '40px 60px',
+      background: 'var(--bg)', overflowY: 'auto'
+    }}>
+      {/* Header */}
       <div style={{ textAlign: 'center' }}>
         <div style={{ fontSize: '56px', marginBottom: '16px', opacity: 0.15 }}>🌿</div>
         <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text)', marginBottom: '8px', fontFamily: 'var(--font-sans)' }}>
@@ -34,43 +48,55 @@ export default function AppHome() {
         </p>
       </div>
 
-      {/* Quick actions */}
-      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center' }}>
+      {/* Quick actions — same width buttons */}
+      <div style={{ display: 'flex', gap: '10px' }}>
         <QuickAction icon="📄" label="New page" onClick={() => {
-          const btn = document.querySelector('[title="New page"]') as HTMLButtonElement
-          btn?.click()
+          (document.querySelector('[title="New page"]') as HTMLButtonElement)?.click()
         }} />
         <QuickAction icon="🗄️" label="New database" onClick={() => {
-          const btn = document.querySelector('[title="New database"]') as HTMLButtonElement
-          btn?.click()
+          (document.querySelector('[title="New database"]') as HTMLButtonElement)?.click()
         }} />
       </div>
 
       {/* Rotating tip */}
-      <div style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '14px 20px', maxWidth: '340px', textAlign: 'center', minHeight: '80px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{
+        background: 'var(--sidebar-bg)', border: '1px solid var(--border)',
+        borderRadius: '10px', padding: '14px 20px', width: '360px',
+        textAlign: 'center', minHeight: '80px',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
+      }}>
         <div style={{ fontSize: '22px', marginBottom: '6px' }}>{TIPS[tipIndex].icon}</div>
-        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }}>{TIPS[tipIndex].text}</p>
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+          {TIPS[tipIndex].text}
+        </p>
       </div>
 
-      {/* Keyboard shortcuts */}
-      <details style={{ cursor: 'pointer', width: '340px' }}>
-        <summary style={{ fontSize: '12px', color: 'var(--text-tertiary)', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <span>⌨</span> Keyboard shortcuts
+      {/* Keyboard shortcuts — expands downward, full text */}
+      <details style={{ width: '360px' }}>
+        <summary style={{
+          fontSize: '12px', color: 'var(--text-tertiary)', cursor: 'pointer',
+          listStyle: 'none', display: 'flex', alignItems: 'center', gap: '4px',
+          userSelect: 'none'
+        }}>
+          ⌨ Keyboard shortcuts
         </summary>
-        <div style={{ marginTop: '10px', background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {[
-            ['⌘ + B', 'Bold text'],
-            ['⌘ + I', 'Italic text'],
-            ['⌘ + U', 'Underline text'],
-            ['⌘ + Z', 'Undo last action'],
-            ['⌘ + F', 'Search pages and commands'],
-            ['⌘ + K', 'Insert a link'],
-            ['/', 'Open the commands menu'],
-            ['Tab', 'Indent a list item'],
-          ].map(([key, label]) => (
-            <div key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-              <kbd style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 1px 0 var(--border)', minWidth: '72px', textAlign: 'center' }}>{key}</kbd>
-              <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{label}</span>
+        <div style={{
+          marginTop: '8px', background: 'var(--sidebar-bg)',
+          border: '1px solid var(--border)', borderRadius: '8px',
+          padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '8px'
+        }}>
+          {SHORTCUTS.map(([key, label]) => (
+            <div key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <kbd style={{
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: '4px', padding: '2px 8px', fontSize: '11px',
+                fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)',
+                whiteSpace: 'nowrap', flexShrink: 0, width: '64px',
+                textAlign: 'center', boxShadow: '0 1px 0 var(--border)'
+              }}>{key}</kbd>
+              <span style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                {label}
+              </span>
             </div>
           ))}
         </div>
@@ -80,11 +106,23 @@ export default function AppHome() {
 }
 
 function QuickAction({ icon, label, onClick }: { icon: string; label: string; onClick: () => void }) {
+  const [hovered, setHovered] = useState(false)
   return (
-    <button onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '10px 18px', width: '160px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px', color: 'var(--text)', fontWeight: 500, transition: 'all 0.15s' }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
+    <button
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        gap: '8px', padding: '10px 0',
+        // Fixed width large enough for "New database"
+        width: '180px',
+        background: hovered ? 'var(--sidebar-bg)' : 'var(--surface)',
+        border: `1px solid ${hovered ? 'var(--text-tertiary)' : 'var(--border)'}`,
+        borderRadius: '8px', cursor: 'pointer',
+        fontFamily: 'var(--font-sans)', fontSize: '13px',
+        color: 'var(--text)', fontWeight: 500, transition: 'all 0.15s'
+      }}>
       <span style={{ fontSize: '16px' }}>{icon}</span>
       {label}
     </button>

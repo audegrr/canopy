@@ -606,7 +606,7 @@ function ExportMenu({ onPDF, onWord }: { onPDF: () => void; onWord: () => void }
   return (
     <div style={{ position: 'relative' }}>
       <TopBarBtn onClick={() => setOpen(o => !o)} active={open} data-export-btn>
-        ⬇ Export
+        ⬇️ Export
       </TopBarBtn>
       {open && (
         <>
