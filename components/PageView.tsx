@@ -46,14 +46,22 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const panel = params.get('panel')
-    if (panel === 'share' && isOwner) setShareOpen(true)
+    if (panel === 'share') {
+      if (isOwner) setShareOpen(true)
+    }
     if (panel === 'export') {
       setTimeout(() => {
         const btn = document.querySelector('[data-export-btn]') as HTMLButtonElement
         btn?.click()
-      }, 200)
+      }, 300)
     }
-  }, [])
+    // Clean up URL param without reloading
+    if (panel && window.history.replaceState) {
+      const url = new URL(window.location.href)
+      url.searchParams.delete('panel')
+      window.history.replaceState({}, '', url.toString())
+    }
+  }, [isOwner])
 
   // Broadcast page updates to sidebar
   useEffect(() => {
@@ -142,6 +150,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     const title = (e.target as HTMLDivElement).textContent || ''
     setPage(p => ({ ...p, title }) as Page)
     scheduleSave({ title })
+    // Immediately update sidebar
+    window.dispatchEvent(new CustomEvent('canopy:pageUpdate', { detail: { id: page.id, title } }))
+    document.title = (title || 'Untitled') + ' — Canopy'
   }
 
   function onContentUpdate(content: any) {
@@ -153,6 +164,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     setPage(p => ({ ...p, icon }) as Page)
     scheduleSave({ icon })
     setShowIconPicker(false)
+    // Immediately update sidebar
+    window.dispatchEvent(new CustomEvent('canopy:pageUpdate', { detail: { id: page.id, icon } }))
   }
 
   async function uploadCover(file: File) {
