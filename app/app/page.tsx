@@ -57,7 +57,7 @@ export default function AppHome() {
         <summary style={{ fontSize: '12px', color: 'var(--text-tertiary)', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
           <span>⌨</span> Keyboard shortcuts
         </summary>
-        <div style={{ marginTop: '10px', background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 24px' }}>
+        <div style={{ marginTop: '10px', background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 24px', overflow: 'visible' }}>
           {[
             ['⌘ + B', 'Bold text'],
             ['⌘ + I', 'Italic text'],
@@ -70,7 +70,7 @@ export default function AppHome() {
           ].map(([key, label]) => (
             <div key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
               <kbd style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '3px 7px', fontSize: '11px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 1px 0 var(--border)' }}>{key}</kbd>
-              <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{label}</span>
+              <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.5, wordBreak: 'break-word' }}>{label}</span>
             </div>
           ))}
         </div>

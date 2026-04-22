@@ -309,20 +309,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
           </button>
         )}
 
-        {canEdit && (
-          <>
-            <button onClick={() => setAddingField(true)}
-              style={{ marginLeft: 'auto', background: 'none', border: '1px solid var(--border)', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', transition: 'all 0.15s' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
-              + New field
-            </button>
-            <button onClick={addRecord}
-              style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '5px 14px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
-              + New
-            </button>
-          </>
-        )}
+
       </div>
 
       {/* Filter row */}
@@ -475,6 +462,16 @@ export default function DatabaseView({ page, canEdit }: Props) {
               </div>
             ))}
           </div>
+        )}
+
+        {/* Add new record button — bottom of table */}
+        {canEdit && view === 'table' && (
+          <button onClick={addRecord}
+            style={{ width: '100%', padding: '7px 16px', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '6px', transition: 'background 0.1s' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>
+            + New record
+          </button>
         )}
 
         {/* Add field panel */}

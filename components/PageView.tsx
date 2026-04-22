@@ -306,14 +306,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{page.title || 'Untitled'}</span>
         </div>
         <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0, transition: 'opacity 0.3s', opacity: saved ? 0 : 1 }}>Saving…</span>
-        {canEdit && (
-          <button onClick={duplicatePage} title="Duplicate page"
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '13px', padding: '4px 6px', borderRadius: '4px', fontFamily: 'var(--font-sans)' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-            ⧉
-          </button>
-        )}
+
         <ExportMenu onPDF={exportPDF} onWord={exportWord} />
         {isOwner && (
           <TopBarBtn

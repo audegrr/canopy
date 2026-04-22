@@ -21,7 +21,7 @@ export default function SignupPage() {
   }
 
   async function handleGoogle() {
-    await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/auth/callback` } })
+    await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/auth/callback`, queryParams: { prompt: 'select_account' } } })
   }
 
   if (done) return (
