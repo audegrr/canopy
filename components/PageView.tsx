@@ -313,7 +313,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
             active={shareOpen}
             onClick={() => setShareOpen(o => !o)}
             data-share-btn
-          >Share</TopBarBtn>
+          >🔒 Share</TopBarBtn>
         )}
       </div>
 

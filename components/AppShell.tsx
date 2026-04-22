@@ -411,7 +411,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             ) : (
               <span style={{ flex: 1, fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentWs.name}</span>
             )}
-            <span style={{ color: 'var(--text-secondary)', fontSize: '16px', flexShrink: 0, lineHeight: 1 }}>⌄</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: '1px' }} xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </div>
 
           {wsMenuOpen && (
@@ -423,12 +425,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ws.id === currentWs.id ? 'var(--sidebar-active)' : 'transparent' }}>
                   <span style={{ fontSize: '16px' }}>{ws.icon}</span>
                   <span style={{ flex: 1, fontSize: '13px', fontWeight: 500 }}>{ws.name}</span>
-                  {ws.id === currentWs.id && <span style={{ fontSize: '15px', color: 'var(--accent)', fontWeight: 700 }}>✓</span>}
+                  {ws.id === currentWs.id && <span style={{ fontSize: '14px', color: 'var(--accent)', fontWeight: 700, lineHeight: 1 }}>✓</span>}
                   {ws.id !== currentWs.id && (
                     <span onClick={e => { e.stopPropagation(); deleteWorkspace(ws.id) }}
-                      style={{ fontSize: '14px', color: 'var(--text-tertiary)', padding: '2px 5px', borderRadius: '3px' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>✕</span>
+                      style={{ fontSize: '17px', color: 'var(--text-tertiary)', padding: '1px 4px', borderRadius: '3px', lineHeight: 1, cursor: 'pointer' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)'; (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; (e.currentTarget as HTMLElement).style.background = 'none' }}>✕</span>
                   )}
                 </div>
               ))}
@@ -447,7 +449,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           </QuickBtn>
           <QuickBtn onClick={() => createDatabase(null)} title="New database" flex>
             <span style={{ fontSize: '15px' }}>🗄️</span>
-            <span style={{ fontSize: '12.5px' }}>Database</span>
+            <span style={{ fontSize: '12.5px' }}>New database</span>
           </QuickBtn>
         </div>
 

@@ -53,24 +53,24 @@ export default function AppHome() {
       </div>
 
       {/* Keyboard shortcuts */}
-      <details style={{ cursor: 'pointer' }}>
+      <details style={{ cursor: 'pointer', width: '340px' }}>
         <summary style={{ fontSize: '12px', color: 'var(--text-tertiary)', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
           <span>⌨</span> Keyboard shortcuts
         </summary>
-        <div style={{ marginTop: '10px', background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 24px', overflow: 'visible' }}>
+        <div style={{ marginTop: '10px', background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {[
             ['⌘ + B', 'Bold text'],
             ['⌘ + I', 'Italic text'],
             ['⌘ + U', 'Underline text'],
             ['⌘ + Z', 'Undo last action'],
-            ['⌘ + F', 'Search & commands'],
+            ['⌘ + F', 'Search pages and commands'],
             ['⌘ + K', 'Insert a link'],
-            ['/', 'Open commands menu'],
+            ['/', 'Open the commands menu'],
             ['Tab', 'Indent a list item'],
           ].map(([key, label]) => (
-            <div key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-              <kbd style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '3px 7px', fontSize: '11px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 1px 0 var(--border)' }}>{key}</kbd>
-              <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.5, wordBreak: 'break-word' }}>{label}</span>
+            <div key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+              <kbd style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '3px 8px', fontSize: '11px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 1px 0 var(--border)', minWidth: '72px', textAlign: 'center' }}>{key}</kbd>
+              <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{label}</span>
             </div>
           ))}
         </div>
