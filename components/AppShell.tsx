@@ -34,6 +34,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [toast, setToast] = useState('')
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [showDeleteAccount, setShowDeleteAccount] = useState(false)
+  const [exportMenu, setExportMenu] = useState<{ x: number; y: number; pageId: string } | null>(null)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -81,6 +82,100 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }, [])
 
   function navigate(path: string) { setNavigating(true); router.push(path) }
+
+  async function exportPageAsPDF(pageId: string) {
+    const { data: p } = await supabase.from('pages').select('title, content').eq('id', pageId).single()
+    if (!p) return
+    const win = window.open('', '_blank')
+    if (!win) return
+    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${p.title || 'Untitled'}</title>
+    <style>body{font-family:Inter,-apple-system,sans-serif;max-width:800px;margin:40px auto;font-size:14px;line-height:1.6;color:#37352f;}
+    h1{font-size:22pt;font-weight:700;margin-bottom:12pt;}h2{font-size:16pt;font-weight:600;}h3{font-size:13pt;font-weight:600;}
+    p{margin:4pt 0;}ul,ol{padding-left:20pt;}table{border-collapse:collapse;width:100%;}td,th{border:1px solid #e9e9e7;padding:6px 10px;}
+    blockquote{border-left:3px solid #ccc;padding:4px 16px;color:#787774;font-style:italic;}
+    code{background:#f0f0f0;padding:2px 4px;border-radius:3px;font-family:monospace;}
+    </style></head><body>`)
+    win.document.write(`<h1>${p.title || 'Untitled'}</h1>`)
+    // Render JSON content to HTML
+    function renderContent(nodes: any[]): string {
+      if (!nodes) return ''
+      return nodes.map(node => {
+        switch(node.type) {
+          case 'heading': return `<h${node.attrs?.level || 1}>${renderContent(node.content || [])}</h${node.attrs?.level || 1}>`
+          case 'paragraph': return `<p>${renderContent(node.content || [])}</p>`
+          case 'text': {
+            let t = node.text || ''
+            if (node.marks) node.marks.forEach((m: any) => {
+              if (m.type === 'bold') t = `<strong>${t}</strong>`
+              if (m.type === 'italic') t = `<em>${t}</em>`
+              if (m.type === 'underline') t = `<u>${t}</u>`
+              if (m.type === 'strike') t = `<s>${t}</s>`
+              if (m.type === 'code') t = `<code>${t}</code>`
+              if (m.type === 'link') t = `<a href="${m.attrs?.href}">${t}</a>`
+            })
+            return t
+          }
+          case 'bulletList': return `<ul>${renderContent(node.content || [])}</ul>`
+          case 'orderedList': return `<ol>${renderContent(node.content || [])}</ol>`
+          case 'listItem': return `<li>${renderContent(node.content || [])}</li>`
+          case 'blockquote': return `<blockquote>${renderContent(node.content || [])}</blockquote>`
+          case 'codeBlock': return `<pre><code>${renderContent(node.content || [])}</code></pre>`
+          case 'hardBreak': return '<br>'
+          case 'horizontalRule': return '<hr>'
+          case 'image': return `<img src="${node.attrs?.src}" style="max-width:100%">`
+          case 'table': return `<table>${renderContent(node.content || [])}</table>`
+          case 'tableRow': return `<tr>${renderContent(node.content || [])}</tr>`
+          case 'tableCell': case 'tableHeader': return `<td>${renderContent(node.content || [])}</td>`
+          default: return renderContent(node.content || [])
+        }
+      }).join('')
+    }
+    const content = Array.isArray(p.content) ? p.content : (p.content?.content || [])
+    win.document.write(renderContent(content))
+    win.document.write('</body></html>')
+    win.document.close()
+    win.focus()
+    setTimeout(() => { win.print(); }, 500)
+    setExportMenu(null)
+  }
+
+  async function exportPageAsWord(pageId: string) {
+    const { data: p } = await supabase.from('pages').select('title, content, icon').eq('id', pageId).single()
+    if (!p) return
+    function renderContent(nodes: any[]): string {
+      if (!nodes) return ''
+      return nodes.map(node => {
+        switch(node.type) {
+          case 'heading': return `<h${node.attrs?.level || 1}>${renderContent(node.content || [])}</h${node.attrs?.level || 1}>`
+          case 'paragraph': return `<p>${renderContent(node.content || [])}</p>`
+          case 'text': {
+            let t = node.text || ''
+            if (node.marks) node.marks.forEach((m: any) => {
+              if (m.type === 'bold') t = `<strong>${t}</strong>`
+              if (m.type === 'italic') t = `<em>${t}</em>`
+              if (m.type === 'underline') t = `<u>${t}</u>`
+            })
+            return t
+          }
+          case 'bulletList': return `<ul>${renderContent(node.content || [])}</ul>`
+          case 'orderedList': return `<ol>${renderContent(node.content || [])}</ol>`
+          case 'listItem': return `<li>${renderContent(node.content || [])}</li>`
+          case 'blockquote': return `<blockquote>${renderContent(node.content || [])}</blockquote>`
+          case 'horizontalRule': return '<hr>'
+          default: return renderContent(node.content || [])
+        }
+      }).join('')
+    }
+    const content = Array.isArray(p.content) ? p.content : (p.content?.content || [])
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${p.title}</title>
+    <style>body{font-family:Arial,sans-serif;font-size:12pt;line-height:1.5;}h1{font-size:18pt;}h2{font-size:14pt;}table{border-collapse:collapse;}td,th{border:1px solid #ccc;padding:6px;}</style>
+    </head><body><h1>${p.icon || ''} ${p.title || 'Untitled'}</h1>${renderContent(content)}</body></html>`
+    const blob = new Blob([html], { type: 'application/msword' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href = url; a.download = (p.title || 'page') + '.doc'; a.click()
+    URL.revokeObjectURL(url)
+    setExportMenu(null)
+  }
   function prefetch(path: string) { router.prefetch(path) }
   function showToastMsg(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2500) }
 
@@ -460,6 +555,18 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>{children}</div>
       </main>
+
+      {/* Export submenu from sidebar */}
+      {exportMenu && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => setExportMenu(null)} />
+          <div className="context-menu scale-in"
+            style={{ position: 'fixed', left: Math.min(exportMenu.x, window.innerWidth - 180), top: Math.min(exportMenu.y, window.innerHeight - 100), zIndex: 2001, minWidth: '170px' }}>
+            <MenuItem onClick={() => exportPageAsPDF(exportMenu.pageId)}>📄 Export as PDF</MenuItem>
+            <MenuItem onClick={() => exportPageAsWord(exportMenu.pageId)}>📝 Export as Word</MenuItem>
+          </div>
+        </>
+      )}
 
       {/* Context menu */}
       {contextMenu && (
