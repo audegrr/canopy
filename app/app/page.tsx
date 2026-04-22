@@ -57,20 +57,20 @@ export default function AppHome() {
         <summary style={{ fontSize: '12px', color: 'var(--text-tertiary)', listStyle: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
           <span>⌨</span> Keyboard shortcuts
         </summary>
-        <div style={{ marginTop: '10px', background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 20px', alignItems: 'start' }}>
+        <div style={{ marginTop: '10px', background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 24px' }}>
           {[
-            ['⌘ + S', 'Save page'],
             ['⌘ + B', 'Bold text'],
             ['⌘ + I', 'Italic text'],
             ['⌘ + U', 'Underline text'],
-            ['⌘ + K', 'Insert link'],
             ['⌘ + Z', 'Undo last action'],
+            ['⌘ + F', 'Search & commands'],
+            ['⌘ + K', 'Insert a link'],
             ['/', 'Open commands menu'],
-            ['Tab', 'Indent list item'],
+            ['Tab', 'Indent a list item'],
           ].map(([key, label]) => (
             <div key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-              <kbd style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '2px 6px', fontSize: '11px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0 }}>{key}</kbd>
-              <span style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>{label}</span>
+              <kbd style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '3px 7px', fontSize: '11px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 1px 0 var(--border)' }}>{key}</kbd>
+              <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{label}</span>
             </div>
           ))}
         </div>

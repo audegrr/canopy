@@ -362,7 +362,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             onContextMenu={() => {}}
             onAddSubpage={() => {}} onMoreMenu={() => {}}
             isDragging={false}
-            badge={page.permission === 'edit' ? '✏️' : '👁️'}
+            badge={page.permission === 'edit' ? 'edit' : 'view'}
           />
           {isExpanded && <div>{renderSharedTree(page.id, depth + 1)}</div>}
         </div>
@@ -411,7 +411,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             ) : (
               <span style={{ flex: 1, fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentWs.name}</span>
             )}
-            <span style={{ color: 'var(--text-tertiary)', fontSize: '11px', flexShrink: 0 }}>⌄</span>
+            <span style={{ color: 'var(--text-secondary)', fontSize: '16px', flexShrink: 0, lineHeight: 1 }}>⌄</span>
           </div>
 
           {wsMenuOpen && (
@@ -423,18 +423,18 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = ws.id === currentWs.id ? 'var(--sidebar-active)' : 'transparent' }}>
                   <span style={{ fontSize: '16px' }}>{ws.icon}</span>
                   <span style={{ flex: 1, fontSize: '13px', fontWeight: 500 }}>{ws.name}</span>
-                  {ws.id === currentWs.id && <span style={{ fontSize: '11px', color: 'var(--accent)' }}>✓</span>}
+                  {ws.id === currentWs.id && <span style={{ fontSize: '15px', color: 'var(--accent)', fontWeight: 700 }}>✓</span>}
                   {ws.id !== currentWs.id && (
                     <span onClick={e => { e.stopPropagation(); deleteWorkspace(ws.id) }}
-                      style={{ fontSize: '11px', color: 'var(--text-tertiary)', padding: '2px 5px', borderRadius: '3px' }}
+                      style={{ fontSize: '14px', color: 'var(--text-tertiary)', padding: '2px 5px', borderRadius: '3px' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)' }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>✕</span>
                   )}
                 </div>
               ))}
               <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-              <MenuItem onClick={() => { setWsNameInput(currentWs.name); setRenamingWs(true); setWsMenuOpen(false) }}>✎ Rename workspace</MenuItem>
-              <MenuItem onClick={createWorkspace}>+ New workspace</MenuItem>
+              <MenuItem onClick={() => { setWsNameInput(currentWs.name); setRenamingWs(true); setWsMenuOpen(false) }}>✏️ Rename workspace</MenuItem>
+              <MenuItem onClick={createWorkspace}>➕ New workspace</MenuItem>
             </div>
           )}
         </div>
@@ -458,7 +458,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           {renderPageTree(null)}
           {sharedPages.length > 0 && (
             <>
-              <SectionLabel style={{ marginTop: '12px' }}>Shared with me</SectionLabel>
+              <div style={{ margin: '12px 12px 0', borderTop: '1px solid var(--border)' }} />
+              <SectionLabel style={{ marginTop: '8px' }}>Shared with me</SectionLabel>
               {renderSharedTree(null)}
             </>
           )}
@@ -511,7 +512,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       {/* MAIN */}
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
         {/* Top bar */}
-        <div style={{ height: '44px', padding: '0 12px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <div style={{ height: '48px', padding: '0 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <button onClick={() => setSidebarOpen(o => !o)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '16px', padding: '4px 6px', borderRadius: '4px', lineHeight: 1, flexShrink: 0 }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
@@ -654,6 +655,7 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
         margin: '0 4px',
         userSelect: 'none',
         borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
+        fontWeight: isActive ? 500 : 400,
         transition: 'background 0.08s',
       }}
     >
@@ -695,8 +697,15 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
         </span>
       )}
 
-      {/* Badge (shared pages) */}
-      {badge && <span style={{ fontSize: '13px', flexShrink: 0, marginRight: '2px' }}>{badge}</span>}
+      {/* Badge (shared pages) — small grey text, same style as action buttons */}
+      {badge && (
+        <span style={{
+          fontSize: '10px', color: 'var(--text-tertiary)', flexShrink: 0,
+          background: 'var(--sidebar-active)', borderRadius: '3px',
+          padding: '1px 5px', fontWeight: 500, letterSpacing: '0.3px',
+          marginRight: '2px'
+        }}>{badge}</span>
+      )}
 
       {/* Actions row — always on same line */}
       {hovered && !isRenaming && (

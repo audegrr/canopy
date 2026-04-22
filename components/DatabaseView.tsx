@@ -310,10 +310,18 @@ export default function DatabaseView({ page, canEdit }: Props) {
         )}
 
         {canEdit && (
-          <button onClick={addRecord}
-            style={{ marginLeft: 'auto', background: 'var(--accent)', color: '#fff', border: 'none', padding: '5px 14px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
-            + New
-          </button>
+          <>
+            <button onClick={() => setAddingField(true)}
+              style={{ marginLeft: 'auto', background: 'none', border: '1px solid var(--border)', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', transition: 'all 0.15s' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
+              + New field
+            </button>
+            <button onClick={addRecord}
+              style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '5px 14px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
+              + New
+            </button>
+          </>
         )}
       </div>
 
@@ -485,16 +493,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
           </div>
         )}
 
-        {canEdit && !addingField && (
-          <div style={{ padding: '8px 16px' }}>
-            <button onClick={() => setAddingField(true)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>
-              + Add field
-            </button>
-          </div>
-        )}
+
       </div>
 
       {toast && (

@@ -300,7 +300,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
 
       {/* Top bar */}
-      <div style={{ height: '44px', padding: '0 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+      <div style={{ height: '48px', padding: '0 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-tertiary)', overflow: 'hidden' }}>
           {page.icon && <span style={{ fontSize: '14px' }}>{page.icon}</span>}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{page.title || 'Untitled'}</span>
@@ -316,12 +316,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         )}
         <ExportMenu onPDF={exportPDF} onWord={exportWord} />
         {isOwner && (
-          <button data-share-btn onClick={() => setShareOpen(o => !o)}
-            style={{ background: shareOpen ? 'var(--accent)' : 'var(--sidebar-bg)', color: shareOpen ? '#fff' : 'var(--text-secondary)', border: '1px solid var(--border)', padding: '5px 14px', borderRadius: '5px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500, cursor: 'pointer', transition: 'all 0.15s' }}
-            onMouseEnter={e => { if (!shareOpen) { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' } }}
-            onMouseLeave={e => { if (!shareOpen) { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' } }}>
-            Share
-          </button>
+          <TopBarBtn
+            active={shareOpen}
+            onClick={() => setShareOpen(o => !o)}
+            data-share-btn
+          >Share</TopBarBtn>
         )}
       </div>
 
@@ -613,13 +612,9 @@ function ExportMenu({ onPDF, onWord }: { onPDF: () => void; onWord: () => void }
   const [open, setOpen] = useState(false)
   return (
     <div style={{ position: 'relative' }}>
-      <button onClick={() => setOpen(o => !o)}
-        style={{ background: open ? 'var(--sidebar-hover)' : 'var(--sidebar-bg)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px', padding: '5px 14px', borderRadius: '5px', fontFamily: 'var(--font-sans)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '5px', transition: 'all 0.15s' }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' }}
-        onMouseLeave={e => { if (!open) { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' } }}
-        title="Export">
+      <TopBarBtn onClick={() => setOpen(o => !o)} active={open} data-export-btn>
         ⬇ Export
-      </button>
+      </TopBarBtn>
       {open && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpen(false)} />
@@ -640,6 +635,34 @@ function ExportMenu({ onPDF, onWord }: { onPDF: () => void; onWord: () => void }
         </>
       )}
     </div>
+  )
+}
+
+function TopBarBtn({ onClick, active, children, ...props }: { onClick: () => void; active?: boolean; children: React.ReactNode; [key: string]: any }) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <button
+      {...props}
+      onClick={onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        background: active ? 'var(--accent)' : hovered ? 'var(--sidebar-hover)' : 'var(--sidebar-bg)',
+        color: active ? '#fff' : hovered ? 'var(--text)' : 'var(--text-secondary)',
+        border: `1px solid ${hovered && !active ? 'var(--text-tertiary)' : 'var(--border)'}`,
+        padding: '5px 14px',
+        borderRadius: '5px',
+        fontFamily: 'var(--font-sans)',
+        fontSize: '13px',
+        fontWeight: 500,
+        cursor: 'pointer',
+        transition: 'all 0.15s',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '5px',
+      }}>
+      {children}
+    </button>
   )
 }
 
