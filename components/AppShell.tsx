@@ -48,6 +48,11 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     return () => window.removeEventListener('resize', check)
   }, [])
 
+  // Prefetch all page routes on mount for instant navigation
+  useEffect(() => {
+    pages.forEach(p => router.prefetch(`/app/page/${p.id}`))
+  }, [])
+
   // Restore last active workspace from localStorage
   useEffect(() => {
     const saved = localStorage.getItem('canopy_workspace')
@@ -307,14 +312,69 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }
 
   // ── DRAG & DROP (sidebar pages) ──────────────────────────────
+  const [dropPosition, setDropPosition] = useState<{ id: string; side: 'above' | 'below' | 'inside' } | null>(null)
+
   function handleDragStart(e: React.DragEvent, pageId: string) {
-    setDraggingId(pageId); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('pageId', pageId)
+    setDraggingId(pageId)
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('pageId', pageId)
   }
+
+  function handleDragOverPage(e: React.DragEvent, pageId: string) {
+    e.preventDefault()
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const y = e.clientY - rect.top
+    const pct = y / rect.height
+    // Top 25% = above, bottom 25% = below, middle = inside (nest)
+    if (pct < 0.3) setDropPosition({ id: pageId, side: 'above' })
+    else if (pct > 0.7) setDropPosition({ id: pageId, side: 'below' })
+    else setDropPosition({ id: pageId, side: 'inside' })
+    setDragOverId(pageId)
+  }
+
+  async function handleDropOnPage(e: React.DragEvent, targetPageId: string) {
+    e.preventDefault()
+    const draggedId = e.dataTransfer.getData('pageId')
+    if (!draggedId || draggedId === targetPageId) { resetDrag(); return }
+    const pos = dropPosition
+    if (!pos) { resetDrag(); return }
+
+    if (pos.side === 'inside') {
+      // Nest inside target
+      await movePage(draggedId, targetPageId)
+    } else {
+      // Reorder: move to same parent as target, adjust position
+      const target = pages.find(p => p.id === targetPageId)
+      if (!target) { resetDrag(); return }
+      await movePage(draggedId, target.parent_id ?? null)
+      // Update positions
+      const siblings = pages.filter(p => p.parent_id === (target.parent_id ?? null) && p.id !== draggedId)
+        .sort((a, b) => a.position - b.position)
+      const targetIdx = siblings.findIndex(p => p.id === targetPageId)
+      const insertIdx = pos.side === 'above' ? targetIdx : targetIdx + 1
+      const newOrder = [...siblings.slice(0, insertIdx), { id: draggedId, position: 0 }, ...siblings.slice(insertIdx)]
+      for (let i = 0; i < newOrder.length; i++) {
+        if (newOrder[i].id !== draggedId) {
+          await supabase.from('pages').update({ position: (i + 1) * 10 }).eq('id', newOrder[i].id)
+        } else {
+          await supabase.from('pages').update({ position: (i + 1) * 10 }).eq('id', draggedId)
+        }
+      }
+      setPages(p => p.map(x => {
+        const idx = newOrder.findIndex(n => n.id === x.id)
+        return idx >= 0 ? { ...x, position: (idx + 1) * 10 } : x
+      }))
+    }
+    resetDrag()
+  }
+
+  function resetDrag() { setDragOverId(null); setDraggingId(null); setDropPosition(null) }
+
   function handleDrop(e: React.DragEvent, targetId: string | null) {
     e.preventDefault()
     const id = e.dataTransfer.getData('pageId')
     if (id && id !== targetId) movePage(id, targetId)
-    setDragOverId(null); setDraggingId(null)
+    resetDrag()
   }
 
   // ── RENDER PAGE TREE ─────────────────────────────────────────
@@ -342,14 +402,15 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             onClick={() => navigate(`/app/page/${page.id}`)}
             onHover={() => prefetch(`/app/page/${page.id}`)}
             onDragStart={(e: React.DragEvent) => handleDragStart(e, page.id)}
-            onDragOver={(e: React.DragEvent) => { e.preventDefault(); setDragOverId(page.id) }}
-            onDragLeave={() => setDragOverId(null)}
-            onDrop={(e: React.DragEvent) => handleDrop(e, page.id)}
+            onDragOver={(e: React.DragEvent) => handleDragOverPage(e, page.id)}
+            onDragLeave={() => { setDragOverId(null); setDropPosition(null) }}
+            onDrop={(e: React.DragEvent) => handleDropOnPage(e, page.id)}
             onDragEnd={() => { setDraggingId(null); setDragOverId(null) }}
             onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, pageId: page.id }) }}
             onAddSubpage={() => createPage(page.id)}
             onMoreMenu={(e: React.MouseEvent) => { e.stopPropagation(); setContextMenu({ x: (e.target as HTMLElement).getBoundingClientRect().right, y: (e.target as HTMLElement).getBoundingClientRect().bottom + 4, pageId: page.id }) }}
             isDragging={draggingId === page.id}
+            dropIndicator={dragOverId === page.id ? dropPosition?.side : undefined}
           />
           {isExpanded && <div>{renderPageTree(page.id, depth + 1)}</div>}
         </div>
@@ -677,9 +738,13 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 }
 
 // ── PAGE ROW COMPONENT ───────────────────────────────────────
-function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, isRenaming, renameVal, onRenameChange, onRenameSubmit, onRenameCancel, onToggle, onClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu, onAddSubpage, onMoreMenu, isDragging, badge, onRemove, onHover }: any) {
+function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, isRenaming, renameVal, onRenameChange, onRenameSubmit, onRenameCancel, onToggle, onClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu, onAddSubpage, onMoreMenu, isDragging, badge, onRemove, onHover, dropIndicator }: any) {
   const [hovered, setHovered] = useState(false)
   return (
+    <div style={{ position: 'relative' }}>
+    {dropIndicator === 'above' && (
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'var(--accent)', borderRadius: 1, zIndex: 5, pointerEvents: 'none' }} />
+    )}
     <div
       draggable={!isRenaming}
       onDragStart={onDragStart} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onDragEnd={onDragEnd}
@@ -762,6 +827,10 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
           )}
         </div>
       )}
+    </div>
+    {dropIndicator === 'below' && (
+      <div style={{ position: 'absolute', bottom: 0, left: `${(depth || 0) * 16 + 8}px`, right: 4, height: 2, background: 'var(--accent)', borderRadius: 1, zIndex: 5, pointerEvents: 'none' }} />
+    )}
     </div>
   )
 }
