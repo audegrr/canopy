@@ -87,7 +87,20 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     return () => window.removeEventListener('canopy:pageUpdate', onPageUpdate)
   }, [])
 
-  function navigate(path: string) { setNavigating(true); router.push(path) }
+  function navigate(path: string) {
+    setNavigating(true)
+    // Broadcast page metadata for instant skeleton display
+    const pageId = path.match(/\/app\/page\/([^?]+)/)?.[1]
+    if (pageId) {
+      const p = pages.find(x => x.id === pageId) || sharedPages.find(x => x.id === pageId)
+      if (p) {
+        window.dispatchEvent(new CustomEvent('canopy:navigating', {
+          detail: { pageId, title: p.title, icon: p.icon }
+        }))
+      }
+    }
+    router.push(path)
+  }
 
   async function exportPageAsPDF(pageId: string) {
     const { data: p } = await supabase.from('pages').select('title, content').eq('id', pageId).single()
@@ -183,6 +196,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     setExportMenu(null)
   }
   function prefetch(path: string) { router.prefetch(path) }
+
+  // Pre-warm page content cache on hover
+  async function prewarmPage(pageId: string) {
+    // Dispatch to the client page cache
+    window.dispatchEvent(new CustomEvent('canopy:prewarm', { detail: { pageId } }))
+  }
 
   async function movePageToWorkspace(pageId: string, targetWsId: string) {
     await supabase.from('pages').update({ workspace_id: targetWsId, parent_id: null }).eq('id', pageId)
@@ -405,7 +424,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             onRenameCancel={() => setRenamingPageId(null)}
             onToggle={() => setExpandedPages(s => { const n = new Set(s); n.has(page.id) ? n.delete(page.id) : n.add(page.id); return n })}
             onClick={() => navigate(`/app/page/${page.id}`)}
-            onHover={() => prefetch(`/app/page/${page.id}`)}
+            onHover={() => { prefetch(`/app/page/${page.id}`); prewarmPage(page.id) }}
             onDragStart={(e: React.DragEvent) => handleDragStart(e, page.id)}
             onDragOver={(e: React.DragEvent) => handleDragOverPage(e, page.id)}
             onDragLeave={() => { setDragOverId(null); setDropPosition(null) }}
