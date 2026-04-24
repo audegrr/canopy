@@ -190,9 +190,14 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     if (subIds) for (const row of subIds) {
       await supabase.from('pages').update({ workspace_id: targetWsId }).eq('id', row.id)
     }
-    setPages(p => p.filter(x => x.id !== pageId && !(subIds || []).some((s: any) => s.id === x.id)))
+    // Update local state: change workspace_id (don't remove from pages array)
+    const movedIds = new Set([pageId, ...(subIds || []).map((s: any) => s.id)])
+    setPages(p => p.map(x => movedIds.has(x.id) ? { ...x, workspace_id: targetWsId, parent_id: x.id === pageId ? null : x.parent_id } : x))
+    // Switch to target workspace so user can see the moved page
+    const targetWs = workspaces.find(w => w.id === targetWsId)
+    if (targetWs) switchWorkspace(targetWs)
     setMoveToWsMenu(null)
-    showToastMsg('Page moved!')
+    showToastMsg('Page moved to ' + (targetWs?.name || 'workspace'))
   }
 
   function showToastMsg(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2500) }

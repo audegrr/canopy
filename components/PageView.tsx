@@ -44,10 +44,12 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
 
   // Auto-open panel from URL param (e.g. ?panel=share from sidebar menu)
   useEffect(() => {
+    if (typeof window === 'undefined') return
     const params = new URLSearchParams(window.location.search)
     const panel = params.get('panel')
     if (panel === 'share') {
-      if (isOwner) setShareOpen(true)
+      // Open share panel — works for owners
+      setShareOpen(true)
     }
     if (panel === 'export') {
       setTimeout(() => {
@@ -56,12 +58,12 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
       }, 300)
     }
     // Clean up URL param without reloading
-    if (panel && window.history.replaceState) {
+    if (panel) {
       const url = new URL(window.location.href)
       url.searchParams.delete('panel')
       window.history.replaceState({}, '', url.toString())
     }
-  }, [isOwner])
+  }, [])  // Run on mount only — page remounts on navigation
 
   // Broadcast page updates to sidebar
   useEffect(() => {
@@ -112,7 +114,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   // Image picker listener
   useEffect(() => {
     function onImagePicker(e: any) {
-      setImagePickerCallback({ onUrl: e.detail.onUrl, onFile: e.detail.onFile })
+      // Callback comes from Editor via ref, stored in event detail or separately
+      if (e.detail?.onUrl) {
+        setImagePickerCallback({ onUrl: e.detail.onUrl, onFile: e.detail.onFile })
+      }
       setImageUrl('')
       setShowImagePicker(true)
     }
@@ -526,11 +531,16 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                   onKeyDown={e => { if (e.key === 'Enter' && imageUrl) { imagePickerCallback?.onUrl(imageUrl); setShowImagePicker(false) } }}
                   style={{ flex: 1, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontSize: '13px', outline: 'none' }} autoFocus />
                 <button onClick={() => {
-                    if (imageUrl.trim() && imagePickerCallback) {
-                      imagePickerCallback.onUrl(imageUrl.trim())
-                      setShowImagePicker(false)
-                      setImageUrl('')
+                    const url = imageUrl.trim()
+                    if (!url) return
+                    // Try callback first, then dispatch event to editor
+                    if (imagePickerCallback?.onUrl) {
+                      imagePickerCallback.onUrl(url)
+                    } else {
+                      window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
                     }
+                    setShowImagePicker(false)
+                    setImageUrl('')
                   }}
                   disabled={!imageUrl.trim()}
                   style={{ background: imageUrl.trim() ? 'var(--accent)' : 'var(--text-tertiary)', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: imageUrl.trim() ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500 }}>Insert</button>
@@ -552,7 +562,14 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                 const file = e.dataTransfer.files[0]
                 if (file?.type.startsWith('image/')) {
                   const reader = new FileReader()
-                  reader.onload = ev => { if (ev.target?.result) { imagePickerCallback?.onFile(ev.target.result as string); setShowImagePicker(false) } }
+                  reader.onload = ev => {
+                if (ev.target?.result) {
+                  const src = ev.target.result as string
+                  if (imagePickerCallback?.onFile) { imagePickerCallback.onFile(src) }
+                  else { window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src } })) }
+                  setShowImagePicker(false)
+                }
+              }
                   reader.readAsDataURL(file)
                 }
               }}>
@@ -563,7 +580,14 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                 const file = e.target.files?.[0]
                 if (file) {
                   const reader = new FileReader()
-                  reader.onload = ev => { if (ev.target?.result) { imagePickerCallback?.onFile(ev.target.result as string); setShowImagePicker(false) } }
+                  reader.onload = ev => {
+                if (ev.target?.result) {
+                  const src = ev.target.result as string
+                  if (imagePickerCallback?.onFile) { imagePickerCallback.onFile(src) }
+                  else { window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src } })) }
+                  setShowImagePicker(false)
+                }
+              }
                   reader.readAsDataURL(file)
                 }
               }} />

@@ -485,6 +485,88 @@ export default function DatabaseView({ page, canEdit }: Props) {
 
 const FIELD_TYPES_LIST: DbField['type'][] = ['text','number','select','multiselect','date','checkbox','relation','rollup','url','email','phone']
 
+function SelectEditor({ field, currentValue, onSelect, onAddOption, onDeleteOption, onUpdateOptionColor, onClose }: any) {
+  const [newLabel, setNewLabel] = useState('')
+  const [colorFor, setColorFor] = useState<string | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    // Focus input without losing the dropdown
+    setTimeout(() => inputRef.current?.focus(), 50)
+  }, [])
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, minWidth: 200, position: 'absolute', zIndex: 50, boxShadow: 'var(--shadow-lg)', top: '100%', left: 0, overflow: 'hidden' }}
+      onMouseDown={e => e.stopPropagation()}>
+      {/* Select or clear */}
+      <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>Select an option</div>
+        <div onClick={() => onSelect('')}
+          style={{ padding: '3px 6px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+          — Clear
+        </div>
+        {(field.options || []).map((opt: any) => {
+          const label = opt.label || opt
+          const color = opt.color || '#e9e9e7'
+          return (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 4px', borderRadius: 4, cursor: 'pointer' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+              <div onClick={() => onSelect(label)} style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+                <span style={{ background: color + '60', color: '#37352f', padding: '2px 10px', borderRadius: 10, fontSize: 12, fontWeight: 500 }}>{label}</span>
+                {currentValue === label && <span style={{ marginLeft: 4, color: 'var(--accent)', fontSize: 12 }}>✓</span>}
+              </div>
+              {/* Color picker for this option */}
+              <div style={{ position: 'relative' }}>
+                <div onClick={e => { e.stopPropagation(); setColorFor(colorFor === label ? null : label) }}
+                  style={{ width: 14, height: 14, borderRadius: '50%', background: color, cursor: 'pointer', border: '1px solid rgba(0,0,0,.15)', flexShrink: 0 }} />
+                {colorFor === label && (
+                  <div style={{ position: 'absolute', right: 0, top: 18, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: 6, boxShadow: 'var(--shadow-lg)', zIndex: 60, display: 'flex', flexWrap: 'wrap', gap: 3, width: 116 }}>
+                    {SELECT_COLORS.map(col => (
+                      <div key={col} onClick={e => { e.stopPropagation(); onUpdateOptionColor(label, col); setColorFor(null) }}
+                        style={{ width: 16, height: 16, borderRadius: '50%', background: col, cursor: 'pointer', border: col === color ? '2px solid var(--accent)' : '1px solid rgba(0,0,0,.1)' }} />
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Delete option */}
+              <div onClick={e => { e.stopPropagation(); onDeleteOption(label) }}
+                style={{ fontSize: 12, color: 'var(--text-tertiary)', cursor: 'pointer', padding: '0 2px', borderRadius: 3 }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>✕</div>
+            </div>
+          )
+        })}
+      </div>
+      {/* Add new option */}
+      <div style={{ padding: '6px 8px' }}>
+        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>Add option</div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          <input
+            ref={inputRef}
+            value={newLabel}
+            onChange={e => setNewLabel(e.target.value)}
+            placeholder="Option name…"
+            onKeyDown={e => {
+              if (e.key === 'Enter' && newLabel.trim()) { onAddOption(newLabel.trim()); setNewLabel('') }
+              if (e.key === 'Escape') onClose()
+              e.stopPropagation()
+            }}
+            style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', fontSize: 12, fontFamily: 'var(--font-sans)', outline: 'none' }}
+          />
+          <button onClick={() => { if (newLabel.trim()) { onAddOption(newLabel.trim()); setNewLabel('') } }}
+            style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 5, padding: '4px 8px', cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font-sans)' }}>+</button>
+        </div>
+      </div>
+      <div style={{ padding: '4px 8px 6px' }}>
+        <button onClick={onClose} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)' }}>Done</button>
+      </div>
+    </div>
+  )
+}
+
 function FieldMenu({ field, onRename, onChangeType, onDelete }: { field: DbField; onRename: () => void; onChangeType: (t: DbField['type']) => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false)
   const [showTypes, setShowTypes] = useState(false)

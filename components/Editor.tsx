@@ -273,6 +273,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [showHighlightPicker, setShowHighlightPicker] = useState(false)
   const slashQueryRef = useRef('')
+  const pendingImageInsert = useRef<((src: string) => void) | null>(null)
   const [blockCtxMenu, setBlockCtxMenu] = useState<{ x: number; y: number; pos: number } | null>(null)
 
   const editor = useEditor({
@@ -303,7 +304,24 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
     content: content || '',
     editable,
     onUpdate: ({ editor }) => onUpdate(editor.getJSON()),
-    onCreate: ({ editor }) => { if (onEditorReady) onEditorReady(editor) },
+    onCreate: ({ editor }) => {
+        if (onEditorReady) onEditorReady(editor)
+        // Listen for image insert from picker
+        function onInsert(e: any) {
+          const src = e.detail?.src
+          if (!src) return
+          editor.chain().focus().setImage({ src }).run()
+          setTimeout(() => {
+            editor.commands.insertContent({ type: 'paragraph' })
+          }, 50)
+        }
+        window.addEventListener('canopy:insertImage', onInsert)
+        // Store cleanup for later
+        ;(editor as any)._imageCleanup = () => window.removeEventListener('canopy:insertImage', onInsert)
+      },
+      onDestroy: () => {
+        ;(editor as any)._imageCleanup?.()
+      },
     editorProps: {
       handleDOMEvents: {
         contextmenu: (view, event) => {
@@ -381,14 +399,21 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
         }, 50)
         break
       case 'image': {
-        window.dispatchEvent(new CustomEvent('canopy:showImagePicker', { detail: {
-          onUrl: (url: string) => {
-            editor.chain().focus().setImage({ src: url }).insertContentAt(editor.state.selection.to + 1, { type: 'paragraph' }).run()
-          },
-          onFile: (src: string) => {
-            editor.chain().focus().setImage({ src }).insertContentAt(editor.state.selection.to + 1, { type: 'paragraph' }).run()
-          },
-        }}))
+        // Store editor ref for use in image picker
+        pendingImageInsert.current = (src: string) => {
+          editor.chain().focus().setImage({ src }).run()
+          // Insert paragraph after image
+          setTimeout(() => {
+            const { state } = editor
+            const pos = state.selection.to
+            if (pos < state.doc.content.size) {
+              editor.chain().focus().insertContentAt(pos + 1, { type: 'paragraph' }).run()
+            } else {
+              editor.commands.insertContent({ type: 'paragraph' })
+            }
+          }, 50)
+        }
+        window.dispatchEvent(new CustomEvent('canopy:showImagePicker', {}))
         break
       }
       case 'video': {
@@ -447,55 +472,63 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
     <div style={{ position: 'relative' }} onDrop={handleDrop} onDragOver={e => e.preventDefault()} onPaste={handlePaste}>
       {/* Floating bubble menu on selection */}
       <BubbleMenu editor={editor} tippyOptions={{ duration: 100, placement: 'top' }}>
-        <div className="floating-toolbar">
+        <div className="floating-toolbar" style={{ overflowX: 'auto', maxWidth: 'calc(100vw - 32px)', flexWrap: 'nowrap' }}>
+          {/* Text formatting */}
           <FBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')}><b>B</b></FBtn>
           <FBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')}><i>I</i></FBtn>
           <FBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')}><u>U</u></FBtn>
           <FBtn onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')}><s>S</s></FBtn>
           <FBtn onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')}>{'`'}</FBtn>
           <div className="floating-sep" />
-          {/* Color */}
+          {/* Text color */}
           <div style={{ position: 'relative' }}>
             <FBtn onClick={() => { setShowColorPicker(o => !o); setShowHighlightPicker(false) }} active={showColorPicker}>
-              <span style={{ borderBottom: `2px solid ${editor.getAttributes('textStyle').color || '#37352f'}` }}>A</span>
+              <span style={{ borderBottom: `3px solid ${editor.getAttributes('textStyle').color || '#fff'}` }}>A</span>
             </FBtn>
             {showColorPicker && (
-              <div style={{ position: 'absolute', bottom: '40px', left: '-40px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 200, display: 'flex', flexWrap: 'wrap', gap: '4px', width: '160px' }}>
-                {COLORS.map(col => (
-                  <button key={col.value} title={col.label}
-                    onClick={() => { col.value ? editor.chain().focus().setColor(col.value).run() : editor.chain().focus().unsetColor().run(); setShowColorPicker(false) }}
-                    style={{ width: '22px', height: '22px', borderRadius: '50%', background: col.value || '#37352f', border: `2px solid ${col.value === (editor.getAttributes('textStyle').color || '') ? 'var(--accent)' : 'var(--border)'}`, cursor: 'pointer' }} />
-                ))}
+              <div style={{ position: 'absolute', bottom: '40px', left: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 200 }}>
+                <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginBottom: '6px', whiteSpace: 'nowrap' }}>Text color</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', width: '136px' }}>
+                  {COLORS.map(col => (
+                    <button key={col.value || 'default'} title={col.label}
+                      onClick={() => { col.value ? editor.chain().focus().setColor(col.value).run() : editor.chain().focus().unsetColor().run(); setShowColorPicker(false) }}
+                      style={{ width: '24px', height: '24px', borderRadius: '4px', background: col.value || '#37352f', border: `2px solid ${col.value === (editor.getAttributes('textStyle').color || '') ? 'var(--accent)' : 'rgba(0,0,0,0.1)'}`, cursor: 'pointer' }} />
+                  ))}
+                </div>
               </div>
             )}
           </div>
-          {/* Highlight */}
+          {/* Highlight color */}
           <div style={{ position: 'relative' }}>
             <FBtn onClick={() => { setShowHighlightPicker(o => !o); setShowColorPicker(false) }} active={showHighlightPicker}>
-              <span style={{ background: '#fdf3a7', padding: '0 2px', borderRadius: '2px' }}>H</span>
+              <span style={{ background: editor.getAttributes('highlight').color || '#fdf3a7', padding: '0 3px', borderRadius: '2px', color: '#37352f' }}>H</span>
             </FBtn>
             {showHighlightPicker && (
-              <div style={{ position: 'absolute', bottom: '40px', left: '-40px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 200, display: 'flex', flexWrap: 'wrap', gap: '4px', width: '160px' }}>
-                {HIGHLIGHTS.map(h => (
-                  <button key={h.value || 'none'} title={h.label}
-                    onClick={() => {
-                      if (!h.value) {
-                        editor.chain().focus().unsetHighlight().run()
-                      } else {
-                        // Force set highlight regardless of current state
-                        editor.chain().focus().setHighlight({ color: h.value }).run()
-                      }
-                      setShowHighlightPicker(false)
-                    }}
-                    style={{ width: '22px', height: '22px', borderRadius: '4px', background: h.value || '#e9e9e7', border: '1px solid var(--border)', cursor: 'pointer' }} />
-                ))}
+              <div style={{ position: 'absolute', bottom: '40px', left: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 200 }}>
+                <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginBottom: '6px', whiteSpace: 'nowrap' }}>Highlight color</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', width: '136px' }}>
+                  {HIGHLIGHTS.map(h => (
+                    <button key={h.value || 'none'} title={h.label}
+                      onClick={() => { h.value ? editor.chain().focus().setHighlight({ color: h.value }).run() : editor.chain().focus().unsetHighlight().run(); setShowHighlightPicker(false) }}
+                      style={{ width: '24px', height: '24px', borderRadius: '4px', background: h.value || 'var(--border)', border: `2px solid ${editor.getAttributes('highlight').color === h.value && h.value ? 'var(--accent)' : 'rgba(0,0,0,0.1)'}`, cursor: 'pointer' }} />
+                  ))}
+                </div>
               </div>
             )}
           </div>
           <div className="floating-sep" />
+          {/* Block types */}
           <FBtn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })}>H1</FBtn>
           <FBtn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })}>H2</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })}>H3</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')}>•</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')}>1.</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleTaskList().run()} active={editor.isActive('taskList')}>☑</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')}>❝</FBtn>
+          <FBtn onClick={() => editor.chain().focus().insertContent({ type: 'callout', content: [{ type: 'text', text: ' ' }] }).run()} active={false}>💡</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')}>{'<>'}</FBtn>
           <div className="floating-sep" />
+          {/* Link */}
           <FBtn onClick={() => {
             const prev = editor.getAttributes('link').href
             const url = window.prompt('URL:', prev || 'https://')
@@ -503,9 +536,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
             url === '' ? editor.chain().focus().unsetLink().run() : editor.chain().focus().setLink({ href: url }).run()
           }} active={editor.isActive('link')}>🔗</FBtn>
           <div className="floating-sep" />
-          <FBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')}>•</FBtn>
-          <FBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')}>1.</FBtn>
-          <div className="floating-sep" />
+          {/* Alignment */}
           <FBtn onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })}>⬅</FBtn>
           <FBtn onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })}>↔</FBtn>
           <FBtn onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })}>➡</FBtn>
@@ -550,15 +581,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
         <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setBlockCtxMenu(null)} />
         <div style={{ position: 'fixed', left: Math.min(blockCtxMenu.x, window.innerWidth - 210), top: Math.min(blockCtxMenu.y, window.innerHeight - 320), maxHeight: '320px', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 999, minWidth: '190px' }} className="scale-in">
           <CtxItem onClick={() => { document.execCommand('copy'); setBlockCtxMenu(null) }}>📋 Copy</CtxItem>
-          <CtxItem onClick={() => { document.execCommand('paste'); setBlockCtxMenu(null) }}>📌 Paste</CtxItem>
+          <CtxItem onClick={() => { document.execCommand('paste'); setBlockCtxMenu(null) }}>📋 Paste</CtxItem>
           <CtxItem onClick={() => { document.execCommand('cut'); setBlockCtxMenu(null) }}>✂️ Cut</CtxItem>
-          <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-          <CtxItem onClick={() => { editor?.chain().focus().toggleBulletList().run(); setBlockCtxMenu(null) }}>• Bullet list</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleOrderedList().run(); setBlockCtxMenu(null) }}>1. Numbered list</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleTaskList().run(); setBlockCtxMenu(null) }}>☑ To-do list</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleBlockquote().run(); setBlockCtxMenu(null) }}>❝ Quote</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().insertContent({ type: 'callout', content: [{ type: 'text', text: ' ' }] }).run(); setBlockCtxMenu(null) }}>💡 Callout</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleCodeBlock().run(); setBlockCtxMenu(null) }}>{'<>'} Code block</CtxItem>
           <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
           <CtxItem onClick={() => { editor?.chain().focus().clearNodes().unsetAllMarks().run(); setBlockCtxMenu(null) }}>✕ Clear formatting</CtxItem>
           <CtxItem danger onClick={() => {
