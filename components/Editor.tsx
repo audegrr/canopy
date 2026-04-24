@@ -397,19 +397,13 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
         break
       }
       case 'subpage': {
-        // Get current page ID from URL
-        const currentPath = window.location.pathname
-        const currentId = currentPath.match(/\/app\/page\/([^/]+)/)?.[1]
-        if (currentId) {
-          // Show subpage picker modal
-          const event = new CustomEvent('canopy:showSubpagePicker', { detail: { onSelect: (pageId: string) => {
-            editor.chain().focus().insertContent({ type: 'subpage', attrs: { pageId, expanded: true } }).run()
-          }}})
-          window.dispatchEvent(event)
-        } else {
-          const pageId = window.prompt('Page ID (copy from the URL):')
-          if (pageId) editor.chain().focus().insertContent({ type: 'subpage', attrs: { pageId: pageId.trim(), expanded: true } }).run()
-        }
+        const event = new CustomEvent('canopy:showSubpagePicker', { detail: { onSelect: (input: string) => {
+          // Accept URL like /app/page/UUID or just UUID
+          const match = input.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)
+          const pageId = match ? match[0] : input.trim()
+          if (pageId) editor.chain().focus().insertContent({ type: 'subpage', attrs: { pageId, expanded: true } }).run()
+        }}})
+        window.dispatchEvent(event)
         break
       }
       case 'database': {
@@ -485,8 +479,12 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
                 {HIGHLIGHTS.map(h => (
                   <button key={h.value || 'none'} title={h.label}
                     onClick={() => {
-                      if (!h.value) { editor.chain().focus().unsetHighlight().run() }
-                      else { editor.chain().focus().toggleHighlight({ color: h.value }).run() }
+                      if (!h.value) {
+                        editor.chain().focus().unsetHighlight().run()
+                      } else {
+                        // Force set highlight regardless of current state
+                        editor.chain().focus().setHighlight({ color: h.value }).run()
+                      }
                       setShowHighlightPicker(false)
                     }}
                     style={{ width: '22px', height: '22px', borderRadius: '4px', background: h.value || '#e9e9e7', border: '1px solid var(--border)', cursor: 'pointer' }} />
@@ -551,20 +549,18 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
       <>
         <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setBlockCtxMenu(null)} />
         <div style={{ position: 'fixed', left: Math.min(blockCtxMenu.x, window.innerWidth - 210), top: Math.min(blockCtxMenu.y, window.innerHeight - 320), maxHeight: '320px', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 999, minWidth: '190px' }} className="scale-in">
-          <CtxItem onClick={() => { editor?.chain().focus().selectAll().run(); document.execCommand('copy'); setBlockCtxMenu(null) }}>📋 Copy all</CtxItem>
+          <CtxItem onClick={() => { document.execCommand('copy'); setBlockCtxMenu(null) }}>📋 Copy</CtxItem>
+          <CtxItem onClick={() => { document.execCommand('paste'); setBlockCtxMenu(null) }}>📌 Paste</CtxItem>
+          <CtxItem onClick={() => { document.execCommand('cut'); setBlockCtxMenu(null) }}>✂️ Cut</CtxItem>
           <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-          <CtxItem onClick={() => { editor?.chain().focus().toggleBold().run(); setBlockCtxMenu(null) }}>🅱️ Bold</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleItalic().run(); setBlockCtxMenu(null) }}>✏️ Italic</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleUnderline().run(); setBlockCtxMenu(null) }}>🔤 Underline</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleHighlight({ color: '#fdf3a7' }).run(); setBlockCtxMenu(null) }}>🖊️ Highlight</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleBulletList().run(); setBlockCtxMenu(null) }}>• Bullet list</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleOrderedList().run(); setBlockCtxMenu(null) }}>1. Numbered list</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleTaskList().run(); setBlockCtxMenu(null) }}>☑ To-do list</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleBlockquote().run(); setBlockCtxMenu(null) }}>❝ Quote</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().insertContent({ type: 'callout', content: [{ type: 'text', text: ' ' }] }).run(); setBlockCtxMenu(null) }}>💡 Callout</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().toggleCodeBlock().run(); setBlockCtxMenu(null) }}>{'<>'} Code block</CtxItem>
           <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-          <CtxItem onClick={() => { editor?.chain().focus().toggleHeading({ level: 1 }).run(); setBlockCtxMenu(null) }}>📌 Heading 1</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleHeading({ level: 2 }).run(); setBlockCtxMenu(null) }}>📍 Heading 2</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleBulletList().run(); setBlockCtxMenu(null) }}>📝 Bullet list</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleOrderedList().run(); setBlockCtxMenu(null) }}>🔢 Numbered list</CtxItem>
-          <CtxItem onClick={() => { editor?.chain().focus().toggleTaskList().run(); setBlockCtxMenu(null) }}>☑️ To-do list</CtxItem>
-          <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-          <CtxItem onClick={() => { editor?.chain().focus().clearNodes().unsetAllMarks().run(); setBlockCtxMenu(null) }}>🧹 Clear formatting</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().clearNodes().unsetAllMarks().run(); setBlockCtxMenu(null) }}>✕ Clear formatting</CtxItem>
           <CtxItem danger onClick={() => {
             if (!editor) return
             const { from, to } = editor.state.selection

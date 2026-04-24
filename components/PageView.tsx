@@ -350,14 +350,18 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }}>
                   {page.icon}
                 </span>
-              ) : canEdit && (
-                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-                  <button onClick={() => setShowIconPicker(o => !o)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                    😀 Add icon
-                  </button>
+              ) : null}
+              {/* Add icon / Add cover buttons — always visible when no icon, cover button always when no cover */}
+              {canEdit && (
+                <div style={{ display: 'flex', gap: '8px', marginBottom: page.icon ? '4px' : '12px' }}>
+                  {!page.icon && (
+                    <button onClick={() => setShowIconPicker(o => !o)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                      😀 Add icon
+                    </button>
+                  )}
                   {!page.cover_url && (
                     <label
                       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}
@@ -521,8 +525,15 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                 <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://..."
                   onKeyDown={e => { if (e.key === 'Enter' && imageUrl) { imagePickerCallback?.onUrl(imageUrl); setShowImagePicker(false) } }}
                   style={{ flex: 1, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontSize: '13px', outline: 'none' }} autoFocus />
-                <button onClick={() => { if (imageUrl) { imagePickerCallback?.onUrl(imageUrl); setShowImagePicker(false) } }}
-                  style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500 }}>Insert</button>
+                <button onClick={() => {
+                    if (imageUrl.trim() && imagePickerCallback) {
+                      imagePickerCallback.onUrl(imageUrl.trim())
+                      setShowImagePicker(false)
+                      setImageUrl('')
+                    }
+                  }}
+                  disabled={!imageUrl.trim()}
+                  style={{ background: imageUrl.trim() ? 'var(--accent)' : 'var(--text-tertiary)', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: imageUrl.trim() ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500 }}>Insert</button>
               </div>
             </div>
             {/* Divider */}
@@ -583,7 +594,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
               ))}
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <input placeholder="Or paste a page ID…" style={{ flex: 1, padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontSize: '13px', outline: 'none' }}
+              <input placeholder="Or paste a page URL (e.g. /app/page/…)" style={{ flex: 1, padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontSize: '13px', outline: 'none' }}
                 onKeyDown={e => { if (e.key === 'Enter') { const v = (e.target as HTMLInputElement).value.trim(); if (v) { subpagePickerCallback?.(v); setShowSubpagePicker(false) } } }} />
               <button onClick={() => setShowSubpagePicker(false)} style={{ background: 'var(--sidebar-bg)', border: 'none', padding: '7px 14px', borderRadius: '6px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px' }}>Cancel</button>
             </div>

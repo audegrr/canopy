@@ -120,10 +120,11 @@ export default function DatabaseView({ page, canEdit }: Props) {
     setFields(f => f.map(x => x.id === id ? { ...x, ...updates } : x))
   }
 
-  async function addSelectOption(fieldId: string, option: string) {
+  async function addSelectOption(fieldId: string, option: string, color?: string) {
     const field = fields.find(f => f.id === fieldId)
     if (!field) return
-    const newOptions = [...(field.options || []), { label: option, color: SELECT_COLORS[field.options?.length % SELECT_COLORS.length || 0] }]
+    const autoColor = SELECT_COLORS[(field.options?.length || 0) % SELECT_COLORS.length]
+    const newOptions = [...(field.options || []), { label: option, color: color || autoColor }]
     await updateField(fieldId, { options: newOptions })
   }
 

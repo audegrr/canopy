@@ -577,7 +577,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => setContextMenu(null)} />
           <div className="context-menu scale-in"
             style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 220), top: Math.min(contextMenu.y, window.innerHeight - 220), zIndex: 2000 }}>
-            <MenuItem onClick={() => { navigate(`/app/page/${contextMenu.pageId}`); setContextMenu(null) }}>↗️ Open</MenuItem>
             {isOwnPage(contextMenu.pageId) && <>
               <MenuItem onClick={() => { setRenamingPageId(contextMenu.pageId); setRenameVal(pages.find(p => p.id === contextMenu.pageId)?.title || ''); setContextMenu(null) }}>✏️ Rename</MenuItem>
               <MenuItem onClick={() => duplicatePage(contextMenu.pageId)}>📋 Duplicate</MenuItem>
