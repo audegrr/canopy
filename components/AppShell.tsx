@@ -35,6 +35,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [showDeleteAccount, setShowDeleteAccount] = useState(false)
   const [exportMenu, setExportMenu] = useState<{ x: number; y: number; pageId: string } | null>(null)
+  const [moveToWsMenu, setMoveToWsMenu] = useState<string | null>(null)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -177,6 +178,18 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     setExportMenu(null)
   }
   function prefetch(path: string) { router.prefetch(path) }
+
+  async function movePageToWorkspace(pageId: string, targetWsId: string) {
+    await supabase.from('pages').update({ workspace_id: targetWsId, parent_id: null }).eq('id', pageId)
+    const { data: subIds } = await supabase.rpc('get_all_subpage_ids', { page_id: pageId })
+    if (subIds) for (const row of subIds) {
+      await supabase.from('pages').update({ workspace_id: targetWsId }).eq('id', row.id)
+    }
+    setPages(p => p.filter(x => x.id !== pageId && !(subIds || []).some((s: any) => s.id === x.id)))
+    setMoveToWsMenu(null)
+    showToastMsg('Page moved!')
+  }
+
   function showToastMsg(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2500) }
 
   // ── PAGE ACTIONS ────────────────────────────────────────────
@@ -559,6 +572,28 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>{children}</div>
       </main>
 
+      {/* Move to workspace modal */}
+      {moveToWsMenu && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => setMoveToWsMenu(null)} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '20px', width: '300px', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in">
+            <h3 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px' }}>Move to workspace</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              {workspaces.filter(w => w.id !== currentWs.id).map(ws => (
+                <div key={ws.id} onClick={() => movePageToWorkspace(moveToWsMenu, ws.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 12px', borderRadius: '7px', cursor: 'pointer' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                  <span style={{ fontSize: '18px' }}>{ws.icon}</span>
+                  <span style={{ fontSize: '14px' }}>{ws.name}</span>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setMoveToWsMenu(null)} style={{ marginTop: '12px', width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+          </div>
+        </>
+      )}
+
       {/* Export submenu from sidebar */}
       {exportMenu && (
         <>
@@ -593,6 +628,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               const pid = contextMenu.pageId; setContextMenu(null)
               navigate(`/app/page/${pid}?panel=export`)
             }}>⬇️ Export…</MenuItem>
+            {isOwnPage(contextMenu.pageId) && workspaces.length > 1 && (
+              <MenuItem onClick={() => { setMoveToWsMenu(contextMenu.pageId); setContextMenu(null) }}>📦 Move to workspace…</MenuItem>
+            )}
+            {!isOwnPage(contextMenu.pageId) && (
+              <MenuItem onClick={() => { removeSharedPage(contextMenu.pageId) }}>🚫 Remove from shared</MenuItem>
+            )}
             {isOwnPage(contextMenu.pageId) && <>
               <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
               <MenuItem danger onClick={() => deletePage(contextMenu.pageId)}>🗑️ Delete</MenuItem>

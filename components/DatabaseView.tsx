@@ -18,9 +18,9 @@ const FIELD_COLORS: Record<string, string> = {
 }
 
 const FIELD_ICONS: Record<string, string> = {
-  text: 'T', number: '#', select: '◉', multiselect: '◈',
+  text: 'Aa', number: '123', select: '◉', multiselect: '◈',
   date: '📅', checkbox: '☑', relation: '↗', rollup: '∑',
-  url: '🔗', email: '✉', phone: '📞'
+  url: '🔗', email: '📧', phone: '📱'
 }
 
 const SELECT_COLORS = [
@@ -349,20 +349,15 @@ export default function DatabaseView({ page, canEdit }: Props) {
                             onBlur={e => { updateField(f.id, { name: e.target.value }); setEditingFieldId(null) }}
                             onKeyDown={e => { if (e.key === 'Enter') { updateField(f.id, { name: (e.target as HTMLInputElement).value }); setEditingFieldId(null) } if (e.key === 'Escape') setEditingFieldId(null) }}
                             style={{ border: 'none', borderBottom: '1px solid var(--accent)', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '12px', outline: 'none', width: '80px' }} />
-                        : <span style={{ cursor: 'pointer' }} onClick={() => canEdit && setEditingFieldId(f.id)}>{f.name}</span>
+                        : <span style={{ cursor: 'pointer', flex: 1 }} onClick={() => canEdit && setEditingFieldId(f.id)}>{f.name}</span>
                       }
-                      {/* Relation page selector */}
-                      {f.type === 'relation' && canEdit && (
-                        <RelationPagePicker
-                          value={f.relation_page_id || ''}
-                          onChange={pageId => updateField(f.id, { relation_page_id: pageId || null })}
-                        />
-                      )}
                       {canEdit && (
-                        <button onClick={() => deleteField(f.id)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '10px', opacity: 0, padding: '0 2px', marginLeft: 'auto' }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '0' }}>✕</button>
+                        <FieldMenu
+                          field={f}
+                          onRename={() => setEditingFieldId(f.id)}
+                          onChangeType={(type) => updateField(f.id, { type })}
+                          onDelete={() => deleteField(f.id)}
+                        />
                       )}
                     </div>
                   </th>
@@ -502,6 +497,58 @@ export default function DatabaseView({ page, canEdit }: Props) {
     </div>
   )
 }
+
+const FIELD_TYPES: DbField['type'][] = ['text','number','select','multiselect','date','checkbox','relation','rollup','url','email','phone']
+
+function FieldMenu({ field, onRename, onChangeType, onDelete }: { field: DbField; onRename: () => void; onChangeType: (t: DbField['type']) => void; onDelete: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [showTypes, setShowTypes] = useState(false)
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+      <button onClick={() => { setOpen(o => !o); setShowTypes(false) }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '11px', padding: '1px 3px', borderRadius: '3px', lineHeight: 1 }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--border)' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>⌄</button>
+      {open && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={() => setOpen(false)} />
+          <div style={{ position: 'absolute', top: '100%', left: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '7px', padding: '5px', boxShadow: 'var(--shadow-lg)', zIndex: 50, minWidth: '160px' }}>
+            <div onClick={() => { onRename(); setOpen(false) }} style={menuItemSt}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+              ✏️ Rename
+            </div>
+            <div onClick={() => setShowTypes(o => !o)} style={{ ...menuItemSt, justifyContent: 'space-between' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+              <span>🔄 Change type</span><span style={{ fontSize: '10px' }}>›</span>
+            </div>
+            {showTypes && (
+              <div style={{ paddingLeft: '8px', borderTop: '1px solid var(--border)', marginTop: '2px', paddingTop: '2px' }}>
+                {FIELD_TYPES.map(t => (
+                  <div key={t} onClick={() => { onChangeType(t); setOpen(false) }}
+                    style={{ ...menuItemSt, color: t === field.type ? 'var(--accent)' : 'var(--text)', fontWeight: t === field.type ? 500 : 400 }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                    {FIELD_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+            <div onClick={() => { onDelete(); setOpen(false) }} style={{ ...menuItemSt, color: 'var(--red)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+              🗑️ Delete field
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+const menuItemSt: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', color: 'var(--text)' }
 
 function RelationPagePicker({ value, onChange }: { value: string; onChange: (id: string) => void }) {
   const [pages, setPages] = useState<{id: string; title: string; icon: string}[]>([])
