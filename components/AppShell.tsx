@@ -48,10 +48,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  // Prefetch all page routes on mount for instant navigation
+  // Prefetch ALL pages immediately and aggressively
   useEffect(() => {
-    pages.forEach(p => router.prefetch(`/app/page/${p.id}`))
-  }, [])
+    // Prefetch all pages right away
+    const allPages = [...pages, ...sharedPages]
+    allPages.forEach(p => router.prefetch(`/app/page/${p.id}`))
+  }, [pages.length])  // Re-run when pages change
 
   // Restore last active workspace from localStorage
   useEffect(() => {
