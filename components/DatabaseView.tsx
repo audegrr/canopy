@@ -59,16 +59,32 @@ export default function DatabaseView({ page, canEdit }: Props) {
     setRelations(rel || [])
 
     const relFields = fieldsData.filter((x: DbField) => x.type === 'relation' && x.relation_page_id)
-    if (relFields.length > 0) {
-      const pageIds = [...new Set(relFields.map((x: DbField) => x.relation_page_id!))]
+    // Also include current page if any relation points to itself
+    const pageIds = relFields.length > 0
+      ? [...new Set(relFields.map((x: DbField) => x.relation_page_id!))]
+      : []
+    if (pageIds.length > 0) {
       const { data: rPages } = await supabase.from('pages').select('id, title, icon').in('id', pageIds)
       setRelatedPages(rPages || [])
       const rRecs: Record<string, DbRecord[]> = {}
+      const rFields: Record<string, DbField[]> = {}
       for (const pid of pageIds) {
-        const { data: rr } = await supabase.from('db_records').select('*').eq('page_id', pid)
-        rRecs[pid] = rr || []
+        // Use current records if linking to self
+        if (pid === page.id) {
+          rRecs[pid] = r || []
+          rFields[pid] = fieldsData
+        } else {
+          const [{ data: rr }, { data: rf }] = await Promise.all([
+            supabase.from('db_records').select('*').eq('page_id', pid),
+            supabase.from('db_fields').select('*').eq('page_id', pid).order('position')
+          ])
+          rRecs[pid] = rr || []
+          rFields[pid] = rf || []
+        }
       }
       setRelatedRecords(rRecs)
+      // Store related fields for first-column lookup
+      ;(window as any).__relatedFields = rFields
     }
   }
 
@@ -224,13 +240,21 @@ export default function DatabaseView({ page, canEdit }: Props) {
       }
       if (field.type === 'relation') {
         const relPage = relatedPages.find(p => p.id === field.relation_page_id)
-        const recs = relatedRecords[field.relation_page_id || ''] || []
+        const recs = field.relation_page_id === page.id ? records : (relatedRecords[field.relation_page_id || ''] || [])
         const activeRelIds = relations.filter(r => r.field_id === field.id && r.from_record_id === rec.id).map(r => r.to_record_id)
-        const firstTextField = (relatedRecords[field.relation_page_id || ''] || []).length > 0
-          ? Object.keys((relatedRecords[field.relation_page_id || ''] || [])[0]?.data || {})[0]
-          : null
+        // Get first field by position from stored fields
+        const relFieldsList: DbField[] = (window as any).__relatedFields?.[field.relation_page_id || ''] || []
+        const firstTextField = relFieldsList.length > 0 ? relFieldsList[0].id : null
+        const cellEl5 = document.querySelector(`[data-cell="${rec.id}-${field.id}"]`) as HTMLElement
+        const cellRect5 = cellEl5?.getBoundingClientRect()
         return (
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: 6, minWidth: 200, position: 'absolute', zIndex: 50, boxShadow: 'var(--shadow-lg)', top: '100%', left: 0, maxHeight: 200, overflowY: 'auto' }}>
+          <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={() => setEditingCell(null)} />
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: 6, minWidth: 220,
+            position: 'fixed',
+            left: cellRect5 ? Math.min(cellRect5.left, window.innerWidth - 240) : 0,
+            top: cellRect5 ? Math.min(cellRect5.bottom + 2, window.innerHeight - 300) : 0,
+            zIndex: 300, boxShadow: 'var(--shadow-lg)', maxHeight: 250, overflowY: 'auto' }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: 4, padding: '0 4px' }}>
               {relPage?.icon} {relPage?.title || 'Related database'}
             </div>
@@ -252,6 +276,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
               <button onClick={() => setEditingCell(null)} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '2px 0' }}>Done</button>
             </div>
           </div>
+          </>
         )
       }
       return (
@@ -273,8 +298,10 @@ export default function DatabaseView({ page, canEdit }: Props) {
     }
     if (field.type === 'relation') {
       const activeRelIds = relations.filter(r => r.field_id === field.id && r.from_record_id === rec.id).map(r => r.to_record_id)
-      const linkedRecs = (relatedRecords[field.relation_page_id || ''] || []).filter(r => activeRelIds.includes(r.id))
-      const firstField = linkedRecs[0] ? Object.keys(linkedRecs[0].data || {})[0] : null
+      const allRelRecs = field.relation_page_id === page.id ? records : (relatedRecords[field.relation_page_id || ''] || [])
+      const linkedRecs = allRelRecs.filter(r => activeRelIds.includes(r.id))
+      const relFieldsList2: DbField[] = (window as any).__relatedFields?.[field.relation_page_id || ''] || []
+      const firstField = relFieldsList2.length > 0 ? relFieldsList2[0].id : null
       return (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
           {linkedRecs.map(r => (
@@ -350,9 +377,13 @@ export default function DatabaseView({ page, canEdit }: Props) {
                         onDragOver={e => { e.preventDefault(); handleColDragOver(colIdx) }}
                         onDrop={handleColDrop}
                         onDragEnd={() => { setDragColIdx(null); setDragOverColIdx(null) }}>
-                        {/* Drop indicator — header + rows only, not New record */}
-                        {dragOverColIdx === colIdx && dragColIdx !== colIdx && dragColIdx !== colIdx - 1 && (
+                        {/* Drop indicator left edge — when dropping before this col */}
+                        {dragColIdx !== null && dragOverColIdx === colIdx && colIdx > 0 && dragColIdx !== colIdx && dragColIdx !== colIdx - 1 && (
                           <div style={{ position: 'absolute', left: -1, top: 0, height: `${41 + displayRecords.length * 41}px`, width: 2, background: 'var(--accent)', zIndex: 10, pointerEvents: 'none', boxShadow: '0 0 4px var(--accent)' }} />
+                        )}
+                        {/* Drop indicator right edge — when this is the last col and dropping after it */}
+                        {dragColIdx !== null && dragOverColIdx === colIdx && colIdx === fields.length - 1 && dragColIdx !== colIdx && (
+                          <div style={{ position: 'absolute', right: -1, top: 0, height: `${41 + displayRecords.length * 41}px`, width: 2, background: 'var(--accent)', zIndex: 10, pointerEvents: 'none', boxShadow: '0 0 4px var(--accent)' }} />
                         )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', fontWeight: 500, minWidth: '16px', textAlign: 'center', flexShrink: 0 }}>{FIELD_ICONS[f.type]}</span>
