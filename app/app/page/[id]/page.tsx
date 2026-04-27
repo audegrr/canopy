@@ -43,9 +43,12 @@ export default function PageRoute() {
     if (!id || loadingRef.current === id) return
     loadingRef.current = id
 
-    // Serve from cache immediately if available
-    const cached = cache.get(id)
-    if (cached) setState(cached)
+    // Check module cache first, then window cache from AppShell prewarm
+    const cached = cache.get(id) || (typeof window !== 'undefined' && (window as any).__pageCache?.get(id))
+    if (cached) {
+      cache.set(id, cached) // promote to module cache
+      setState(cached)
+    }
 
     const supabase = createClient()
 

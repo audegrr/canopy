@@ -48,12 +48,34 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     return () => window.removeEventListener('resize', check)
   }, [])
 
-  // Prefetch ALL pages immediately and aggressively
+  // Prewarm ALL pages into cache as soon as sidebar loads
   useEffect(() => {
-    // Prefetch all pages right away
+    if (pages.length === 0) return
     const allPages = [...pages, ...sharedPages]
-    allPages.forEach(p => router.prefetch(`/app/page/${p.id}`))
-  }, [pages.length])  // Re-run when pages change
+    let i = 0
+    function warmNext() {
+      if (i >= allPages.length) return
+      const p = allPages[i++]
+      // Fire and forget — fetch page content into module-level cache
+      ;(async () => {
+        try {
+          const { data: page } = await supabase.from('pages').select('*').eq('id', p.id).single()
+          if (page) {
+            const isOwner = page.owner_id === user.id
+            ;(window as any).__pageCache = (window as any).__pageCache || new Map()
+            ;(window as any).__pageCache.set(p.id, {
+              page, isOwner,
+              canEdit: isOwner || page.link_permission === 'edit',
+              userId: user.id,
+            })
+          }
+        } catch {}
+        setTimeout(warmNext, 100)
+      })()
+    }
+    // Start warming after 500ms (let the UI render first)
+    setTimeout(warmNext, 500)
+  }, [pages.length])
 
   // Restore last active workspace from localStorage
   useEffect(() => {
