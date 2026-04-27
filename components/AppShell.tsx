@@ -51,6 +51,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [exportMenu, setExportMenu] = useState<{ x: number; y: number; pageId: string } | null>(null)
   const [moveToWsMenu, setMoveToWsMenu] = useState<string | null>(null)
   const [showWsIconPicker, setShowWsIconPicker] = useState(false)
+  const [newWsModal, setNewWsModal] = useState(false)
+  const [newWsName, setNewWsName] = useState('')
+  const [newWsIcon, setNewWsIcon] = useState('🌿')
   const [instantPage, setInstantPage] = useState<{ page: any; canEdit: boolean; isOwner: boolean; userId: string } | null>(null)
   const router = useRouter()
   const pathname = usePathname()
@@ -347,9 +350,17 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
   // ── WORKSPACE ACTIONS ────────────────────────────────────────
   async function createWorkspace() {
-    const { data } = await supabase.from('workspaces').insert({ name: 'New Workspace', icon: '📁' }).select().single()
-    if (data) { setWorkspaces(w => [...w, data]); switchWorkspace(data) }
+    setNewWsName('')
+    setNewWsIcon('🌿')
+    setNewWsModal(true)
     setWsMenuOpen(false)
+  }
+
+  async function confirmCreateWorkspace() {
+    if (!newWsName.trim()) return
+    const { data } = await supabase.from('workspaces').insert({ name: newWsName.trim(), icon: newWsIcon, owner_id: user.id }).select().single()
+    if (data) { setWorkspaces(w => [...w, data]); switchWorkspace(data) }
+    setNewWsModal(false)
   }
 
   async function deleteWorkspace(wsId: string) {
@@ -549,11 +560,11 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         <div style={{ padding: '10px 8px 4px', flexShrink: 0, position: 'relative' }}>
           {/* Home button */}
           <button onClick={() => navigate('/app')}
-            style={{ display: 'flex', alignItems: 'center', gap: '7px', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '5px 10px 8px', fontFamily: 'var(--font-sans)' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.7' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 10px 10px', fontFamily: 'var(--font-sans)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.75' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}>
-            <span style={{ fontSize: '18px', lineHeight: 1 }}>🌿</span>
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.02em' }}>Canopy</span>
+            <img src="/favicon.ico" alt="Canopy" style={{ width: 28, height: 28, borderRadius: '6px', flexShrink: 0 }} />
+            <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' }}>Canopy</span>
           </button>
           <div onClick={() => setWsMenuOpen(o => !o)}
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', userSelect: 'none' }}
@@ -565,12 +576,18 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               title="Change icon"
             >{currentWs.icon}</span>
             {showWsIconPicker && (
-              <div style={{ position: 'absolute', top: '90px', left: '8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 300, display: 'flex', flexWrap: 'wrap', gap: '3px', width: '210px' }}
-                onClick={e => e.stopPropagation()}>
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={() => setShowWsIconPicker(false)} />
+                <div style={{ position: 'absolute', top: '90px', left: '8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 300, display: 'flex', flexWrap: 'wrap', gap: '3px', width: '210px' }}
+                  onClick={e => e.stopPropagation()}>
                 {['🌿','🌲','🌳','🌴','🌵','🍀','🌱','🌾','🍁','🌸','🏔','🏠','💼','🚀','⭐','💡','🎯','📚','🎨','🔮','🦋','🧠','💎','🔑','🌍'].map(em => (
                   <button key={em} onClick={async () => {
                     await supabase.from('workspaces').update({ icon: em }).eq('id', currentWs.id)
-                    setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, icon: em } : w))
+                    const updated = workspaces.map(w => w.id === currentWs.id ? { ...w, icon: em } : w)
+                    setWorkspaces(updated)
+                    // Force re-render of current workspace
+                    const updatedWs = updated.find(w => w.id === currentWs.id)
+                    if (updatedWs) switchWorkspace(updatedWs)
                     setShowWsIconPicker(false)
                   }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', padding: '4px', borderRadius: '4px', lineHeight: 1 }}
@@ -583,6 +600,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                   <button onClick={() => setShowWsIconPicker(false)} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)' }}>Close</button>
                 </div>
               </div>
+              </>
             )}
             {renamingWs ? (
               <input autoFocus value={wsNameInput} onChange={e => setWsNameInput(e.target.value)}
@@ -744,6 +762,49 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             : children}
         </div>
       </main>
+
+      {/* New workspace modal */}
+      {newWsModal && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 2000 }} onClick={() => setNewWsModal(false)} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', width: '320px', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in"
+            onClick={e => e.stopPropagation()}>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--text)' }}>New workspace</h3>
+            {/* Emoji picker */}
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>Icon</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
+                {['🌿','🌲','🌳','🌴','🌵','🍀','🌱','🌾','🍁','🌸','🏔','🏠','💼','🚀','⭐','💡','🎯','📚','🎨','🔮','🦋','🧠','💎','🔑','🌍'].map(em => (
+                  <button key={em} onClick={() => setNewWsIcon(em)}
+                    style={{ background: newWsIcon === em ? 'var(--accent-light)' : 'none', border: newWsIcon === em ? '2px solid var(--accent)' : '2px solid transparent', cursor: 'pointer', fontSize: '20px', padding: '3px', borderRadius: '5px', lineHeight: 1 }}>
+                    {em}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Name input */}
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>Name</div>
+              <input autoFocus value={newWsName} onChange={e => setNewWsName(e.target.value)}
+                placeholder="My workspace"
+                onKeyDown={e => { if (e.key === 'Enter') confirmCreateWorkspace(); if (e.key === 'Escape') setNewWsModal(false) }}
+                style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: '7px', fontFamily: 'var(--font-sans)', fontSize: '14px', color: 'var(--text)', background: 'var(--surface)', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => { e.target.style.borderColor = 'var(--accent)' }}
+                onBlur={e => { e.target.style.borderColor = 'var(--border)' }} />
+            </div>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setNewWsModal(false)}
+                style={{ background: 'none', border: '1px solid var(--border)', cursor: 'pointer', padding: '7px 14px', borderRadius: '7px', fontFamily: 'var(--font-sans)', fontSize: '13px', color: 'var(--text-secondary)' }}>
+                Cancel
+              </button>
+              <button onClick={confirmCreateWorkspace} disabled={!newWsName.trim()}
+                style={{ background: newWsName.trim() ? 'var(--accent)' : 'var(--text-tertiary)', color: '#fff', border: 'none', cursor: newWsName.trim() ? 'pointer' : 'not-allowed', padding: '7px 16px', borderRadius: '7px', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500 }}>
+                Create
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Move to workspace modal */}
       {moveToWsMenu && (
