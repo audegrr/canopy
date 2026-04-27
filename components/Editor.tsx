@@ -265,6 +265,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
   const pendingImageInsert = useRef<((src: string) => void) | null>(null)
   const [blockCtxMenu, setBlockCtxMenu] = useState<{ x: number; y: number; pos: number } | null>(null)
   const [bubbleMenuEnabled, setBubbleMenuEnabled] = useState(true)
+  const bubbleMenuEnabledRef = useRef(true)
 
   const editor = useEditor({
     extensions: [
@@ -319,6 +320,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           event.preventDefault()
           const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })
           setBubbleMenuEnabled(false)
+          bubbleMenuEnabledRef.current = false
           setBlockCtxMenu({ x: event.clientX, y: event.clientY, pos: pos?.pos ?? 0 })
           return true
         }
@@ -463,7 +465,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
       {/* Floating bubble menu on selection */}
       <BubbleMenu editor={editor} tippyOptions={{ duration: 100, placement: 'top' }}
         shouldShow={({ editor }) => {
-          if (!bubbleMenuEnabled) return false
+          if (!bubbleMenuEnabledRef.current) return false
           return editor.isActive('image') || (!editor.state.selection.empty)
         }}>
         <div className="floating-toolbar" style={{ overflowX: 'auto', maxWidth: 'calc(100vw - 32px)', flexWrap: 'nowrap' }}>
@@ -518,7 +520,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', width: '136px' }}>
                   {HIGHLIGHTS.map(h => (
                     <button key={h.value || 'none'} title={h.label}
-                      onClick={() => { h.value ? editor.chain().focus().setHighlight({ color: h.value }).run() : editor.chain().focus().unsetHighlight().run(); setShowHighlightPicker(false) }}
+                      onMouseDown={e => { e.preventDefault(); e.stopPropagation(); h.value ? editor.chain().focus().setHighlight({ color: h.value }).run() : editor.chain().focus().unsetHighlight().run(); setShowHighlightPicker(false) }}
                       style={{ width: '24px', height: '24px', borderRadius: '4px', background: h.value || 'var(--border)', border: `2px solid ${editor.getAttributes('highlight').color === h.value && h.value ? 'var(--accent)' : 'rgba(0,0,0,0.1)'}`, cursor: 'pointer' }} />
                   ))}
                 </div>
@@ -588,7 +590,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
     {/* Block context menu */}
     {blockCtxMenu && (
       <>
-        <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => { setBlockCtxMenu(null); setTimeout(() => setBubbleMenuEnabled(true), 100) }} />
+        <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => { setBlockCtxMenu(null); setTimeout(() => { setBubbleMenuEnabled(true); bubbleMenuEnabledRef.current = true }, 100) }} />
         <div style={{ position: 'fixed', left: Math.min(blockCtxMenu.x, window.innerWidth - 210), top: Math.min(blockCtxMenu.y, window.innerHeight - 320), maxHeight: '320px', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 999, minWidth: '190px' }} className="scale-in">
           <CtxItem onClick={() => { document.execCommand('copy'); setBlockCtxMenu(null) }}>📋 Copy</CtxItem>
           <CtxItem onClick={() => { document.execCommand('paste'); setBlockCtxMenu(null) }}>📋 Paste</CtxItem>
