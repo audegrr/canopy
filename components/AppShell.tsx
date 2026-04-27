@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Workspace, Page, SharedPage, User } from '@/lib/types'
+import PageView from './PageView'
 import CommandPalette from './CommandPalette'
 
 type Props = {
@@ -12,6 +13,17 @@ type Props = {
   pages: Page[]
   sharedPages: SharedPage[]
   children: React.ReactNode
+}
+
+function InstantPageView({ data, onNavigate }: { data: any; onNavigate: (path: string) => void }) {
+  return (
+    <PageView
+      page={data.page}
+      canEdit={data.canEdit}
+      isOwner={data.isOwner}
+      userId={data.userId}
+    />
+  )
 }
 
 export default function AppShell({ user, workspaces: initWS, currentWorkspace: initCWS, pages: initPages, sharedPages, children }: Props) {
@@ -36,6 +48,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [showDeleteAccount, setShowDeleteAccount] = useState(false)
   const [exportMenu, setExportMenu] = useState<{ x: number; y: number; pageId: string } | null>(null)
   const [moveToWsMenu, setMoveToWsMenu] = useState<string | null>(null)
+  const [instantPage, setInstantPage] = useState<{ page: any; canEdit: boolean; isOwner: boolean; userId: string } | null>(null)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -119,11 +132,20 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
   function navigate(path: string) {
     const pageId = path.match(/\/app\/page\/([^?]+)/)?.[1]
-    // Only show loading bar if page is NOT already cached
-    const cached = pageId && (
-      (window as any).__pageCache?.has(pageId)
-    )
-    if (!cached) setNavigating(true)
+    if (pageId) {
+      const cached = (window as any).__pageCache?.get(pageId)
+      if (cached) {
+        // Show instantly from cache — no router navigation needed
+        setInstantPage(cached)
+        // Update URL silently
+        window.history.pushState({}, '', path)
+        // Update current page ID for sidebar highlight
+        setNavigating(false)
+        return
+      }
+    }
+    setInstantPage(null)
+    setNavigating(true)
     router.push(path)
   }
 
@@ -679,7 +701,11 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           <div style={{ height: '2px', background: 'var(--accent)', position: 'absolute', top: '44px', left: sidebarOpen && !isMobile ? '260px' : '0', right: 0, zIndex: 10, animation: 'loadingBar 0.8s ease-out forwards' }} />
         )}
 
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>{children}</div>
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
+          {instantPage
+            ? <InstantPageView data={instantPage} onNavigate={navigate} />
+            : children}
+        </div>
       </main>
 
       {/* Move to workspace modal */}
