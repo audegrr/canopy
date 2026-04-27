@@ -24,49 +24,38 @@ import TextAlign from '@tiptap/extension-text-align'
 import Underline from '@tiptap/extension-underline'
 
 // ── RESIZABLE IMAGE EXTENSION ──────────────────────────────────────────
-function ResizableImageView({ node, updateAttributes }: any) {
-  const [resizing, setResizing] = useState(false)
-  const [startX, setStartX] = useState(0)
-  const [startW, setStartW] = useState(0)
-  const imgRef = useRef<HTMLImageElement>(null)
-  const width = node.attrs.width || '100%'
-
-  function onMouseDown(e: React.MouseEvent, side: 'left' | 'right') {
-    e.preventDefault()
-    setResizing(true)
-    setStartX(e.clientX)
-    setStartW(imgRef.current?.offsetWidth || 400)
-    const onMove = (ev: MouseEvent) => {
-      const diff = side === 'right' ? ev.clientX - e.clientX : e.clientX - ev.clientX
-      const newW = Math.max(80, startW + diff)
-      updateAttributes({ width: newW + 'px' })
-    }
-    const onUp = () => {
-      setResizing(false)
-      window.removeEventListener('mousemove', onMove)
-      window.removeEventListener('mouseup', onUp)
-    }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-  }
-
+function ResizableImageView({ node, updateAttributes, selected }: any) {
   const [loaded, setLoaded] = useState(false)
+  const width = node.attrs.width || '100%'
+  const align = node.attrs.align || 'left'
+
+  const alignStyle: React.CSSProperties =
+    align === 'center' ? { marginLeft: 'auto', marginRight: 'auto' } :
+    align === 'right'  ? { marginLeft: 'auto' } : {}
 
   return (
     <NodeViewWrapper style={{ display: 'block', position: 'relative', maxWidth: '100%', lineHeight: 0, margin: '4px 0' }}>
-      <div style={{ position: 'relative', display: 'block', width }}>
-        {!loaded && <div style={{ width: '100%', height: '120px', background: 'var(--border)', borderRadius: '6px', marginBottom: '4px' }} />}
+      {/* Alignment toolbar — shown when selected */}
+      {selected && (
+        <div style={{ position: 'absolute', top: -32, left: '50%', transform: 'translateX(-50%)', background: '#1a1a1a', borderRadius: '6px', padding: '2px 4px', display: 'flex', gap: '2px', zIndex: 20, boxShadow: '0 2px 8px rgba(0,0,0,.3)' }}>
+          {(['left','center','right'] as const).map(a => (
+            <button key={a} onClick={() => updateAttributes({ align: a })}
+              style={{ background: align === a ? 'rgba(255,255,255,0.2)' : 'none', border: 'none', cursor: 'pointer', color: 'white', fontSize: '13px', padding: '3px 7px', borderRadius: '4px', lineHeight: 1 }}
+              title={a.charAt(0).toUpperCase() + a.slice(1)}>
+              {a === 'left' ? '⬛◻◻' : a === 'center' ? '◻⬛◻' : '◻◻⬛'}
+            </button>
+          ))}
+        </div>
+      )}
+      <div style={{ position: 'relative', display: 'block', width, ...alignStyle }}>
+        {!loaded && <div style={{ width: '100%', height: '120px', background: 'var(--border)', borderRadius: '6px' }} />}
         <img
-          ref={imgRef}
           src={node.attrs.src}
           alt={node.attrs.alt || ''}
           onLoad={() => setLoaded(true)}
           style={{ width: '100%', borderRadius: '6px', display: loaded ? 'block' : 'none', userSelect: 'none' }}
           draggable={false}
         />
-        {/* Resize handles — only when selected */}
-        <div className="img-resize-handle img-resize-left" onMouseDown={e => onMouseDown(e, 'left')} />
-        <div className="img-resize-handle img-resize-right" onMouseDown={e => onMouseDown(e, 'right')} />
       </div>
     </NodeViewWrapper>
   )
@@ -77,6 +66,7 @@ const ResizableImage = Image.extend({
     return {
       ...this.parent?.(),
       width: { default: '100%', renderHTML: attrs => ({ width: attrs.width }) },
+      align: { default: 'left', renderHTML: attrs => ({ 'data-align': attrs.align }) },
     }
   },
   addNodeView() {

@@ -545,13 +545,45 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         transition: 'width 0.2s, min-width 0.2s', flexShrink: 0,
         ...(isMobile ? { position: 'fixed', left: 0, top: 0, bottom: 0, zIndex: 40, boxShadow: '4px 0 24px rgba(0,0,0,0.15)' } : {}),
       }}>
-        {/* Workspace switcher */}
+        {/* Home + Workspace switcher */}
         <div style={{ padding: '10px 8px 4px', flexShrink: 0, position: 'relative' }}>
+          {/* Home button */}
+          <button onClick={() => navigate('/app')}
+            style={{ display: 'flex', alignItems: 'center', gap: '7px', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '5px 10px 8px', fontFamily: 'var(--font-sans)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.7' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}>
+            <span style={{ fontSize: '18px', lineHeight: 1 }}>🌿</span>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.02em' }}>Canopy</span>
+          </button>
           <div onClick={() => setWsMenuOpen(o => !o)}
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', userSelect: 'none' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-            <span style={{ fontSize: '24px', lineHeight: 1 }}>{currentWs.icon}</span>
+            {/* Workspace icon — click to change, separate from workspace menu */}
+            <span style={{ fontSize: '22px', lineHeight: 1, cursor: 'pointer', borderRadius: '4px', padding: '1px' }}
+              onClick={e => { e.stopPropagation(); setShowWsIconPicker(o => !o) }}
+              title="Change icon"
+            >{currentWs.icon}</span>
+            {showWsIconPicker && (
+              <div style={{ position: 'absolute', top: '90px', left: '8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 300, display: 'flex', flexWrap: 'wrap', gap: '3px', width: '210px' }}
+                onClick={e => e.stopPropagation()}>
+                {['🌿','🌲','🌳','🌴','🌵','🍀','🌱','🌾','🍁','🌸','🏔','🏠','💼','🚀','⭐','💡','🎯','📚','🎨','🔮','🦋','🧠','💎','🔑','🌍'].map(em => (
+                  <button key={em} onClick={async () => {
+                    await supabase.from('workspaces').update({ icon: em }).eq('id', currentWs.id)
+                    setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, icon: em } : w))
+                    setShowWsIconPicker(false)
+                  }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', padding: '4px', borderRadius: '4px', lineHeight: 1 }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                    {em}
+                  </button>
+                ))}
+                <div style={{ width: '100%', borderTop: '1px solid var(--border)', paddingTop: '4px', marginTop: '2px' }}>
+                  <button onClick={() => setShowWsIconPicker(false)} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)' }}>Close</button>
+                </div>
+              </div>
+            )}
             {renamingWs ? (
               <input autoFocus value={wsNameInput} onChange={e => setWsNameInput(e.target.value)}
                 onBlur={() => renameWorkspace(wsNameInput)}
