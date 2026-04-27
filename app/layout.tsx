@@ -5,9 +5,9 @@ export const metadata: Metadata = {
   title: { default: 'Canopy', template: '%s — Canopy' },
   description: 'Beautiful documents, shared effortlessly.',
   icons: {
-    icon: '/favicon.ico',
-    shortcut: '/favicon.ico',
-    apple: '/favicon.ico',
+    icon: '/favicon.ico?v=1777308198',
+    shortcut: '/favicon.ico?v=1777308198',
+    apple: '/favicon.ico?v=1777308198',
   },
 }
 
