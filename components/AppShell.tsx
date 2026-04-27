@@ -770,17 +770,20 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                 window.dispatchEvent(new CustomEvent('canopy:openShare'))
               }, 300)
             }}>🔒 Share…</MenuItem>
-            <MenuItem onClick={(e?: any) => {
-              // Only set if not already open for this page (prevents jump on re-click)
-              if (exportMenu?.pageId === contextMenu.pageId) return
-              const ctxEl = document.querySelector('.context-menu') as HTMLElement
-              const rect = ctxEl?.getBoundingClientRect()
-              setExportMenu({
-                x: rect ? rect.right + 4 : contextMenu.x + 220,
-                y: rect ? rect.top : contextMenu.y,
-                pageId: contextMenu.pageId
-              })
-            }}>⬇️ Export… {exportMenu?.pageId === contextMenu?.pageId ? '✓' : ''}</MenuItem>
+            <MenuItem onClick={() => {
+              if (exportMenu?.pageId === contextMenu.pageId) {
+                // Toggle off
+                setExportMenu(null)
+              } else {
+                const ctxEl = document.querySelector('.context-menu') as HTMLElement
+                const rect = ctxEl?.getBoundingClientRect()
+                setExportMenu({
+                  x: rect ? rect.right + 4 : contextMenu.x + 220,
+                  y: rect ? rect.top : contextMenu.y,
+                  pageId: contextMenu.pageId
+                })
+              }
+            }}>⬇️ Export…</MenuItem>
             {isOwnPage(contextMenu.pageId) && workspaces.length > 1 && (
               <MenuItem onClick={() => { setMoveToWsMenu(contextMenu.pageId); setContextMenu(null) }}>📦 Move to workspace…</MenuItem>
             )}
