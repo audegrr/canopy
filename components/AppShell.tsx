@@ -770,7 +770,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               <MenuItem onClick={() => { setMoveToWsMenu(contextMenu.pageId); setContextMenu(null) }}>📦 Move to workspace…</MenuItem>
             )}
             {!isOwnPage(contextMenu.pageId) && (
-              <MenuItem onClick={() => { removeSharedPage(contextMenu.pageId) }}>🚫 Remove from shared</MenuItem>
+              <MenuItem onClick={() => { removeSharedPage(contextMenu.pageId) }}>🚫 Remove from my workspace</MenuItem>
             )}
             {isOwnPage(contextMenu.pageId) && <>
               <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
@@ -815,7 +815,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 }
 
 // ── PAGE ROW COMPONENT ───────────────────────────────────────
-function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, isRenaming, renameVal, onRenameChange, onRenameSubmit, onRenameCancel, onToggle, onClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu, onAddSubpage, onMoreMenu, isDragging, badge, onRemove, onHover, dropIndicator }: any) {
+function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, isRenaming, renameVal, onRenameChange, onRenameSubmit, onRenameCancel, onToggle, onClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu, onAddSubpage, onMoreMenu, isDragging, badge, onRemove, onHover, dropIndicator, isShared }: any) {
   const [hovered, setHovered] = useState(false)
   return (
     <div style={{ position: 'relative' }}>

@@ -142,6 +142,17 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     setShares(enriched)
   }
 
+  async function removeUserShare(uid: string) {
+    await supabase.from('page_shares').delete().eq('page_id', page.id).eq('user_id', uid)
+    // Also remove from sub-pages
+    const { data: subIds } = await supabase.rpc('get_all_subpage_ids', { page_id: page.id })
+    if (subIds) for (const row of subIds) {
+      await supabase.from('page_shares').delete().eq('page_id', row.id).eq('user_id', uid)
+    }
+    loadShares()
+    showToast('Access removed')
+  }
+
   function scheduleSave(updates: Partial<Page>) {
     setSaved(false)
     if (saveTimer.current) clearTimeout(saveTimer.current)
@@ -236,8 +247,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   }
 
   async function removeShare(uid: string) {
-    await supabase.from('page_shares').delete().eq('page_id', page.id).eq('user_id', uid)
-    loadShares()
+    await removeUserShare(uid)
   }
 
   async function updateLinkPerm(perm: string) {
@@ -503,9 +513,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                         {s.name && <div style={{ fontSize: '13px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>}
                         <div style={{ fontSize: '12px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.email}</div>
                       </div>
-                      <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{s.permission}</span>
-                      <button onClick={() => removeShare(s.user_id)}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '14px', lineHeight: 1, padding: '2px' }}>✕</button>
+                      <span style={{ fontSize: '11px', background: s.permission === 'edit' ? '#dbeafe' : '#f3f4f6', color: s.permission === 'edit' ? '#1d4ed8' : '#6b7280', padding: '1px 6px', borderRadius: '8px', flexShrink: 0, fontWeight: 500 }}>{s.permission === 'edit' ? 'Can edit' : 'Can view'}</span>
+                      <button onClick={() => removeShare(s.user_id)} title="Remove access"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '14px', lineHeight: 1, padding: '2px', borderRadius: '3px' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)'; (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; (e.currentTarget as HTMLElement).style.background = 'none' }}>✕</button>
                     </div>
                   ))}
                 </div>
