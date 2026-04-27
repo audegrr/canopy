@@ -347,12 +347,16 @@ export default function DatabaseView({ page, canEdit }: Props) {
                 <thead>
                   <tr>
                     {fields.map((f, colIdx) => (
-                      <th key={f.id} style={{ minWidth: 140, position: 'relative', background: dragOverColIdx === colIdx ? 'var(--accent-light)' : undefined }}
+                      <th key={f.id} style={{ minWidth: 140, position: 'relative' }}
                         draggable={canEdit}
                         onDragStart={() => handleColDragStart(colIdx)}
                         onDragOver={e => { e.preventDefault(); handleColDragOver(colIdx) }}
                         onDrop={handleColDrop}
                         onDragEnd={() => { setDragColIdx(null); setDragOverColIdx(null) }}>
+                        {/* Drop indicator — vertical line on the left edge */}
+                        {dragOverColIdx === colIdx && dragColIdx !== colIdx && dragColIdx !== colIdx - 1 && (
+                          <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 2, background: 'var(--accent)', zIndex: 10, pointerEvents: 'none', boxShadow: '0 0 4px var(--accent)' }} />
+                        )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', fontWeight: 500, minWidth: '16px', textAlign: 'center', flexShrink: 0 }}>{FIELD_ICONS[f.type]}</span>
                           <span style={{ flex: 1, cursor: canEdit ? 'pointer' : 'default', fontSize: 12, fontWeight: 500 }}
@@ -502,6 +506,7 @@ const FIELD_TYPES_LIST: DbField['type'][] = ['text','number','select','multisele
 function SelectEditor({ field, currentValue, onSelect, onAddOption, onDeleteOption, onUpdateOptionColor, onClose }: any) {
   const [newLabel, setNewLabel] = useState('')
   const [colorFor, setColorFor] = useState<string | null>(null)
+  const [newColor, setNewColor] = useState(SELECT_COLORS[0])
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -510,7 +515,7 @@ function SelectEditor({ field, currentValue, onSelect, onAddOption, onDeleteOpti
   }, [])
 
   return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, minWidth: 200, position: 'absolute', zIndex: 50, boxShadow: 'var(--shadow-lg)', top: '100%', left: 0, overflow: 'hidden' }}
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, minWidth: 200, position: 'absolute', zIndex: 50, boxShadow: 'var(--shadow-lg)', top: '100%', left: 0 }}
       onMouseDown={e => e.stopPropagation()}>
       {/* Select or clear */}
       <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
@@ -556,7 +561,13 @@ function SelectEditor({ field, currentValue, onSelect, onAddOption, onDeleteOpti
       </div>
       {/* Add new option */}
       <div style={{ padding: '6px 8px' }}>
-        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>Add option</div>
+        <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 6 }}>Add option</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+          {SELECT_COLORS.map(col => (
+            <div key={col} onClick={() => setNewColor(col)}
+              style={{ width: 18, height: 18, borderRadius: '50%', background: col, cursor: 'pointer', border: newColor === col ? '2px solid var(--accent)' : '1px solid rgba(0,0,0,.1)', flexShrink: 0 }} />
+          ))}
+        </div>
         <div style={{ display: 'flex', gap: 4 }}>
           <input
             ref={inputRef}
@@ -564,13 +575,13 @@ function SelectEditor({ field, currentValue, onSelect, onAddOption, onDeleteOpti
             onChange={e => setNewLabel(e.target.value)}
             placeholder="Option name…"
             onKeyDown={e => {
-              if (e.key === 'Enter' && newLabel.trim()) { onAddOption(newLabel.trim()); setNewLabel('') }
+              if (e.key === 'Enter' && newLabel.trim()) { onAddOption(newLabel.trim(), newColor); setNewLabel('') }
               if (e.key === 'Escape') onClose()
               e.stopPropagation()
             }}
             style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', fontSize: 12, fontFamily: 'var(--font-sans)', outline: 'none' }}
           />
-          <button onClick={() => { if (newLabel.trim()) { onAddOption(newLabel.trim()); setNewLabel('') } }}
+          <button onClick={() => { if (newLabel.trim()) { onAddOption(newLabel.trim(), newColor); setNewLabel('') } }}
             style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 5, padding: '4px 8px', cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font-sans)' }}>+</button>
         </div>
       </div>
@@ -584,25 +595,43 @@ function SelectEditor({ field, currentValue, onSelect, onAddOption, onDeleteOpti
 function FieldMenu({ field, onRename, onChangeType, onDelete }: { field: DbField; onRename: () => void; onChangeType: (t: DbField['type']) => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false)
   const [showTypes, setShowTypes] = useState(false)
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
   return (
     <div style={{ position: 'relative', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-      <button onClick={() => { setOpen(o => !o); setShowTypes(false) }}
+      <button ref={btnRef} onClick={() => {
+        if (!open) {
+          const r = btnRef.current?.getBoundingClientRect()
+          if (r) setMenuPos({ x: r.left, y: r.bottom + 4 })
+        }
+        setOpen(o => !o); setShowTypes(false)
+      }}
         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 11, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--border)' }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>⌄</button>
-      {open && (
+      {open && menuPos && (
         <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 49 }} onClick={() => setOpen(false)} />
-          <div style={{ position: 'absolute', top: '100%', left: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: 5, boxShadow: 'var(--shadow-lg)', zIndex: 50, minWidth: 160 }}>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 499 }} onClick={() => setOpen(false)} />
+          <div style={{ position: 'fixed', left: menuPos.x, top: menuPos.y, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: 5, boxShadow: 'var(--shadow-lg)', zIndex: 500, minWidth: 160 }}>
             <MItem onClick={() => { onRename(); setOpen(false) }}>✏️ Rename</MItem>
             <MItem onClick={() => setShowTypes(o => !o)} extra="›">🔄 Change type</MItem>
             {showTypes && (
               <div style={{ paddingLeft: 8, borderTop: '1px solid var(--border)', marginTop: 2, paddingTop: 2, maxHeight: 200, overflowY: 'auto' }}>
                 {FIELD_TYPES_LIST.map(t => (
-                  <MItem key={t} onClick={() => { onChangeType(t); setOpen(false) }} active={t === field.type}>
+                  <MItem key={t} onClick={() => {
+                    onChangeType(t)
+                    if (t !== 'relation') setOpen(false)
+                    else setShowTypes(false) // Stay open to pick relation table
+                  }} active={t === field.type}>
                     {FIELD_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}
                   </MItem>
                 ))}
+              </div>
+            )}
+            {field.type === 'relation' && !showTypes && (
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 4, marginTop: 2 }}>
+                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', padding: '3px 8px', fontWeight: 500 }}>Link to database</div>
+                <RelationPagePicker value={field.relation_page_id || ''} onChange={pageId => { onChangeType('relation'); if (pageId) document.dispatchEvent(new CustomEvent('canopy:setRelationPage', { detail: { fieldId: field.id, pageId } })) }} excludeId={field.page_id} />
               </div>
             )}
             <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
