@@ -464,7 +464,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
   return (
     <div style={{ position: 'relative' }} onDrop={handleDrop} onDragOver={e => e.preventDefault()} onPaste={handlePaste}>
       {/* Floating bubble menu on selection */}
-      <BubbleMenu editor={editor} tippyOptions={{ duration: 100, placement: 'top' }}
+      <BubbleMenu editor={editor} tippyOptions={{ duration: 100, placement: 'top', interactive: true, hideOnClick: false }}
         shouldShow={({ editor }) => {
           if (!bubbleMenuEnabledRef.current) return false
           return editor.isActive('image') || (!editor.state.selection.empty)
@@ -657,22 +657,12 @@ function CtxItem({ onClick, children, danger }: { onClick: () => void; children:
 }
 
 function FBtn({ onClick, active, children, title }: { onClick?: () => void; active: boolean; children: React.ReactNode; title?: string }) {
-  const [tip, setTip] = useState(false)
-  const timer = useRef<any>(null)
   return (
-    <div style={{ position: 'relative', display: 'inline-flex' }}
-      onMouseEnter={() => { if (title) timer.current = setTimeout(() => setTip(true), 700) }}
-      onMouseLeave={() => { clearTimeout(timer.current); setTip(false) }}>
-      <button
-        onClick={onClick}
-        className={`floating-btn ${active ? 'active' : ''}`}>
-        {children}
-      </button>
-      {tip && (
-        <div style={{ position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)', background: '#1a1a1a', color: '#fff', fontSize: '11px', padding: '3px 8px', borderRadius: '4px', whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 9999 }}>
-          {title}
-        </div>
-      )}
-    </div>
+    <button
+      onClick={onClick}
+      data-tip={title}
+      className={`floating-btn ${active ? 'active' : ''}`}>
+      {children}
+    </button>
   )
 }
