@@ -17,12 +17,14 @@ type Props = {
 
 function InstantPageView({ data, onNavigate }: { data: any; onNavigate: (path: string) => void }) {
   return (
-    <PageView
-      page={data.page}
-      canEdit={data.canEdit}
-      isOwner={data.isOwner}
-      userId={data.userId}
-    />
+    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', animation: 'fadeIn 0.04s ease' }}>
+      <PageView
+        page={data.page}
+        canEdit={data.canEdit}
+        isOwner={data.isOwner}
+        userId={data.userId}
+      />
+    </div>
   )
 }
 
