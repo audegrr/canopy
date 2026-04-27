@@ -35,18 +35,6 @@ function ResizableImageView({ node, updateAttributes, selected }: any) {
 
   return (
     <NodeViewWrapper style={{ display: 'block', position: 'relative', maxWidth: '100%', lineHeight: 0, margin: '4px 0' }}>
-      {/* Alignment toolbar — shown when selected */}
-      {selected && (
-        <div style={{ position: 'absolute', top: -32, left: '50%', transform: 'translateX(-50%)', background: '#1a1a1a', borderRadius: '6px', padding: '2px 4px', display: 'flex', gap: '2px', zIndex: 20, boxShadow: '0 2px 8px rgba(0,0,0,.3)' }}>
-          {(['left','center','right'] as const).map(a => (
-            <button key={a} onClick={() => updateAttributes({ align: a })}
-              style={{ background: align === a ? 'rgba(255,255,255,0.2)' : 'none', border: 'none', cursor: 'pointer', color: 'white', fontSize: '13px', padding: '3px 7px', borderRadius: '4px', lineHeight: 1 }}
-              title={a.charAt(0).toUpperCase() + a.slice(1)}>
-              {a === 'left' ? '⬛◻◻' : a === 'center' ? '◻⬛◻' : '◻◻⬛'}
-            </button>
-          ))}
-        </div>
-      )}
       <div style={{ position: 'relative', display: 'block', width, ...alignStyle }}>
         {!loaded && <div style={{ width: '100%', height: '120px', background: 'var(--border)', borderRadius: '6px' }} />}
         <img
@@ -471,8 +459,23 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
   return (
     <div style={{ position: 'relative' }} onDrop={handleDrop} onDragOver={e => e.preventDefault()} onPaste={handlePaste}>
       {/* Floating bubble menu on selection */}
-      <BubbleMenu editor={editor} tippyOptions={{ duration: 100, placement: 'top' }}>
+      <BubbleMenu editor={editor} tippyOptions={{ duration: 100, placement: 'top' }}
+        shouldShow={({ editor }) => {
+          // Always show when text selected; also show for images
+          return editor.isActive('image') || (!editor.state.selection.empty)
+        }}>
         <div className="floating-toolbar" style={{ overflowX: 'auto', maxWidth: 'calc(100vw - 32px)', flexWrap: 'nowrap' }}>
+          {/* Image-only controls */}
+          {editor.isActive('image') && <>
+            <FBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'left' }).run()}
+              active={editor.getAttributes('image').align === 'left' || !editor.getAttributes('image').align}>◀</FBtn>
+            <FBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'center' }).run()}
+              active={editor.getAttributes('image').align === 'center'}>◆</FBtn>
+            <FBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'right' }).run()}
+              active={editor.getAttributes('image').align === 'right'}>▶</FBtn>
+          </>}
+          {/* All other controls — hidden for images */}
+          {!editor.isActive('image') && <>
           {/* Text formatting */}
           <FBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')}><b>B</b></FBtn>
           <FBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')}><i>I</i></FBtn>
@@ -540,6 +543,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           <FBtn onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })}>⬅</FBtn>
           <FBtn onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })}>↔</FBtn>
           <FBtn onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })}>➡</FBtn>
+          </>}
         </div>
       </BubbleMenu>
 

@@ -577,7 +577,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             >{currentWs.icon}</span>
             {showWsIconPicker && (
               <>
-                <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={() => setShowWsIconPicker(false)} />
+                <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={e => { e.stopPropagation(); setShowWsIconPicker(false) }} />
                 <div style={{ position: 'absolute', top: '90px', left: '8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 300, display: 'flex', flexWrap: 'wrap', gap: '3px', width: '210px' }}
                   onClick={e => e.stopPropagation()}>
                 {['🌿','🌲','🌳','🌴','🌵','🍀','🌱','🌾','🍁','🌸','🏔','🏠','💼','🚀','⭐','💡','🎯','📚','🎨','🔮','🦋','🧠','💎','🔑','🌍'].map(em => (
