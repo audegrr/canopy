@@ -506,10 +506,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             onToggle={() => setExpandedShared(s => { const n = new Set(s); n.has(page.id) ? n.delete(page.id) : n.add(page.id); return n })}
             onClick={() => navigate(`/app/page/${page.id}`)}
             onDragStart={() => {}} onDragOver={() => {}} onDragLeave={() => {}} onDrop={() => {}} onDragEnd={() => {}}
-            onContextMenu={() => {}}
-            onAddSubpage={() => {}} onMoreMenu={() => {}}
+            onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, pageId: page.id }) }}
+            onAddSubpage={page.permission === 'edit' ? () => createPage(page.id) : undefined}
+            onMoreMenu={(e: React.MouseEvent) => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setContextMenu({ x: r.right + 4, y: r.bottom, pageId: page.id }) }}
             isDragging={false}
             badge={page.permission === 'edit' ? 'edit' : 'view'}
+            isShared={true}
           />
           {isExpanded && <div>{renderSharedTree(page.id, depth + 1)}</div>}
         </div>
