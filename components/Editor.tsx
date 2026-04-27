@@ -489,7 +489,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           <div className="floating-sep" />
           {/* Text color */}
           <div style={{ position: 'relative' }}>
-            <FBtn onClick={() => { setShowColorPicker(o => !o); setShowHighlightPicker(false) }} active={showColorPicker}>
+            <FBtn onClick={() => { setShowColorPicker(o => !o); setShowHighlightPicker(false) }} active={showColorPicker} title='Text color'>
               <span style={{ borderBottom: `3px solid ${editor.getAttributes('textStyle').color || '#fff'}` }}>A</span>
             </FBtn>
             {showColorPicker && (
@@ -511,7 +511,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           </div>
           {/* Highlight color */}
           <div style={{ position: 'relative' }}>
-            <FBtn onClick={() => { setShowHighlightPicker(o => !o); setShowColorPicker(false) }} active={showHighlightPicker}>
+            <FBtn onClick={() => { setShowHighlightPicker(o => !o); setShowColorPicker(false) }} active={showHighlightPicker} title='Highlight color'>
               <span style={{ background: editor.getAttributes('highlight').color || '#fdf3a7', padding: '0 3px', borderRadius: '2px', color: '#37352f' }}>H</span>
             </FBtn>
             {showHighlightPicker && (
@@ -628,9 +628,22 @@ function CtxItem({ onClick, children, danger }: { onClick: () => void; children:
 }
 
 function FBtn({ onClick, active, children, title, onMouseDown }: { onClick?: () => void; active: boolean; children: React.ReactNode; title?: string; onMouseDown?: (e: React.MouseEvent) => void }) {
+  const [tip, setTip] = useState(false)
+  const timer = useRef<any>(null)
   return (
-    <button onClick={onClick} className={`floating-btn ${active ? 'active' : ''}`}>
-      {children}
-    </button>
+    <div style={{ position: 'relative', display: 'inline-flex' }}
+      onMouseEnter={() => { if (title) timer.current = setTimeout(() => setTip(true), 700) }}
+      onMouseLeave={() => { clearTimeout(timer.current); setTip(false) }}>
+      <button
+        onMouseDown={onMouseDown || (onClick ? e => { e.preventDefault(); onClick() } : undefined)}
+        className={`floating-btn ${active ? 'active' : ''}`}>
+        {children}
+      </button>
+      {tip && (
+        <div style={{ position: 'absolute', bottom: '110%', left: '50%', transform: 'translateX(-50%)', background: '#1a1a1a', color: '#fff', fontSize: '11px', padding: '3px 8px', borderRadius: '4px', whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 9999 }}>
+          {title}
+        </div>
+      )}
+    </div>
   )
 }
