@@ -50,14 +50,18 @@ function ResizableImageView({ node, updateAttributes }: any) {
     window.addEventListener('mouseup', onUp)
   }
 
+  const [loaded, setLoaded] = useState(false)
+
   return (
-    <NodeViewWrapper style={{ display: 'inline-block', position: 'relative', maxWidth: '100%', lineHeight: 0 }}>
-      <div style={{ position: 'relative', display: 'inline-block', width }}>
+    <NodeViewWrapper style={{ display: 'block', position: 'relative', maxWidth: '100%', lineHeight: 0, margin: '4px 0' }}>
+      <div style={{ position: 'relative', display: 'block', width }}>
+        {!loaded && <div style={{ width: '100%', height: '120px', background: 'var(--border)', borderRadius: '6px', marginBottom: '4px' }} />}
         <img
           ref={imgRef}
           src={node.attrs.src}
           alt={node.attrs.alt || ''}
-          style={{ width: '100%', borderRadius: '6px', display: 'block', userSelect: 'none' }}
+          onLoad={() => setLoaded(true)}
+          style={{ width: '100%', borderRadius: '6px', display: loaded ? 'block' : 'none', userSelect: 'none' }}
           draggable={false}
         />
         {/* Resize handles */}

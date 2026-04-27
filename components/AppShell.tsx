@@ -17,7 +17,7 @@ type Props = {
 
 function InstantPageView({ data, onNavigate }: { data: any; onNavigate: (path: string) => void }) {
   return (
-    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', animation: 'fadeIn 0.04s ease' }}>
+    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', animation: 'fadeIn 0.12s ease' }}>
       <PageView
         page={data.page}
         canEdit={data.canEdit}
