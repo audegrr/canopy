@@ -353,29 +353,34 @@ body.focus-mode .tiptap { max-width: 680px; margin: 0 auto; font-size: 16px; lin
 }
 
 /* Tooltip for bubble menu buttons */
+/* Allow tooltips to overflow the bubble menu */
+.floating-toolbar {
+  overflow: visible !important;
+}
+.tippy-box { overflow: visible !important; }
+.tippy-content { overflow: visible !important; }
+
 .floating-btn[data-tip] {
   position: relative;
 }
 .floating-btn[data-tip]:hover::after {
   content: attr(data-tip);
   position: absolute;
-  bottom: calc(100% + 6px);
+  bottom: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
   background: #1a1a1a;
   color: #fff;
   font-size: 11px;
-  padding: 3px 8px;
+  padding: 4px 8px;
   border-radius: 4px;
   white-space: nowrap;
   pointer-events: none;
-  z-index: 9999;
-  animation: fadeIn 0.1s ease;
-  /* Only show after hover delay */
+  z-index: 99999;
   opacity: 0;
-  animation: tooltipDelay 0.1s ease 0.7s forwards;
+  animation: tooltipShow 0.15s ease 0.6s forwards;
 }
-@keyframes tooltipDelay {
+@keyframes tooltipShow {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
