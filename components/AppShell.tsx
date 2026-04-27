@@ -765,8 +765,13 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               navigate(`/app/page/${pid}?panel=share`)
             }}>🔒 Share…</MenuItem>
             <MenuItem onClick={() => {
-              const pid = contextMenu.pageId; setContextMenu(null)
-              navigate(`/app/page/${pid}?panel=export`)
+              // Position export menu to the right of the context menu
+              const ctxEl = document.querySelector('.context-menu') as HTMLElement
+              const rect = ctxEl?.getBoundingClientRect()
+              const x = rect ? rect.right + 4 : (contextMenu.x + 220)
+              const y = rect ? rect.top + 80 : contextMenu.y
+              setExportMenu({ x, y, pageId: contextMenu.pageId })
+              setContextMenu(null)
             }}>⬇️ Export…</MenuItem>
             {isOwnPage(contextMenu.pageId) && workspaces.length > 1 && (
               <MenuItem onClick={() => { setMoveToWsMenu(contextMenu.pageId); setContextMenu(null) }}>📦 Move to workspace…</MenuItem>
