@@ -703,7 +703,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
           {instantPage
-            ? <InstantPageView data={instantPage} onNavigate={navigate} />
+            ? <InstantPageView key={instantPage.page.id} data={instantPage} onNavigate={navigate} />
             : children}
         </div>
       </main>
