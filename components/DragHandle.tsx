@@ -94,7 +94,7 @@ export default function DragHandle({ editor }: Props) {
     state.current.dragging = true
     setDragging(true)
     e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', String(state.current.srcIdx))
+    e.dataTransfer.setData('application/canopy-block', String(state.current.srcIdx))
 
     // Ghost
     const ghost = document.createElement('div')
