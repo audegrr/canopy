@@ -736,20 +736,17 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
       {/* Export submenu from sidebar */}
       {exportMenu && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => { setExportMenu(null); setContextMenu(null) }} onContextMenu={e => { e.preventDefault(); setExportMenu(null); setContextMenu(null) }} />
           <div className="context-menu scale-in"
             style={{ position: 'fixed', left: Math.min(exportMenu.x, window.innerWidth - 180), top: Math.min(exportMenu.y, window.innerHeight - 100), zIndex: 2001, minWidth: '170px' }}>
             <MenuItem onClick={() => exportPageAsPDF(exportMenu.pageId)}>📄 Export as PDF</MenuItem>
             <MenuItem onClick={() => exportPageAsWord(exportMenu.pageId)}>📝 Export as Word</MenuItem>
           </div>
-        </>
       )}
 
       {/* Context menu */}
       {contextMenu && (
         <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => setContextMenu(null)} />
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => { setContextMenu(null); setExportMenu(null) }} />
           <div className="context-menu scale-in"
             style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 220), top: Math.min(contextMenu.y, window.innerHeight - 220), zIndex: 2000 }}>
             {isOwnPage(contextMenu.pageId) && <>
