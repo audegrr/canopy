@@ -264,6 +264,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
   const slashQueryRef = useRef('')
   const pendingImageInsert = useRef<((src: string) => void) | null>(null)
   const [blockCtxMenu, setBlockCtxMenu] = useState<{ x: number; y: number; pos: number } | null>(null)
+  const [bubbleMenuEnabled, setBubbleMenuEnabled] = useState(true)
 
   const editor = useEditor({
     extensions: [
@@ -317,6 +318,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           if (!editable) return false
           event.preventDefault()
           const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })
+          setBubbleMenuEnabled(false)
           setBlockCtxMenu({ x: event.clientX, y: event.clientY, pos: pos?.pos ?? 0 })
           return true
         }
@@ -461,27 +463,27 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
       {/* Floating bubble menu on selection */}
       <BubbleMenu editor={editor} tippyOptions={{ duration: 100, placement: 'top' }}
         shouldShow={({ editor }) => {
-          // Always show when text selected; also show for images
+          if (!bubbleMenuEnabled) return false
           return editor.isActive('image') || (!editor.state.selection.empty)
         }}>
         <div className="floating-toolbar" style={{ overflowX: 'auto', maxWidth: 'calc(100vw - 32px)', flexWrap: 'nowrap' }}>
           {/* Image-only controls */}
           {editor.isActive('image') && <>
-            <FBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'left' }).run()}
-              active={editor.getAttributes('image').align === 'left' || !editor.getAttributes('image').align}>◀</FBtn>
-            <FBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'center' }).run()}
-              active={editor.getAttributes('image').align === 'center'}>◆</FBtn>
-            <FBtn onClick={() => editor.chain().focus().updateAttributes('image', { align: 'right' }).run()}
-              active={editor.getAttributes('image').align === 'right'}>▶</FBtn>
+            <FBtn title="Align left" onClick={() => editor.chain().focus().updateAttributes('image', { align: 'left' }).run()}
+              active={editor.getAttributes('image').align === 'left' || !editor.getAttributes('image').align}>⬅</FBtn>
+            <FBtn title="Center" onClick={() => editor.chain().focus().updateAttributes('image', { align: 'center' }).run()}
+              active={editor.getAttributes('image').align === 'center'}>↔</FBtn>
+            <FBtn title="Align right" onClick={() => editor.chain().focus().updateAttributes('image', { align: 'right' }).run()}
+              active={editor.getAttributes('image').align === 'right'}>➡</FBtn>
           </>}
           {/* All other controls — hidden for images */}
           {!editor.isActive('image') && <>
           {/* Text formatting */}
-          <FBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')}><b>B</b></FBtn>
-          <FBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')}><i>I</i></FBtn>
-          <FBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')}><u>U</u></FBtn>
-          <FBtn onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')}><s>S</s></FBtn>
-          <FBtn onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')}>{'`'}</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title='Bold'><b>B</b></FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title='Italic'><i>I</i></FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title='Underline'><u>U</u></FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} title='Strikethrough'><s>S</s></FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} title='Inline code'>{'`'}</FBtn>
           <div className="floating-sep" />
           {/* Text color */}
           <div style={{ position: 'relative' }}>
@@ -494,7 +496,11 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', width: '136px' }}>
                   {COLORS.map(col => (
                     <button key={col.value || 'default'} title={col.label}
-                      onClick={() => { col.value ? editor.chain().focus().setColor(col.value).run() : editor.chain().focus().unsetColor().run(); setShowColorPicker(false) }}
+                      onMouseDown={e => {
+                        e.preventDefault() // Prevent losing selection
+                        col.value ? editor.chain().focus().setColor(col.value).run() : editor.chain().focus().unsetColor().run()
+                        setShowColorPicker(false)
+                      }}
                       style={{ width: '24px', height: '24px', borderRadius: '4px', background: col.value || '#37352f', border: `2px solid ${col.value === (editor.getAttributes('textStyle').color || '') ? 'var(--accent)' : 'rgba(0,0,0,0.1)'}`, cursor: 'pointer' }} />
                   ))}
                 </div>
@@ -521,15 +527,15 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           </div>
           <div className="floating-sep" />
           {/* Block types */}
-          <FBtn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })}>H1</FBtn>
-          <FBtn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })}>H2</FBtn>
-          <FBtn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })}>H3</FBtn>
-          <FBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')}>•</FBtn>
-          <FBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')}>1.</FBtn>
-          <FBtn onClick={() => editor.chain().focus().toggleTaskList().run()} active={editor.isActive('taskList')}>☑</FBtn>
-          <FBtn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')}>❝</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title='Heading 1'>H1</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title='Heading 2'>H2</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} title='Heading 3'>H3</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title='Bullet list'>•</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title='Numbered list'>1.</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleTaskList().run()} active={editor.isActive('taskList')} title='To-do list'>☑</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title='Quote'>❝</FBtn>
           <FBtn onClick={() => editor.chain().focus().insertContent({ type: 'callout', content: [{ type: 'text', text: ' ' }] }).run()} active={false}>💡</FBtn>
-          <FBtn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')}>{'<>'}</FBtn>
+          <FBtn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')} title='Code block'>{'<>'}</FBtn>
           <div className="floating-sep" />
           {/* Link */}
           <FBtn onClick={() => {
@@ -537,12 +543,12 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
             const url = window.prompt('URL:', prev || 'https://')
             if (url === null) return
             url === '' ? editor.chain().focus().unsetLink().run() : editor.chain().focus().setLink({ href: url }).run()
-          }} active={editor.isActive('link')}>🔗</FBtn>
+          }} active={editor.isActive('link')} title='Link'>🔗</FBtn>
           <div className="floating-sep" />
           {/* Alignment */}
-          <FBtn onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })}>⬅</FBtn>
-          <FBtn onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })}>↔</FBtn>
-          <FBtn onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })}>➡</FBtn>
+          <FBtn onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title='Align left'>⬅</FBtn>
+          <FBtn onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} title='Center'>↔</FBtn>
+          <FBtn onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} title='Align right'>➡</FBtn>
           </>}
         </div>
       </BubbleMenu>
@@ -582,7 +588,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
     {/* Block context menu */}
     {blockCtxMenu && (
       <>
-        <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setBlockCtxMenu(null)} />
+        <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => { setBlockCtxMenu(null); setTimeout(() => setBubbleMenuEnabled(true), 100) }} />
         <div style={{ position: 'fixed', left: Math.min(blockCtxMenu.x, window.innerWidth - 210), top: Math.min(blockCtxMenu.y, window.innerHeight - 320), maxHeight: '320px', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 999, minWidth: '190px' }} className="scale-in">
           <CtxItem onClick={() => { document.execCommand('copy'); setBlockCtxMenu(null) }}>📋 Copy</CtxItem>
           <CtxItem onClick={() => { document.execCommand('paste'); setBlockCtxMenu(null) }}>📋 Paste</CtxItem>
@@ -619,7 +625,7 @@ function CtxItem({ onClick, children, danger }: { onClick: () => void; children:
   )
 }
 
-function FBtn({ onClick, active, children }: { onClick: () => void; active: boolean; children: React.ReactNode }) {
+function FBtn({ onClick, active, children, title, onMouseDown }: { onClick?: () => void; active: boolean; children: React.ReactNode; title?: string; onMouseDown?: (e: React.MouseEvent) => void }) {
   return (
     <button onClick={onClick} className={`floating-btn ${active ? 'active' : ''}`}>
       {children}

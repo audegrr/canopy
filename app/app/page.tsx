@@ -39,7 +39,7 @@ export default function AppHome() {
     }}>
       {/* Header */}
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '56px', marginBottom: '16px', opacity: 0.15 }}>🌿</div>
+        <img src='/favicon.ico' alt='Canopy' style={{ width: 64, height: 64, marginBottom: '16px', borderRadius: '12px' }} />
         <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text)', marginBottom: '8px', fontFamily: 'var(--font-sans)' }}>
           Welcome to Canopy
         </h2>
