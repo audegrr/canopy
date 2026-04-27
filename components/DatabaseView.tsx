@@ -195,26 +195,32 @@ export default function DatabaseView({ page, canEdit }: Props) {
           onChange={e => updateCell(rec.id, field.id, e.target.checked)}
           style={{ width: 16, height: 16, accentColor: 'var(--accent)', cursor: 'pointer' }} />
       )
-      if (field.type === 'select') return (
-        <SelectEditor
-          field={field}
-          currentValue={val}
-          onSelect={(v: string) => updateCell(rec.id, field.id, v)}
-          onAddOption={(label: string, color?: string) => addSelectOption(field.id, label, color)}
-          onDeleteOption={async (label: string) => {
-            const newOpts = (field.options || []).filter((o: any) => (o.label || o) !== label)
-            await updateField(field.id, { options: newOpts })
-            if (val === label) updateCell(rec.id, field.id, '')
-          }}
-          onUpdateOptionColor={async (label: string, color: string) => {
-            const newOpts = (field.options || []).map((o: any) =>
-              (o.label || o) === label ? { ...o, color } : o
-            )
-            await updateField(field.id, { options: newOpts })
-          }}
-          onClose={() => setEditingCell(null)}
-        />
-      )
+      if (field.type === 'select') {
+        // Get cell position for fixed positioning
+        const cellEl = document.querySelector(`[data-cell="${rec.id}-${field.id}"]`) as HTMLElement
+        const cellRect = cellEl?.getBoundingClientRect()
+        return (
+          <SelectEditor
+            field={field}
+            currentValue={val}
+            cellRect={cellRect}
+            onSelect={(v: string) => updateCell(rec.id, field.id, v)}
+            onAddOption={(label: string, color?: string) => addSelectOption(field.id, label, color)}
+            onDeleteOption={async (label: string) => {
+              const newOpts = (field.options || []).filter((o: any) => (o.label || o) !== label)
+              await updateField(field.id, { options: newOpts })
+              if (val === label) updateCell(rec.id, field.id, '')
+            }}
+            onUpdateOptionColor={async (label: string, color: string) => {
+              const newOpts = (field.options || []).map((o: any) =>
+                (o.label || o) === label ? { ...o, color } : o
+              )
+              await updateField(field.id, { options: newOpts })
+            }}
+            onClose={() => setEditingCell(null)}
+          />
+        )
+      }
       if (field.type === 'relation') {
         const relPage = relatedPages.find(p => p.id === field.relation_page_id)
         const recs = relatedRecords[field.relation_page_id || ''] || []
@@ -343,9 +349,9 @@ export default function DatabaseView({ page, canEdit }: Props) {
                         onDragOver={e => { e.preventDefault(); handleColDragOver(colIdx) }}
                         onDrop={handleColDrop}
                         onDragEnd={() => { setDragColIdx(null); setDragOverColIdx(null) }}>
-                        {/* Drop indicator — full-height vertical line */}
+                        {/* Drop indicator — full table height (header + rows) */}
                         {dragOverColIdx === colIdx && dragColIdx !== colIdx && dragColIdx !== colIdx - 1 && (
-                          <div style={{ position: 'absolute', left: -1, top: '-9999px', bottom: '-9999px', width: 2, background: 'var(--accent)', zIndex: 10, pointerEvents: 'none', boxShadow: '0 0 4px var(--accent)' }} />
+                          <div style={{ position: 'absolute', left: -1, top: 0, height: `${(displayRecords.length + 1) * 41}px`, width: 2, background: 'var(--accent)', zIndex: 10, pointerEvents: 'none', boxShadow: '0 0 4px var(--accent)' }} />
                         )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', fontWeight: 500, minWidth: '16px', textAlign: 'center', flexShrink: 0 }}>{FIELD_ICONS[f.type]}</span>
@@ -357,7 +363,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                             const el = document.getElementById(`field-name-${f.id}`) as HTMLInputElement | null
                             el?.focus(); el?.select()
                           }} onChangeType={type => updateField(f.id, { type })} onDelete={() => deleteField(f.id)}
-                          onLinkRelation={(pageId, colId) => updateField(f.id, { relation_page_id: pageId, ...(colId ? { relation_column_id: colId } : {}) })} />}
+                          onLinkRelation={(pageId) => updateField(f.id, { relation_page_id: pageId })} />}
                         </div>
                         {canEdit && (
                           <input id={`field-name-${f.id}`}
@@ -379,12 +385,11 @@ export default function DatabaseView({ page, canEdit }: Props) {
                   {displayRecords.map((rec, i) => (
                     <tr key={rec.id}>
                       {fields.map(f => (
-                        <td key={f.id} style={{ position: 'relative' }}
+                        <td key={f.id} data-cell={`${rec.id}-${f.id}`} style={{ position: 'relative' }}
                           onClick={e => {
                             if (!canEdit) return
                             if (editingCell?.recId === rec.id && editingCell?.fieldId === f.id) return
                             setEditingCell({ recId: rec.id, fieldId: f.id })
-                            // Let the click event propagate to position cursor naturally
                           }}>
                           <div className="db-cell">
                             <CellValue rec={rec} field={f} />
@@ -494,7 +499,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
 
 const FIELD_TYPES_LIST: DbField['type'][] = ['text','number','select','multiselect','date','checkbox','relation','rollup','url','email','phone']
 
-function SelectEditor({ field, currentValue, onSelect, onAddOption, onDeleteOption, onUpdateOptionColor, onClose }: any) {
+function SelectEditor({ field, currentValue, onSelect, onAddOption, onDeleteOption, onUpdateOptionColor, onClose, cellRect }: any) {
   const [newLabel, setNewLabel] = useState('')
   const [colorFor, setColorFor] = useState<string | null>(null)
   const [newColor, setNewColor] = useState(SELECT_COLORS[0])
@@ -506,8 +511,14 @@ function SelectEditor({ field, currentValue, onSelect, onAddOption, onDeleteOpti
   }, [])
 
   return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, minWidth: 200, position: 'absolute', zIndex: 50, boxShadow: 'var(--shadow-lg)', top: '100%', left: 0 }}
-      onMouseDown={e => e.stopPropagation()}>
+    <>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={onClose} />
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, minWidth: 220,
+        position: 'fixed',
+        left: cellRect ? Math.min(cellRect.left, window.innerWidth - 240) : 0,
+        top: cellRect ? Math.min(cellRect.bottom + 2, window.innerHeight - 300) : 0,
+        zIndex: 300, boxShadow: 'var(--shadow-lg)', maxHeight: '70vh', overflowY: 'auto' }}
+        onMouseDown={e => e.stopPropagation()}>
       {/* Select or clear */}
       <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
         <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4 }}>Select an option</div>
@@ -580,6 +591,7 @@ function SelectEditor({ field, currentValue, onSelect, onAddOption, onDeleteOpti
         <button onClick={onClose} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)' }}>Done</button>
       </div>
     </div>
+    </>
   )
 }
 
@@ -625,9 +637,7 @@ function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelation }: 
                 <RelationPagePicker
                   value={field.relation_page_id || ''}
                   excludeId={field.page_id}
-                  onChange={(pageId, colId) => {
-                    if (pageId) onLinkRelation(pageId, colId)
-                  }} />
+                  onChange={(pageId) => { if (pageId) onLinkRelation(pageId) }} />
               </div>
             )}
             <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
@@ -651,52 +661,21 @@ function MItem({ onClick, children, extra, active, danger }: any) {
   )
 }
 
-function RelationPagePicker({ value, onChange, excludeId, workspaceId }: { value: string; onChange: (pageId: string, columnId?: string) => void; excludeId?: string; workspaceId?: string }) {
-  const [pages, setPages] = useState<{id: string; title: string; icon: string}[]>([])
-  const [fields, setFields] = useState<{id: string; name: string; type: string}[]>([])
-  const [selectedPage, setSelectedPage] = useState(value || '')
-  const [selectedCol, setSelectedCol] = useState('')
+function RelationPagePicker({ value, onChange, excludeId }: { value: string; onChange: (pageId: string) => void; excludeId?: string }) {
+  const [pages, setPages] = useState<{id: string; title: string; icon: string; workspace_id: string}[]>([])
   const supabase = createClient()
 
   useEffect(() => {
-    async function load() {
-      let q = supabase.from('pages').select('id, title, icon, workspace_id').eq('is_database', true).order('title')
-      const { data } = await q
-      setPages((data || []).filter(p => p.id !== excludeId && (!workspaceId || p.workspace_id === workspaceId)))
-    }
-    load()
-  }, [excludeId, workspaceId])
-
-  useEffect(() => {
-    if (!selectedPage) { setFields([]); return }
-    supabase.from('db_fields').select('id, name, type').eq('page_id', selectedPage).order('position').then(({ data }) => {
-      setFields(data || [])
-    })
-  }, [selectedPage])
-
-  function handlePageChange(pageId: string) {
-    setSelectedPage(pageId)
-    setSelectedCol('')
-    onChange(pageId, undefined)
-  }
-
-  function handleColChange(colId: string) {
-    setSelectedCol(colId)
-    onChange(selectedPage, colId)
-  }
+    supabase.from('pages').select('id, title, icon, workspace_id').eq('is_database', true).order('title')
+      .then(({ data }) => setPages((data || []).filter(p => p.id !== excludeId)))
+  }, [excludeId])
 
   return (
-    <div style={{ padding: '4px 8px', display: 'flex', flexDirection: 'column', gap: 4 }} onClick={e => e.stopPropagation()}>
-      <select value={selectedPage} onChange={e => handlePageChange(e.target.value)} style={{ ...ctrlSt, width: '100%' }}>
+    <div style={{ padding: '4px 8px' }} onClick={e => e.stopPropagation()}>
+      <select value={value} onChange={e => onChange(e.target.value)} style={{ ...ctrlSt, width: '100%' }}>
         <option value="">— Select a database</option>
         {pages.map(p => <option key={p.id} value={p.id}>{p.icon} {p.title}</option>)}
       </select>
-      {selectedPage && fields.length > 0 && (
-        <select value={selectedCol} onChange={e => handleColChange(e.target.value)} style={{ ...ctrlSt, width: '100%' }}>
-          <option value="">— Select a column (optional)</option>
-          {fields.map(f => <option key={f.id} value={f.id}>{FIELD_ICONS[f.type] || ''} {f.name}</option>)}
-        </select>
-      )}
     </div>
   )
 }
