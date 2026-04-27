@@ -262,6 +262,11 @@ export default function DatabaseView({ page, canEdit }: Props) {
             </div>
             {recs
               .filter(rr => firstTextField && rr.data?.[firstTextField] && String(rr.data[firstTextField]).trim() !== '')
+              .sort((a, b) => {
+                const av = firstTextField ? String(a.data?.[firstTextField] || '') : ''
+                const bv = firstTextField ? String(b.data?.[firstTextField] || '') : ''
+                return av.localeCompare(bv)
+              })
               .map(rr => {
               const isLinked = activeRelIds.includes(rr.id)
               const displayVal = firstTextField ? String(rr.data?.[firstTextField] || '') : ''
@@ -481,11 +486,12 @@ export default function DatabaseView({ page, canEdit }: Props) {
                         )}
                       </th>
                     ))}
-                    <th style={{ width: 40 }}>
+                    <th style={{ width: 36, minWidth: 36 }}>
                       {canEdit && (
                         <button onClick={() => setAddingField(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16, padding: '0 4px' }} title="Add field">+</button>
                       )}
                     </th>
+                    {canEdit && <th style={{ width: 28, minWidth: 28, position: 'sticky', right: 0, background: 'var(--surface)', borderLeft: '1px solid var(--border)' }} />}
                   </tr>
                 </thead>
                 <tbody>
@@ -504,9 +510,9 @@ export default function DatabaseView({ page, canEdit }: Props) {
                         </td>
                       ))}
                       {canEdit && (
-                        <td style={{ width: 0, padding: 0, border: 'none', position: 'relative', overflow: 'visible' }}>
+                        <td style={{ width: 28, minWidth: 28, padding: 0, position: 'sticky', right: 0, background: 'var(--surface)', borderLeft: '1px solid var(--border)', textAlign: 'center' }}>
                           <button onClick={() => deleteRecord(rec.id)} title="Delete row"
-                            style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 14, padding: '2px 4px', borderRadius: 3, transition: 'color 0.1s, background 0.1s', whiteSpace: 'nowrap', opacity: 0 }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 13, padding: '2px 4px', borderRadius: 3, opacity: 0, transition: 'opacity 0.1s, color 0.1s' }}
                             className="delete-row-btn">✕</button>
                         </td>
                       )}
