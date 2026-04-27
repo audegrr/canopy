@@ -103,6 +103,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }, [currentPageId])
 
   useEffect(() => {
+    function onPageReady() { setNavigating(false) }
+    window.addEventListener('canopy:pageReady', onPageReady)
+    return () => window.removeEventListener('canopy:pageReady', onPageReady)
+  }, [])
+
+  useEffect(() => {
     function onPageUpdate(e: any) {
       const { id, title, icon } = e.detail
       setPages(p => p.map(x => x.id === id ? { ...x, ...(title !== undefined ? { title } : {}), ...(icon !== undefined ? { icon } : {}) } : x))
@@ -112,17 +118,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }, [])
 
   function navigate(path: string) {
-    setNavigating(true)
-    // Broadcast page metadata for instant skeleton display
     const pageId = path.match(/\/app\/page\/([^?]+)/)?.[1]
-    if (pageId) {
-      const p = pages.find(x => x.id === pageId) || sharedPages.find(x => x.id === pageId)
-      if (p) {
-        window.dispatchEvent(new CustomEvent('canopy:navigating', {
-          detail: { pageId, title: p.title, icon: p.icon }
-        }))
-      }
-    }
+    // Only show loading bar if page is NOT already cached
+    const cached = pageId && (
+      (window as any).__pageCache?.has(pageId)
+    )
+    if (!cached) setNavigating(true)
     router.push(path)
   }
 

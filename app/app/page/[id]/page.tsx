@@ -37,6 +37,11 @@ export default function PageRoute() {
     page: any; canEdit: boolean; isOwner: boolean; userId: string
   } | null>(cache.get(id) || null)
   const [error, setError] = useState(false)
+
+  // Clear navigation loading bar immediately
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('canopy:pageReady'))
+  }, [id])
   const loadingRef = useRef('')
 
   useEffect(() => {
