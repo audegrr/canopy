@@ -353,12 +353,15 @@ body.focus-mode .tiptap { max-width: 680px; margin: 0 auto; font-size: 16px; lin
 }
 
 /* Tooltip for bubble menu buttons */
-/* Allow tooltips to overflow the bubble menu */
-.floating-toolbar {
-  overflow: visible !important;
-}
+/* Tooltips: clip-path trick — overflow hidden for scroll, visible for tooltips */
 .tippy-box { overflow: visible !important; }
 .tippy-content { overflow: visible !important; }
+
+/* Toolbar scrolls horizontally, individual buttons can overflow vertically for tooltips */
+.floating-toolbar {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
+}
 
 .floating-btn[data-tip] {
   position: relative;

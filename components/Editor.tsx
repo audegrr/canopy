@@ -596,7 +596,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           <CtxItem onClick={() => { document.execCommand('paste'); setBlockCtxMenu(null) }}>📋 Paste</CtxItem>
           <CtxItem onClick={() => { document.execCommand('cut'); setBlockCtxMenu(null) }}>✂️ Cut</CtxItem>
           <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-          <CtxItem onClick={() => { editor?.chain().focus().clearNodes().unsetAllMarks().run(); setBlockCtxMenu(null) }}>✕ Clear formatting</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().clearNodes().unsetAllMarks().run(); setBlockCtxMenu(null) }}><span style={{fontSize:'15px', fontWeight:'bold'}}>✕</span> Clear formatting</CtxItem>
           <CtxItem danger onClick={() => {
             if (!editor) return
             const { from, to } = editor.state.selection
