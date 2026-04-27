@@ -283,11 +283,31 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   }
 
   async function exportPDF() {
-    // Add print-specific class to body to trigger CSS
-    document.body.classList.add('printing-page')
-    window.print()
-    document.body.classList.remove('printing-page')
-    showToast('Opening print dialog…')
+    showToast('Generating PDF…')
+    try {
+      const { default: jsPDF } = await import('jspdf')
+      const { default: html2canvas } = await import('html2canvas')
+      const el = document.querySelector('.print-content') as HTMLElement
+      if (!el) { showToast('Nothing to export'); return }
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' })
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
+      const pageW = pdf.internal.pageSize.getWidth()
+      const pageH = pdf.internal.pageSize.getHeight()
+      const imgW = pageW
+      const imgH = (canvas.height * pageW) / canvas.width
+      let y = 0
+      while (y < imgH) {
+        if (y > 0) pdf.addPage()
+        pdf.addImage(imgData, 'PNG', 0, -y, imgW, imgH)
+        y += pageH
+      }
+      pdf.save((page.title || 'page') + '.pdf')
+      showToast('PDF downloaded!')
+    } catch (err) {
+      console.error(err)
+      showToast('PDF export failed')
+    }
   }
 
   async function exportWord() {
@@ -323,6 +343,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0, transition: 'opacity 0.3s', opacity: saved ? 0 : 1 }}>Saving…</span>
 
         <ExportMenu onPDF={exportPDF} onWord={exportWord} />
+        <TopBarBtn onClick={() => {
+          document.body.classList.add('printing-page')
+          window.print()
+          setTimeout(() => document.body.classList.remove('printing-page'), 1000)
+        }}>🖨️ Print</TopBarBtn>
         {isOwner && (
           <TopBarBtn
             active={shareOpen}

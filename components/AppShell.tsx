@@ -737,7 +737,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       {/* Export submenu from sidebar */}
       {exportMenu && (
         <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => setExportMenu(null)} />
+          <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => { setExportMenu(null); setContextMenu(null) }} />
           <div className="context-menu scale-in"
             style={{ position: 'fixed', left: Math.min(exportMenu.x, window.innerWidth - 180), top: Math.min(exportMenu.y, window.innerHeight - 100), zIndex: 2001, minWidth: '170px' }}>
             <MenuItem onClick={() => exportPageAsPDF(exportMenu.pageId)}>📄 Export as PDF</MenuItem>
@@ -761,17 +761,23 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             <MenuItem onClick={() => copyPageUrl(contextMenu.pageId)}>🔗 Copy URL</MenuItem>
             <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
             <MenuItem onClick={() => {
-              const pid = contextMenu.pageId; setContextMenu(null)
+              const pid = contextMenu.pageId
+              setContextMenu(null)
+              // Navigate to page with share panel
               navigate(`/app/page/${pid}?panel=share`)
+              // Dispatch event after delay to handle both cached and uncached pages
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent('canopy:openShare'))
+              }, 300)
             }}>🔒 Share…</MenuItem>
             <MenuItem onClick={() => {
-              // Position export menu to the right of the context menu
+              // Keep context menu open, show export submenu next to it
               const ctxEl = document.querySelector('.context-menu') as HTMLElement
               const rect = ctxEl?.getBoundingClientRect()
               const x = rect ? rect.right + 4 : (contextMenu.x + 220)
               const y = rect ? rect.top + 80 : contextMenu.y
               setExportMenu({ x, y, pageId: contextMenu.pageId })
-              setContextMenu(null)
+              // Don't close context menu — user sees both
             }}>⬇️ Export…</MenuItem>
             {isOwnPage(contextMenu.pageId) && workspaces.length > 1 && (
               <MenuItem onClick={() => { setMoveToWsMenu(contextMenu.pageId); setContextMenu(null) }}>📦 Move to workspace…</MenuItem>

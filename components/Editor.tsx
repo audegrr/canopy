@@ -155,7 +155,16 @@ function TocView({ editor: editorInstance }: any) {
           : headings.map((h, i) => (
             <div key={i} style={{ fontSize: '15px', color: 'var(--text)', paddingLeft: `${(h.level - 1) * 12}px`, marginBottom: '3px', cursor: 'pointer' }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)' }}>
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
+              onClick={() => {
+                const els = document.querySelectorAll('.tiptap h1, .tiptap h2, .tiptap h3, .tiptap h4')
+                for (const el of els) {
+                  if ((el.textContent || '').trim() === h.text.trim()) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    break
+                  }
+                }
+              }}>
               {h.text}
             </div>
           ))
