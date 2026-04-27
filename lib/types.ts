@@ -39,6 +39,10 @@ export type DbField = {
   options: any[]
   relation_page_id: string | null
   rollup_field_id: string | null
+  rollup_relation: string | null
+  rollup_field: string | null
+  rollup_fn: string | null
+  relation_column_id: string | null
   position: number
 }
 

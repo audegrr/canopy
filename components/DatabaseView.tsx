@@ -258,24 +258,67 @@ export default function DatabaseView({ page, canEdit }: Props) {
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: 4, padding: '0 4px' }}>
               {relPage?.icon} {relPage?.title || 'Related database'}
             </div>
-            {recs.map(rr => {
+            {recs
+              .filter(rr => firstTextField && rr.data?.[firstTextField] && String(rr.data[firstTextField]).trim() !== '')
+              .map(rr => {
               const isLinked = activeRelIds.includes(rr.id)
-              const displayVal = firstTextField ? String(rr.data?.[firstTextField] || '') : 'Untitled'
+              const displayVal = firstTextField ? String(rr.data?.[firstTextField] || '') : ''
               return (
                 <div key={rr.id} onClick={() => toggleRelation(field.id, rec.id, rr.id)}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 4, cursor: 'pointer', background: isLinked ? 'var(--accent-light)' : 'transparent' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = isLinked ? 'var(--accent-light)' : 'var(--sidebar-hover)' }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = isLinked ? 'var(--accent-light)' : 'transparent' }}>
                   <span style={{ fontSize: 12, color: isLinked ? 'var(--accent)' : 'var(--text-tertiary)', width: 14 }}>{isLinked ? '✓' : '○'}</span>
-                  <span style={{ fontSize: 13 }}>{displayVal || 'Untitled'}</span>
+                  <span style={{ fontSize: 13 }}>{displayVal}</span>
                 </div>
               )
             })}
-            {recs.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '4px 6px' }}>No records in linked database</div>}
+            {recs.filter(rr => firstTextField && rr.data?.[firstTextField] && String(rr.data[firstTextField]).trim() !== '').length === 0 && (
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '4px 6px' }}>No named records found</div>
+            )}
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 4, marginTop: 4 }}>
               <button onClick={() => setEditingCell(null)} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '2px 0' }}>Done</button>
             </div>
           </div>
+          </>
+        )
+      }
+      if (field.type === 'rollup') {
+        // Rollup config editor
+        const relFields = fields.filter(f => f.type === 'relation')
+        const cellElR = document.querySelector(`[data-cell="${rec.id}-${field.id}"]`) as HTMLElement
+        const cellRectR = cellElR?.getBoundingClientRect()
+        return (
+          <>
+            <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={() => setEditingCell(null)} />
+            <div style={{ position: 'fixed', left: cellRectR ? Math.min(cellRectR.left, window.innerWidth - 260) : 0, top: cellRectR ? Math.min(cellRectR.bottom + 2, window.innerHeight - 220) : 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 10, zIndex: 300, boxShadow: 'var(--shadow-lg)', minWidth: 240 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: 8 }}>Configure rollup</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <select value={field.rollup_relation || ''} onChange={e => updateField(field.id, { rollup_relation: e.target.value })} style={ctrlSt}>
+                  <option value="">Relation field…</option>
+                  {relFields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                </select>
+                {field.rollup_relation && (() => {
+                  const rf = fields.find(f => f.id === field.rollup_relation)
+                  const rfList: DbField[] = (window as any).__relatedFields?.[rf?.relation_page_id || ''] || []
+                  return (
+                    <select value={field.rollup_field || ''} onChange={e => updateField(field.id, { rollup_field: e.target.value })} style={ctrlSt}>
+                      <option value="">Field to aggregate…</option>
+                      {rfList.map(f => <option key={f.id} value={f.id}>{FIELD_ICONS[f.type]} {f.name}</option>)}
+                    </select>
+                  )
+                })()}
+                <select value={field.rollup_fn || 'count'} onChange={e => updateField(field.id, { rollup_fn: e.target.value })} style={ctrlSt}>
+                  <option value="count">Count</option>
+                  <option value="sum">Sum</option>
+                  <option value="avg">Average</option>
+                  <option value="min">Min</option>
+                  <option value="max">Max</option>
+                  <option value="values">List values</option>
+                </select>
+              </div>
+              <button onClick={() => setEditingCell(null)} style={{ marginTop: 8, width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)' }}>Done</button>
+            </div>
           </>
         )
       }
@@ -311,6 +354,32 @@ export default function DatabaseView({ page, canEdit }: Props) {
           ))}
         </div>
       )
+    }
+    if (field.type === 'rollup') {
+      // Rollup: aggregate values from a relation field
+      // field.rollup_relation = id of the relation field
+      // field.rollup_field = id of the field to aggregate in related DB
+      // field.rollup_fn = 'count' | 'sum' | 'avg' | 'min' | 'max' | 'values'
+      const relField = fields.find(f => f.type === 'relation')
+      if (!relField) return <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>—</span>
+      const linkedIds = relations.filter(r => r.field_id === relField.id && r.from_record_id === rec.id).map(r => r.to_record_id)
+      const allRelRecs = relField.relation_page_id === page.id ? records : (relatedRecords[relField.relation_page_id || ''] || [])
+      const linkedRecs = allRelRecs.filter(r => linkedIds.includes(r.id))
+      const rollupFieldId = field.rollup_field
+      const fn = field.rollup_fn || 'count'
+      if (fn === 'count') {
+        return <span style={{ fontSize: 13, color: 'var(--text)' }}>{linkedRecs.length}</span>
+      }
+      const nums = rollupFieldId ? linkedRecs.map(r => parseFloat(r.data?.[rollupFieldId!] || 0)).filter(n => !isNaN(n)) : []
+      if (fn === 'sum') return <span style={{ fontSize: 13 }}>{nums.reduce((a, b) => a + b, 0)}</span>
+      if (fn === 'avg') return <span style={{ fontSize: 13 }}>{nums.length ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2) : '—'}</span>
+      if (fn === 'min') return <span style={{ fontSize: 13 }}>{nums.length ? Math.min(...nums) : '—'}</span>
+      if (fn === 'max') return <span style={{ fontSize: 13 }}>{nums.length ? Math.max(...nums) : '—'}</span>
+      if (fn === 'values') {
+        const vals = rollupFieldId ? linkedRecs.map(r => String(r.data?.[rollupFieldId!] || '')).filter(Boolean) : []
+        return <span style={{ fontSize: 12, color: 'var(--text)' }}>{vals.join(', ') || '—'}</span>
+      }
+      return <span style={{ fontSize: 13 }}>{linkedRecs.length}</span>
     }
     if (field.type === 'url' && val) return <a href={val} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} style={{ color: 'var(--accent)', fontSize: 13, textDecoration: 'underline' }}>{val}</a>
     return <span style={{ color: val ? 'var(--text)' : 'var(--text-tertiary)', fontSize: 13 }}>{val || ''}</span>
@@ -431,12 +500,12 @@ export default function DatabaseView({ page, canEdit }: Props) {
                           </div>
                         </td>
                       ))}
-                      <td style={{ width: 40 }}>
+                      <td style={{ width: 40, textAlign: 'center' }}>
                         {canEdit && (
-                          <button onClick={() => deleteRecord(rec.id)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, opacity: 0, padding: '2px 6px' }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '0' }}>✕</button>
+                          <button onClick={() => deleteRecord(rec.id)} title="Delete row"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'transparent', fontSize: 13, padding: '2px 6px', borderRadius: 3, transition: 'color 0.1s' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)' }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'transparent' }}>✕</button>
                         )}
                       </td>
                     </tr>
