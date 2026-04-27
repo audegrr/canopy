@@ -64,11 +64,9 @@ function ResizableImageView({ node, updateAttributes }: any) {
           style={{ width: '100%', borderRadius: '6px', display: loaded ? 'block' : 'none', userSelect: 'none' }}
           draggable={false}
         />
-        {/* Resize handles */}
-        <div onMouseDown={e => onMouseDown(e, 'left')}
-          style={{ position: 'absolute', left: -4, top: '50%', transform: 'translateY(-50%)', width: 8, height: 32, background: 'rgba(255,255,255,0.9)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'ew-resize', zIndex: 10 }} />
-        <div onMouseDown={e => onMouseDown(e, 'right')}
-          style={{ position: 'absolute', right: -4, top: '50%', transform: 'translateY(-50%)', width: 8, height: 32, background: 'rgba(255,255,255,0.9)', border: '1px solid var(--border)', borderRadius: 4, cursor: 'ew-resize', zIndex: 10 }} />
+        {/* Resize handles — only when selected */}
+        <div className="img-resize-handle img-resize-left" onMouseDown={e => onMouseDown(e, 'left')} />
+        <div className="img-resize-handle img-resize-right" onMouseDown={e => onMouseDown(e, 'right')} />
       </div>
     </NodeViewWrapper>
   )
@@ -412,21 +410,20 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
         }, 50)
         break
       case 'image': {
-        // Store editor ref for use in image picker
-        pendingImageInsert.current = (src: string) => {
+        const insertFn = (src: string) => {
           editor.chain().focus().setImage({ src }).run()
-          // Insert paragraph after image
           setTimeout(() => {
-            const { state } = editor
-            const pos = state.selection.to
-            if (pos < state.doc.content.size) {
-              editor.chain().focus().insertContentAt(pos + 1, { type: 'paragraph' }).run()
-            } else {
-              editor.commands.insertContent({ type: 'paragraph' })
-            }
+            try {
+              const pos = editor.state.selection.to
+              if (pos < editor.state.doc.content.size) {
+                editor.chain().focus().insertContentAt(pos + 1, { type: 'paragraph' }).run()
+              } else {
+                editor.commands.insertContent({ type: 'paragraph' })
+              }
+            } catch {}
           }, 50)
         }
-        window.dispatchEvent(new CustomEvent('canopy:showImagePicker', {}))
+        window.dispatchEvent(new CustomEvent('canopy:showImagePicker', { detail: { onUrl: insertFn, onFile: insertFn } }))
         break
       }
       case 'video': {

@@ -76,13 +76,40 @@ html, body {
   border-radius: var(--radius);
   margin: 4px 0;
   display: block;
-  /* Prevent reflow: show nothing until fully loaded */
   min-height: 4px;
   background: var(--border);
   transition: none;
 }
-.tiptap img[src] {
-  background: transparent;
+.tiptap img[src] { background: transparent; }
+
+/* Resize handles — hidden by default, shown only when image node is selected */
+.img-resize-handle {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 36px;
+  background: white;
+  border: 1.5px solid var(--accent);
+  border-radius: 4px;
+  cursor: ew-resize;
+  z-index: 10;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.1s;
+}
+.img-resize-left { left: -4px; }
+.img-resize-right { right: -4px; }
+
+/* Show handles only when TipTap marks the node as selected */
+.ProseMirror-selectednode .img-resize-handle {
+  opacity: 1;
+  pointer-events: all;
+}
+/* Blue outline on selected image */
+.ProseMirror-selectednode img {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 .tiptap hr { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
 .tiptap table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 0.9rem; }
@@ -318,3 +345,9 @@ body.focus-mode .tiptap { max-width: 680px; margin: 0 auto; font-size: 16px; lin
 .cmd-result:hover, .cmd-result.selected { background: var(--sidebar-hover); }
 .cmd-result-icon { width: 28px; height: 28px; border-radius: 5px; background: var(--sidebar-bg); display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
 .cmd-section { padding: 6px 16px 2px; font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* Hide UI buttons during PDF export */
+.exporting-pdf .page-hover-btns,
+.exporting-pdf [data-export-hide] {
+  display: none !important;
+}

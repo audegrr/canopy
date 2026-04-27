@@ -50,6 +50,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [showDeleteAccount, setShowDeleteAccount] = useState(false)
   const [exportMenu, setExportMenu] = useState<{ x: number; y: number; pageId: string } | null>(null)
   const [moveToWsMenu, setMoveToWsMenu] = useState<string | null>(null)
+  const [showWsIconPicker, setShowWsIconPicker] = useState(false)
   const [instantPage, setInstantPage] = useState<{ page: any; canEdit: boolean; isOwner: boolean; userId: string } | null>(null)
   const router = useRouter()
   const pathname = usePathname()

@@ -28,6 +28,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   const [showSubpagePicker, setShowSubpagePicker] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [imagePickerCallback, setImagePickerCallback] = useState<{ onUrl: (u: string) => void; onFile: (s: string) => void } | null>(null)
+  const imagePickerCallbackRef = useRef<{ onUrl: (u: string) => void; onFile: (s: string) => void } | null>(null)
   const [imageUrl, setImageUrl] = useState('')
   const [subpagePickerCallback, setSubpagePickerCallback] = useState<((id: string) => void) | null>(null)
   const [subpageList, setSubpageList] = useState<any[]>([])
@@ -116,7 +117,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     function onImagePicker(e: any) {
       // Callback comes from Editor via ref, stored in event detail or separately
       if (e.detail?.onUrl) {
-        setImagePickerCallback({ onUrl: e.detail.onUrl, onFile: e.detail.onFile })
+        const cb = { onUrl: e.detail.onUrl, onFile: e.detail.onFile }
+        setImagePickerCallback(cb)
+        imagePickerCallbackRef.current = cb
       }
       setImageUrl('')
       setShowImagePicker(true)
@@ -289,7 +292,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
       const { default: html2canvas } = await import('html2canvas')
       const el = document.querySelector('.print-content') as HTMLElement
       if (!el) { showToast('Nothing to export'); return }
+      // Hide UI elements that shouldn't appear in PDF
+      document.body.classList.add('exporting-pdf')
       const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' })
+      document.body.classList.remove('exporting-pdf')
       const imgData = canvas.toDataURL('image/png')
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
       const pageW = pdf.internal.pageSize.getWidth()
@@ -305,6 +311,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
       pdf.save((page.title || 'page') + '.pdf')
       showToast('PDF downloaded!')
     } catch (err) {
+      document.body.classList.remove('exporting-pdf')
       console.error(err)
       showToast('PDF export failed')
     }
@@ -393,7 +400,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
               ) : null}
               {/* Add icon / Add cover buttons — always visible when no icon, cover button always when no cover */}
               {canEdit && (
-                <div style={{ display: 'flex', gap: '8px', marginBottom: page.icon ? '4px' : '12px' }}>
+                <div data-export-hide className="page-hover-btns" style={{ display: 'flex', gap: '8px', marginBottom: page.icon ? '4px' : '12px' }}>
                   {!page.icon && (
                     <button onClick={() => setShowIconPicker(o => !o)}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}
@@ -570,14 +577,15 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                 <button onClick={() => {
                     const url = imageUrl.trim()
                     if (!url) return
-                    // Try callback first, then dispatch event to editor
-                    if (imagePickerCallback?.onUrl) {
-                      imagePickerCallback.onUrl(url)
+                    const cb = imagePickerCallbackRef.current || imagePickerCallback
+                    if (cb?.onUrl) {
+                      cb.onUrl(url)
                     } else {
                       window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
                     }
                     setShowImagePicker(false)
                     setImageUrl('')
+                    imagePickerCallbackRef.current = null
                   }}
                   disabled={!imageUrl.trim()}
                   style={{ background: imageUrl.trim() ? 'var(--accent)' : 'var(--text-tertiary)', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: imageUrl.trim() ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 500 }}>Insert</button>
