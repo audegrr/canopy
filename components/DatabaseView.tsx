@@ -14,9 +14,9 @@ const FIELD_COLORS: Record<string, string> = {
 }
 
 const FIELD_ICONS: Record<string, string> = {
-  text: 'Aa', number: '123', select: '◉', multiselect: '◈',
-  date: '📅', checkbox: '☑', relation: '↗', rollup: '∑',
-  url: '🔗', email: '📧', phone: '📱'
+  text: 'Aa', number: '#', select: '◉', multiselect: '◈',
+  date: '▦', checkbox: '☐', relation: '⤴', rollup: 'Σ',
+  url: '⊕', email: '@', phone: '℡'
 }
 
 const SELECT_COLORS = [
@@ -181,6 +181,14 @@ export default function DatabaseView({ page, canEdit }: Props) {
     const isEditing = editingCell?.recId === rec.id && editingCell?.fieldId === field.id
     const inputRef = useRef<HTMLInputElement>(null)
 
+    useEffect(() => {
+      if (isEditing && inputRef.current && field.type !== 'checkbox' && field.type !== 'select' && field.type !== 'relation') {
+        // Focus after a tiny delay so the click event positions the cursor first
+        const t = setTimeout(() => inputRef.current?.focus(), 10)
+        return () => clearTimeout(t)
+      }
+    }, [isEditing])
+
     if (isEditing) {
       if (field.type === 'checkbox') return (
         <input type="checkbox" checked={!!val} autoFocus
@@ -250,12 +258,13 @@ export default function DatabaseView({ page, canEdit }: Props) {
         )
       }
       return (
-        <input ref={inputRef} autoFocus
+        <input ref={inputRef}
           defaultValue={String(val ?? '')}
           onBlur={e => updateCell(rec.id, field.id, e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') updateCell(rec.id, field.id, (e.target as HTMLInputElement).value); if (e.key === 'Escape') setEditingCell(null) }}
           type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'email' ? 'email' : field.type === 'url' ? 'url' : 'text'}
-          style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--text)', padding: 0 }} />
+          style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--text)', padding: 0 }}
+          onMouseDown={e => e.stopPropagation()} />
       )
     }
 
@@ -345,7 +354,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                         onDrop={handleColDrop}
                         onDragEnd={() => { setDragColIdx(null); setDragOverColIdx(null) }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                          <span style={{ fontSize: 11, color: FIELD_COLORS[f.type] || 'var(--text-tertiary)', fontFamily: 'monospace' }}>{FIELD_ICONS[f.type]}</span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', fontWeight: 500, minWidth: '16px', textAlign: 'center', flexShrink: 0 }}>{FIELD_ICONS[f.type]}</span>
                           <span style={{ flex: 1, cursor: canEdit ? 'pointer' : 'default', fontSize: 12, fontWeight: 500 }}
                             onDoubleClick={() => canEdit && document.getElementById(`field-name-${f.id}`)?.focus()}>
                             {f.name}
@@ -376,7 +385,12 @@ export default function DatabaseView({ page, canEdit }: Props) {
                     <tr key={rec.id}>
                       {fields.map(f => (
                         <td key={f.id} style={{ position: 'relative' }}
-                          onClick={() => { if (!canEdit) return; setEditingCell({ recId: rec.id, fieldId: f.id }) }}>
+                          onClick={e => {
+                            if (!canEdit) return
+                            if (editingCell?.recId === rec.id && editingCell?.fieldId === f.id) return
+                            setEditingCell({ recId: rec.id, fieldId: f.id })
+                            // Let the click event propagate to position cursor naturally
+                          }}>
                           <div className="db-cell">
                             <CellValue rec={rec} field={f} />
                           </div>

@@ -593,10 +593,10 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
         <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => { setBlockCtxMenu(null); setTimeout(() => { setBubbleMenuEnabled(true); bubbleMenuEnabledRef.current = true }, 100) }} />
         <div style={{ position: 'fixed', left: Math.min(blockCtxMenu.x, window.innerWidth - 210), top: Math.min(blockCtxMenu.y, window.innerHeight - 320), maxHeight: '320px', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 999, minWidth: '190px' }} className="scale-in">
           <CtxItem onClick={() => { document.execCommand('copy'); setBlockCtxMenu(null) }}>📋 Copy</CtxItem>
-          <CtxItem onClick={() => { document.execCommand('paste'); setBlockCtxMenu(null) }}>📋 Paste</CtxItem>
+          <CtxItem onClick={() => { document.execCommand('paste'); setBlockCtxMenu(null) }}>📄 Paste</CtxItem>
           <CtxItem onClick={() => { document.execCommand('cut'); setBlockCtxMenu(null) }}>✂️ Cut</CtxItem>
           <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-          <CtxItem onClick={() => { editor?.chain().focus().clearNodes().unsetAllMarks().run(); setBlockCtxMenu(null) }}><span style={{fontSize:'15px', fontWeight:'bold'}}>✕</span> Clear formatting</CtxItem>
+          <CtxItem onClick={() => { editor?.chain().focus().clearNodes().unsetAllMarks().run(); setBlockCtxMenu(null) }}>🧹 Clear formatting</CtxItem>
           <CtxItem danger onClick={() => {
             if (!editor) return
             const { from, to } = editor.state.selection
