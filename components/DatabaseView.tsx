@@ -42,6 +42,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const [toast, setToast] = useState('')
   const [dragColIdx, setDragColIdx] = useState<number | null>(null)
   const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null)
+  const [renamingFieldId, setRenamingFieldId] = useState<string | null>(null)
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [page.id])
@@ -134,7 +135,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
   function handleColDragStart(idx: number) { setDragColIdx(idx) }
   function handleColDragOver(idx: number) { setDragOverColIdx(idx) }
   async function handleColDrop() {
-    if (dragColIdx === null || dragOverColIdx === null || dragColIdx === dragOverColIdx) {
+    if (dragColIdx === null || dragOverColIdx === null || dragColIdx === dragOverColIdx || dragOverColIdx === 0) {
       setDragColIdx(null); setDragOverColIdx(null); return
     }
     const reordered = [...fields]
@@ -344,14 +345,14 @@ export default function DatabaseView({ page, canEdit }: Props) {
                   <tr>
                     {fields.map((f, colIdx) => (
                       <th key={f.id} style={{ minWidth: 140, position: 'relative' }}
-                        draggable={canEdit}
-                        onDragStart={() => handleColDragStart(colIdx)}
+                        draggable={canEdit && colIdx > 0}
+                        onDragStart={() => colIdx > 0 && handleColDragStart(colIdx)}
                         onDragOver={e => { e.preventDefault(); handleColDragOver(colIdx) }}
                         onDrop={handleColDrop}
                         onDragEnd={() => { setDragColIdx(null); setDragOverColIdx(null) }}>
-                        {/* Drop indicator — full table height (header + rows) */}
+                        {/* Drop indicator — header + rows only, not New record */}
                         {dragOverColIdx === colIdx && dragColIdx !== colIdx && dragColIdx !== colIdx - 1 && (
-                          <div style={{ position: 'absolute', left: -1, top: 0, height: `${(displayRecords.length + 1) * 41}px`, width: 2, background: 'var(--accent)', zIndex: 10, pointerEvents: 'none', boxShadow: '0 0 4px var(--accent)' }} />
+                          <div style={{ position: 'absolute', left: -1, top: 0, height: `${41 + displayRecords.length * 41}px`, width: 2, background: 'var(--accent)', zIndex: 10, pointerEvents: 'none', boxShadow: '0 0 4px var(--accent)' }} />
                         )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', fontWeight: 500, minWidth: '16px', textAlign: 'center', flexShrink: 0 }}>{FIELD_ICONS[f.type]}</span>
@@ -359,18 +360,21 @@ export default function DatabaseView({ page, canEdit }: Props) {
                             onDoubleClick={() => canEdit && document.getElementById(`field-name-${f.id}`)?.focus()}>
                             {f.name}
                           </span>
-                          {canEdit && <FieldMenu field={f} onRename={() => {
-                            const el = document.getElementById(`field-name-${f.id}`) as HTMLInputElement | null
-                            el?.focus(); el?.select()
-                          }} onChangeType={type => updateField(f.id, { type })} onDelete={() => deleteField(f.id)}
-                          onLinkRelation={(pageId) => updateField(f.id, { relation_page_id: pageId })} />}
+                          {canEdit && <FieldMenu field={f}
+                            onRename={() => setRenamingFieldId(f.id)}
+                            onChangeType={type => updateField(f.id, { type })}
+                            onDelete={() => deleteField(f.id)}
+                            onLinkRelation={(pageId) => updateField(f.id, { relation_page_id: pageId })} />}
                         </div>
-                        {canEdit && (
-                          <input id={`field-name-${f.id}`}
-                            defaultValue={f.name}
-                            onBlur={e => { if (e.target.value !== f.name) updateField(f.id, { name: e.target.value }) }}
-                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
-                            style={{ position: 'absolute', opacity: 0, width: 0, height: 0, pointerEvents: 'none' }} />
+                        {/* Inline rename input */}
+                        {renamingFieldId === f.id && (
+                          <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setRenamingFieldId(null)} />
+                        )}
+                        {renamingFieldId === f.id && (
+                          <input autoFocus defaultValue={f.name}
+                            onBlur={e => { updateField(f.id, { name: e.target.value }); setRenamingFieldId(null) }}
+                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setRenamingFieldId(null) }}
+                            style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '6px 8px', border: '2px solid var(--accent)', borderRadius: 4, fontFamily: 'var(--font-sans)', fontSize: 12, background: 'var(--surface)', zIndex: 200, outline: 'none' }} />
                         )}
                       </th>
                     ))}
@@ -483,7 +487,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
             <select value={newField.type} onChange={e => setNewField(f => ({ ...f, type: e.target.value as DbField['type'] }))} style={ctrlSt}>
               {FIELD_TYPES.map(t => <option key={t} value={t}>{FIELD_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
             </select>
-            {newField.type === 'relation' && <RelationPagePicker value="" onChange={pageId => setNewField(f => ({ ...f, relation_page_id: pageId } as any))} excludeId={page.id} />}
+            {newField.type === 'relation' && <RelationPagePicker value="" onChange={pageId => setNewField(f => ({ ...f, relation_page_id: pageId } as any))} />}
             <button onClick={addField} style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 6, fontFamily: 'var(--font-sans)', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>Add</button>
             <button onClick={() => setAddingField(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', fontSize: 13 }}>Cancel</button>
           </div>
@@ -636,7 +640,6 @@ function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelation }: 
                 <div style={{ fontSize: 11, color: 'var(--text-tertiary)', padding: '3px 8px 0', fontWeight: 500 }}>Link to database</div>
                 <RelationPagePicker
                   value={field.relation_page_id || ''}
-                  excludeId={field.page_id}
                   onChange={(pageId) => { if (pageId) onLinkRelation(pageId) }} />
               </div>
             )}
@@ -661,14 +664,14 @@ function MItem({ onClick, children, extra, active, danger }: any) {
   )
 }
 
-function RelationPagePicker({ value, onChange, excludeId }: { value: string; onChange: (pageId: string) => void; excludeId?: string }) {
-  const [pages, setPages] = useState<{id: string; title: string; icon: string; workspace_id: string}[]>([])
+function RelationPagePicker({ value, onChange }: { value: string; onChange: (pageId: string) => void }) {
+  const [pages, setPages] = useState<{id: string; title: string; icon: string}[]>([])
   const supabase = createClient()
 
   useEffect(() => {
-    supabase.from('pages').select('id, title, icon, workspace_id').eq('is_database', true).order('title')
-      .then(({ data }) => setPages((data || []).filter(p => p.id !== excludeId)))
-  }, [excludeId])
+    supabase.from('pages').select('id, title, icon').eq('is_database', true).order('title')
+      .then(({ data }) => setPages(data || []))
+  }, [])
 
   return (
     <div style={{ padding: '4px 8px' }} onClick={e => e.stopPropagation()}>
