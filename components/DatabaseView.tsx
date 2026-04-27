@@ -83,7 +83,8 @@ export default function DatabaseView({ page, canEdit }: Props) {
         }
       }
       setRelatedRecords(rRecs)
-      // Store related fields for first-column lookup
+      // Store related fields for first-column lookup (include self)
+      rFields[page.id] = fieldsData
       ;(window as any).__relatedFields = rFields
     }
   }
@@ -239,11 +240,12 @@ export default function DatabaseView({ page, canEdit }: Props) {
         )
       }
       if (field.type === 'relation') {
-        const relPage = relatedPages.find(p => p.id === field.relation_page_id)
-        const recs = field.relation_page_id === page.id ? records : (relatedRecords[field.relation_page_id || ''] || [])
+        const isSelf = field.relation_page_id === page.id
+        const relPage = isSelf ? { ...page, id: page.id } : relatedPages.find(p => p.id === field.relation_page_id)
+        const recs = isSelf ? records : (relatedRecords[field.relation_page_id || ''] || [])
         const activeRelIds = relations.filter(r => r.field_id === field.id && r.from_record_id === rec.id).map(r => r.to_record_id)
-        // Get first field by position from stored fields
-        const relFieldsList: DbField[] = (window as any).__relatedFields?.[field.relation_page_id || ''] || []
+        // Get first field: for self use current fields, else use stored related fields
+        const relFieldsList: DbField[] = isSelf ? fields : ((window as any).__relatedFields?.[field.relation_page_id || ''] || [])
         const firstTextField = relFieldsList.length > 0 ? relFieldsList[0].id : null
         const cellEl5 = document.querySelector(`[data-cell="${rec.id}-${field.id}"]`) as HTMLElement
         const cellRect5 = cellEl5?.getBoundingClientRect()
@@ -341,9 +343,10 @@ export default function DatabaseView({ page, canEdit }: Props) {
     }
     if (field.type === 'relation') {
       const activeRelIds = relations.filter(r => r.field_id === field.id && r.from_record_id === rec.id).map(r => r.to_record_id)
-      const allRelRecs = field.relation_page_id === page.id ? records : (relatedRecords[field.relation_page_id || ''] || [])
+      const isSelf2 = field.relation_page_id === page.id
+      const allRelRecs = isSelf2 ? records : (relatedRecords[field.relation_page_id || ''] || [])
       const linkedRecs = allRelRecs.filter(r => activeRelIds.includes(r.id))
-      const relFieldsList2: DbField[] = (window as any).__relatedFields?.[field.relation_page_id || ''] || []
+      const relFieldsList2: DbField[] = isSelf2 ? fields : ((window as any).__relatedFields?.[field.relation_page_id || ''] || [])
       const firstField = relFieldsList2.length > 0 ? relFieldsList2[0].id : null
       return (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
@@ -500,14 +503,13 @@ export default function DatabaseView({ page, canEdit }: Props) {
                           </div>
                         </td>
                       ))}
-                      <td style={{ width: 40, textAlign: 'center' }}>
-                        {canEdit && (
+                      {canEdit && (
+                        <td style={{ width: 0, padding: 0, border: 'none', position: 'relative', overflow: 'visible' }}>
                           <button onClick={() => deleteRecord(rec.id)} title="Delete row"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'transparent', fontSize: 13, padding: '2px 6px', borderRadius: 3, transition: 'color 0.1s' }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)' }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'transparent' }}>✕</button>
-                        )}
-                      </td>
+                            style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 14, padding: '2px 4px', borderRadius: 3, transition: 'color 0.1s, background 0.1s', whiteSpace: 'nowrap', opacity: 0 }}
+                            className="delete-row-btn">✕</button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
