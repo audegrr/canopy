@@ -261,6 +261,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
   const [slashIndex, setSlashIndex] = useState(0)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [showHighlightPicker, setShowHighlightPicker] = useState(false)
+  const savedSelection = useRef<{ from: number; to: number } | null>(null)
   const slashQueryRef = useRef('')
   const pendingImageInsert = useRef<((src: string) => void) | null>(null)
   const [blockCtxMenu, setBlockCtxMenu] = useState<{ x: number; y: number; pos: number } | null>(null)
@@ -489,7 +490,13 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           <div className="floating-sep" />
           {/* Text color */}
           <div style={{ position: 'relative' }}>
-            <FBtn onClick={() => { setShowColorPicker(o => !o); setShowHighlightPicker(false) }} active={showColorPicker} title='Text color'>
+            <FBtn onClick={() => {
+              if (!showColorPicker) {
+                const { from, to } = editor.state.selection
+                savedSelection.current = { from, to }
+              }
+              setShowColorPicker(o => !o); setShowHighlightPicker(false)
+            }} active={showColorPicker} title='Text color'>
               <span style={{ borderBottom: `3px solid ${editor.getAttributes('textStyle').color || '#fff'}` }}>A</span>
             </FBtn>
             {showColorPicker && (
@@ -498,10 +505,16 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', width: '136px' }}>
                   {COLORS.map(col => (
                     <button key={col.value || 'default'} title={col.label}
-                      onMouseDown={e => {
-                        e.preventDefault() // Prevent losing selection
-                        col.value ? editor.chain().focus().setColor(col.value).run() : editor.chain().focus().unsetColor().run()
+                      onClick={() => {
+                        const sel = savedSelection.current
+                        if (sel) {
+                          editor.chain().focus().setTextSelection(sel).run()
+                          col.value ? editor.chain().setColor(col.value).run() : editor.chain().unsetColor().run()
+                        } else {
+                          col.value ? editor.chain().focus().setColor(col.value).run() : editor.chain().focus().unsetColor().run()
+                        }
                         setShowColorPicker(false)
+                        savedSelection.current = null
                       }}
                       style={{ width: '24px', height: '24px', borderRadius: '4px', background: col.value || '#37352f', border: `2px solid ${col.value === (editor.getAttributes('textStyle').color || '') ? 'var(--accent)' : 'rgba(0,0,0,0.1)'}`, cursor: 'pointer' }} />
                   ))}
@@ -511,7 +524,13 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           </div>
           {/* Highlight color */}
           <div style={{ position: 'relative' }}>
-            <FBtn onClick={() => { setShowHighlightPicker(o => !o); setShowColorPicker(false) }} active={showHighlightPicker} title='Highlight color'>
+            <FBtn onClick={() => {
+              if (!showHighlightPicker) {
+                const { from, to } = editor.state.selection
+                savedSelection.current = { from, to }
+              }
+              setShowHighlightPicker(o => !o); setShowColorPicker(false)
+            }} active={showHighlightPicker} title='Highlight color'>
               <span style={{ background: editor.getAttributes('highlight').color || '#fdf3a7', padding: '0 3px', borderRadius: '2px', color: '#37352f' }}>H</span>
             </FBtn>
             {showHighlightPicker && (
@@ -520,7 +539,17 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', width: '136px' }}>
                   {HIGHLIGHTS.map(h => (
                     <button key={h.value || 'none'} title={h.label}
-                      onMouseDown={e => { e.preventDefault(); e.stopPropagation(); h.value ? editor.chain().focus().setHighlight({ color: h.value }).run() : editor.chain().focus().unsetHighlight().run(); setShowHighlightPicker(false) }}
+                      onClick={() => {
+                        const sel = savedSelection.current
+                        if (sel) {
+                          editor.chain().focus().setTextSelection(sel).run()
+                          h.value ? editor.chain().setHighlight({ color: h.value }).run() : editor.chain().unsetHighlight().run()
+                        } else {
+                          h.value ? editor.chain().focus().setHighlight({ color: h.value }).run() : editor.chain().focus().unsetHighlight().run()
+                        }
+                        setShowHighlightPicker(false)
+                        savedSelection.current = null
+                      }}
                       style={{ width: '24px', height: '24px', borderRadius: '4px', background: h.value || 'var(--border)', border: `2px solid ${editor.getAttributes('highlight').color === h.value && h.value ? 'var(--accent)' : 'rgba(0,0,0,0.1)'}`, cursor: 'pointer' }} />
                   ))}
                 </div>
@@ -627,7 +656,7 @@ function CtxItem({ onClick, children, danger }: { onClick: () => void; children:
   )
 }
 
-function FBtn({ onClick, active, children, title, onMouseDown }: { onClick?: () => void; active: boolean; children: React.ReactNode; title?: string; onMouseDown?: (e: React.MouseEvent) => void }) {
+function FBtn({ onClick, active, children, title }: { onClick?: () => void; active: boolean; children: React.ReactNode; title?: string }) {
   const [tip, setTip] = useState(false)
   const timer = useRef<any>(null)
   return (
@@ -635,7 +664,7 @@ function FBtn({ onClick, active, children, title, onMouseDown }: { onClick?: () 
       onMouseEnter={() => { if (title) timer.current = setTimeout(() => setTip(true), 700) }}
       onMouseLeave={() => { clearTimeout(timer.current); setTip(false) }}>
       <button
-        onMouseDown={onMouseDown || (onClick ? e => { e.preventDefault(); onClick() } : undefined)}
+        onClick={onClick}
         className={`floating-btn ${active ? 'active' : ''}`}>
         {children}
       </button>
