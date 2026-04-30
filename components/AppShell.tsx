@@ -36,6 +36,19 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [expandedShared, setExpandedShared] = useState<Set<string>>(new Set())
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [wsMenuOpen, setWsMenuOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<'profile'|'appearance'>('profile')
+  const [wsSettingsOpen, setWsSettingsOpen] = useState(false)
+  const [wsSettingsTab, setWsSettingsTab] = useState<'general'|'members'>('general')
+  const [sharedCollapsed, setSharedCollapsed] = useState(false)
+  const [theme, setTheme] = useState<'light'|'dark'|'system'>(() => {
+    if (typeof window !== 'undefined') return (localStorage.getItem('canopy-theme') as any) || 'light'
+    return 'light'
+  })
+  const [wsMembers, setWsMembers] = useState<any[]>([])
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<'member'|'viewer'>('member')
+  const [profileName, setProfileName] = useState(user.name)
   const [renamingWs, setRenamingWs] = useState(false)
   const [wsNameInput, setWsNameInput] = useState('')
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; pageId: string } | null>(null)
@@ -385,6 +398,48 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     setWsMenuOpen(false)
   }
 
+  // Theme management
+  useEffect(() => {
+    const root = document.documentElement
+    const applyTheme = (t: string) => {
+      const isDark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      root.style.transition = 'background 0.4s ease, color 0.4s ease'
+      root.setAttribute('data-theme', isDark ? 'dark' : 'light')
+    }
+    applyTheme(theme)
+    localStorage.setItem('canopy-theme', theme)
+    if (theme === 'system') {
+      const mq = window.matchMedia('(prefers-color-scheme: dark)')
+      mq.addEventListener('change', () => applyTheme('system'))
+      return () => mq.removeEventListener('change', () => applyTheme('system'))
+    }
+  }, [theme])
+
+  async function loadWsMembers() {
+    const { data } = await supabase.from('workspace_members').select('*, profiles(email, full_name)').eq('workspace_id', currentWs.id)
+    setWsMembers(data || [])
+  }
+
+  async function inviteMember() {
+    if (!inviteEmail.trim()) return
+    const { data: profile } = await supabase.from('profiles').select('id').eq('email', inviteEmail.trim()).single()
+    if (!profile) { showToastMsg('User not found'); return }
+    await supabase.from('workspace_members').insert({ workspace_id: currentWs.id, user_id: profile.id, role: inviteRole, invited_by: user.id })
+    setInviteEmail('')
+    loadWsMembers()
+    showToastMsg('Invitation sent!')
+  }
+
+  async function removeMember(userId: string) {
+    await supabase.from('workspace_members').delete().eq('workspace_id', currentWs.id).eq('user_id', userId)
+    loadWsMembers()
+  }
+
+  async function saveProfile() {
+    await supabase.from('profiles').update({ full_name: profileName }).eq('id', user.id)
+    showToastMsg('Profile saved!')
+  }
+
   async function handleSignOut() { await supabase.auth.signOut(); router.push('/login') }
 
   async function handleDeleteAccount() {
@@ -611,6 +666,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             ) : (
               <span style={{ flex: 1, fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentWs.name}</span>
             )}
+            <button onClick={e => { e.stopPropagation(); setWsSettingsTab('general'); setWsSettingsOpen(true); setWsMenuOpen(false); loadWsMembers() }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '13px', padding: '2px 4px', borderRadius: '3px', flexShrink: 0, opacity: 0, transition: 'opacity 0.1s' }}
+              className="ws-gear-btn" title="Workspace settings">⚙</button>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: '1px' }} xmlns="http://www.w3.org/2000/svg">
               <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -661,8 +719,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           {sharedPages.length > 0 && (
             <>
               <div style={{ margin: '12px 12px 0', borderTop: '1px solid var(--border)' }} />
-              <SectionLabel style={{ marginTop: '8px' }}>Shared with me</SectionLabel>
-              {renderSharedTree(null)}
+              <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '0 4px' }}
+                onClick={() => setSharedCollapsed(o => !o)}>
+                <SectionLabel style={{ marginTop: '8px', flex: 1 }}>Shared with me</SectionLabel>
+                <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '6px', transition: 'transform 0.15s', transform: sharedCollapsed ? 'rotate(-90deg)' : 'none' }}>⌄</span>
+              </div>
+              {!sharedCollapsed && renderSharedTree(null)}
             </>
           )}
         </div>
@@ -696,12 +758,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             <>
               <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={() => setUserMenuOpen(false)} />
               <div style={{ position: 'absolute', bottom: '64px', left: '8px', right: '8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', boxShadow: 'var(--shadow-lg)', zIndex: 300, padding: '8px' }} className="scale-in">
-                {/* Profile info */}
                 <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', marginBottom: '4px' }}>
                   <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '2px' }}>{user.name}</div>
                   <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{user.email}</div>
                 </div>
-                <MenuItem onClick={() => { setUserMenuOpen(false); setWsMenuOpen(true) }}>⚙️ Workspace settings</MenuItem>
+                <MenuItem onClick={() => { setUserMenuOpen(false); setSettingsTab('profile'); setSettingsOpen(true) }}>👤 Profile & settings</MenuItem>
+                <MenuItem onClick={() => { setUserMenuOpen(false); setSettingsTab('appearance'); setSettingsOpen(true) }}>🎨 Appearance</MenuItem>
                 <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
                 <MenuItem onClick={() => { handleSignOut(); setUserMenuOpen(false) }}>🚪 Sign out</MenuItem>
                 <MenuItem danger onClick={() => { setShowDeleteAccount(true); setUserMenuOpen(false) }}>🗑️ Delete account</MenuItem>
@@ -824,6 +886,162 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               ))}
             </div>
             <button onClick={() => setMoveToWsMenu(null)} style={{ marginTop: '12px', width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)' }}>Cancel</button>
+          </div>
+        </>
+      )}
+
+      {/* ── SETTINGS MODAL (profile + appearance) ─────────── */}
+      {settingsOpen && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 2000 }} onClick={() => setSettingsOpen(false)} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: '500px', height: '330px', display: 'flex', overflow: 'hidden', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in">
+            {/* Nav */}
+            <div style={{ width: '150px', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '14px 8px', flexShrink: 0 }}>
+              <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0 6px 8px' }}>Settings</div>
+              {(['profile','appearance'] as const).map(tab => (
+                <div key={tab} onClick={() => setSettingsTab(tab)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', fontWeight: settingsTab === tab ? 500 : 400, color: settingsTab === tab ? 'var(--text)' : 'var(--text-secondary)', background: settingsTab === tab ? 'var(--sidebar-active)' : 'none', marginBottom: '2px' }}
+                  onMouseEnter={e => { if (settingsTab !== tab) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                  onMouseLeave={e => { if (settingsTab !== tab) (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                  {tab === 'profile' ? '👤' : '🎨'} {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </div>
+              ))}
+              <div style={{ borderTop: '1px solid var(--border)', marginTop: 'auto', paddingTop: '8px', position: 'absolute', bottom: '12px', width: '134px' }}>
+                <div onClick={() => setSettingsOpen(false)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', color: 'var(--red)' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                  🚫 Close
+                </div>
+              </div>
+            </div>
+            {/* Content */}
+            <div style={{ flex: 1, padding: '18px 22px', overflowY: 'auto' }}>
+              {settingsTab === 'profile' && (
+                <div>
+                  <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Profile</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+                    <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{user.name[0]?.toUpperCase()}</div>
+                    <button style={{ border: '1px solid var(--border)', background: 'none', borderRadius: '5px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--text)' }}>Upload photo</button>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0 }}>Name</div>
+                    <input value={profileName} onChange={e => setProfileName(e.target.value)} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }} onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }} onBlur={e => { (e.target as HTMLElement).style.borderColor = 'var(--border)' }} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0 }}>Email</div>
+                    <input defaultValue={user.email} readOnly style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', background: 'var(--sidebar-bg)', outline: 'none' }} />
+                  </div>
+                  <button onClick={saveProfile} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 16px', fontSize: '13px', cursor: 'pointer', fontWeight: 500, fontFamily: 'var(--font-sans)' }}>Save</button>
+                  <div style={{ borderTop: '1px solid var(--border)', marginTop: '16px', paddingTop: '12px' }}>
+                    <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Danger zone</div>
+                    <button onClick={() => { setSettingsOpen(false); setShowDeleteAccount(true) }} style={{ border: '1px solid #fecaca', background: 'none', borderRadius: '5px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--red)' }}>Delete account</button>
+                  </div>
+                </div>
+              )}
+              {settingsTab === 'appearance' && (
+                <div>
+                  <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Appearance</div>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                    {(['light','dark','system'] as const).map(t => (
+                      <button key={t} onClick={() => setTheme(t)}
+                        style={{ border: `1px solid ${theme === t ? 'var(--accent)' : 'var(--border)'}`, background: theme === t ? 'var(--accent-light)' : 'var(--surface)', color: theme === t ? 'var(--accent)' : 'var(--text)', borderRadius: '7px', padding: '6px 12px', fontSize: '12.5px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: theme === t ? 500 : 400, transition: 'all 0.15s' }}>
+                        {t === 'light' ? '☀️ Light' : t === 'dark' ? '🌙 Dark' : '💻 System'}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Preview */}
+                  <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', height: '80px', transition: 'all 0.4s' }}>
+                    <div style={{ display: 'flex', height: '100%' }}>
+                      <div style={{ width: '76px', background: theme === 'dark' ? '#252524' : 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '8px', flexShrink: 0, transition: 'background 0.4s' }}>
+                        <div style={{ height: '8px', background: theme === 'dark' ? '#3a3a38' : 'var(--border)', borderRadius: '3px', marginBottom: '5px', transition: 'background 0.4s' }} />
+                        <div style={{ height: '8px', background: theme === 'dark' ? '#3a3a38' : 'var(--border)', borderRadius: '3px', width: '70%', transition: 'background 0.4s' }} />
+                      </div>
+                      <div style={{ flex: 1, background: theme === 'dark' ? '#1f1f1e' : 'var(--surface)', padding: '10px', transition: 'background 0.4s' }}>
+                        <div style={{ height: '12px', background: theme === 'dark' ? '#3a3a38' : 'var(--border)', borderRadius: '3px', width: '55%', marginBottom: '6px', transition: 'background 0.4s' }} />
+                        <div style={{ height: '8px', background: theme === 'dark' ? '#2e2e2c' : '#f0f0ee', borderRadius: '3px', transition: 'background 0.4s' }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── WORKSPACE SETTINGS MODAL ──────────────────────── */}
+      {wsSettingsOpen && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 2000 }} onClick={() => setWsSettingsOpen(false)} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: '520px', height: '360px', display: 'flex', overflow: 'hidden', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in">
+            <div style={{ width: '150px', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '14px 8px', flexShrink: 0 }}>
+              <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0 6px 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {currentWs.icon} {currentWs.name}
+              </div>
+              {(['general','members'] as const).map(tab => (
+                <div key={tab} onClick={() => { setWsSettingsTab(tab); if (tab === 'members') loadWsMembers() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', fontWeight: wsSettingsTab === tab ? 500 : 400, color: wsSettingsTab === tab ? 'var(--text)' : 'var(--text-secondary)', background: wsSettingsTab === tab ? 'var(--sidebar-active)' : 'none', marginBottom: '2px' }}
+                  onMouseEnter={e => { if (wsSettingsTab !== tab) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                  onMouseLeave={e => { if (wsSettingsTab !== tab) (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                  {tab === 'general' ? '⚙️' : '👥'} {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </div>
+              ))}
+              <div style={{ borderTop: '1px solid var(--border)', position: 'absolute', bottom: '12px', width: '134px' }}>
+                <div onClick={() => setWsSettingsOpen(false)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', color: 'var(--red)', marginTop: '8px' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                  🚫 Close
+                </div>
+              </div>
+            </div>
+            <div style={{ flex: 1, padding: '18px 22px', overflowY: 'auto' }}>
+              {wsSettingsTab === 'general' && (
+                <div>
+                  <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>General</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '50px', flexShrink: 0 }}>Name</div>
+                    <input defaultValue={currentWs.name} onBlur={async e => { await supabase.from('workspaces').update({ name: e.target.value }).eq('id', currentWs.id); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, name: e.target.value } : w)); showToastMsg('Saved!') }} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }} onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }}  />
+                  </div>
+                  <div style={{ borderTop: '1px solid var(--border)', marginTop: '16px', paddingTop: '12px' }}>
+                    <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Danger zone</div>
+                    <button onClick={() => { if (confirm('Delete this workspace and all its pages?')) deleteWorkspace(currentWs.id) }} style={{ border: '1px solid #fecaca', background: 'none', borderRadius: '5px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--red)' }}>Delete workspace</button>
+                  </div>
+                </div>
+              )}
+              {wsSettingsTab === 'members' && (
+                <div>
+                  <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Members</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>Members can see and edit all pages in this workspace.</div>
+                  {/* Owner */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 0', borderBottom: '1px solid var(--border)', marginBottom: '4px' }}>
+                    <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{user.name[0]?.toUpperCase()}</div>
+                    <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: '13px', color: 'var(--text)' }}>{user.name}</div><div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{user.email}</div></div>
+                    <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '8px', background: 'var(--accent-light)', color: 'var(--accent)', fontWeight: 500 }}>owner</span>
+                  </div>
+                  {wsMembers.map((m: any) => (
+                    <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--sidebar-active)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>{(m.profiles?.full_name || m.profiles?.email || '?')[0]?.toUpperCase()}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: '13px', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.profiles?.full_name || m.profiles?.email}</div></div>
+                      <select defaultValue={m.role} onChange={async e => { await supabase.from('workspace_members').update({ role: e.target.value }).eq('id', m.id); loadWsMembers() }} style={{ border: '1px solid var(--border)', borderRadius: '4px', fontSize: '11px', padding: '2px 4px', fontFamily: 'var(--font-sans)', background: 'var(--surface)', color: 'var(--text)' }}>
+                        <option value="member">member</option>
+                        <option value="viewer">viewer</option>
+                      </select>
+                      <button onClick={() => removeMember(m.user_id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '13px', padding: '2px 4px', borderRadius: '3px' }} onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)' }} onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>✕</button>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }}>
+                    <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="Invite by email…" onKeyDown={e => { if (e.key === 'Enter') inviteMember() }} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '12px', fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }} onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }} onBlur={e => { (e.target as HTMLElement).style.borderColor = 'var(--border)' }} />
+                    <select value={inviteRole} onChange={e => setInviteRole(e.target.value as any)} style={{ border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 6px', fontSize: '12px', fontFamily: 'var(--font-sans)', background: 'var(--surface)', color: 'var(--text)' }}>
+                      <option value="member">member</option>
+                      <option value="viewer">viewer</option>
+                    </select>
+                    <button onClick={inviteMember} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '5px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Invite</button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </>
       )}
