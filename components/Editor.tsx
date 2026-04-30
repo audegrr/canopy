@@ -15,6 +15,69 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import Image from '@tiptap/extension-image'
 import { Node, mergeAttributes } from '@tiptap/core'
+
+// ── Video node ─────────────────────────────────────────
+const VideoNode = Node.create({
+  name: 'video', group: 'block', atom: true,
+  addAttributes() { return { src: {}, width: { default: '100%' } } },
+  parseHTML() { return [{ tag: 'div[data-video]' }] },
+  renderHTML({ HTMLAttributes }) { return ['div', mergeAttributes(HTMLAttributes, { 'data-video': '' }), 0] },
+  addNodeView() {
+    return ({ node }: any) => {
+      const dom = document.createElement('div')
+      dom.style.cssText = 'margin: 8px 0; border-radius: 8px; overflow: hidden;'
+      // Try to embed as video — works for direct video URLs
+      const isYt = /youtube|youtu\.be/.test(node.attrs.src)
+      if (isYt) {
+        const iframe = document.createElement('iframe')
+        const ytId = node.attrs.src.match(/(?:v=|youtu\.be\/)([^&?/]+)/)?.[1]
+        iframe.src = `https://www.youtube.com/embed/${ytId}`
+        iframe.style.cssText = 'width:100%;aspect-ratio:16/9;border:none;border-radius:8px;'
+        iframe.allowFullscreen = true
+        dom.appendChild(iframe)
+      } else {
+        const video = document.createElement('video')
+        video.src = node.attrs.src
+        video.controls = true
+        video.style.cssText = 'width:100%;border-radius:8px;max-height:400px;'
+        dom.appendChild(video)
+      }
+      return { dom }
+    }
+  }
+})
+
+// ── File attachment node ────────────────────────────────
+function formatBytes(bytes: number) {
+  if (!bytes) return ''
+  if (bytes < 1024) return bytes + ' B'
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB'
+  return (bytes/(1024*1024)).toFixed(1) + ' MB'
+}
+
+const FileNode = Node.create({
+  name: 'fileAttachment', group: 'block', atom: true,
+  addAttributes() { return { src: {}, name: { default: 'File' }, size: { default: 0 }, mime: { default: '' } } },
+  parseHTML() { return [{ tag: 'div[data-file]' }] },
+  renderHTML({ HTMLAttributes }) { return ['div', mergeAttributes(HTMLAttributes, { 'data-file': '' }), 0] },
+  addNodeView() {
+    return ({ node }: any) => {
+      const dom = document.createElement('div')
+      dom.style.cssText = 'margin:6px 0;'
+      const ext = (node.attrs.name || '').split('.').pop()?.toLowerCase() || ''
+      const icon = ['pdf'].includes(ext) ? '📄' : ['doc','docx'].includes(ext) ? '📝' : ['xls','xlsx'].includes(ext) ? '📊' : ['zip','rar'].includes(ext) ? '📦' : ['mp3','wav','ogg'].includes(ext) ? '🎵' : '📎'
+      dom.innerHTML = `<a href="${node.attrs.src}" target="_blank" rel="noopener"
+        style="display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;text-decoration:none;color:var(--text);background:var(--surface);font-family:var(--font-sans);font-size:13px;cursor:pointer;transition:background 0.1s;"
+        onmouseover="this.style.background='var(--sidebar-hover)'" onmouseout="this.style.background='var(--surface)'">
+        <span style="font-size:20px">${icon}</span>
+        <span>${node.attrs.name || 'File'}</span>
+        ${node.attrs.size ? `<span style="color:var(--text-tertiary);font-size:12px">${formatBytes(node.attrs.size)}</span>` : ''}
+        <span style="color:var(--accent);font-size:12px">↓ Download</span>
+      </a>`
+      return { dom }
+    }
+  }
+})
 import SubpageBlock from './SubpageBlock'
 import DatabaseBlock from './DatabaseBlock'
 import Link from '@tiptap/extension-link'
@@ -222,7 +285,7 @@ const SLASH_ITEMS = [
   { id: 'divider', label: 'Divider', hint: 'Visual divider', icon: '—', section: 'Basic blocks' },
   { id: 'toc', label: 'Table of contents', hint: 'Show page headings', icon: '≡', section: 'Advanced' },
   { id: 'table', label: 'Table', hint: 'Insert a table', icon: '⊞', section: 'Advanced' },
-  { id: 'image', label: 'Image', hint: 'Upload or embed URL', icon: '🖼', section: 'Media' },
+  { id: 'image', label: 'Image / Video / File', hint: 'Upload or embed URL', icon: '🖼', section: 'Media' },
   { id: 'video', label: 'YouTube', hint: 'Embed a video', icon: '▶', section: 'Media' },
   { id: 'subpage', label: 'Sub-page', hint: 'Embed a linked page', icon: '📄', section: 'Advanced' },
   { id: 'database', label: 'Database', hint: 'Embed a database', icon: '🗄️', section: 'Advanced' },
@@ -298,6 +361,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
       Table.configure({ resizable: true }),
       TableRow, TableCell, TableHeader,
       ResizableImage,
+      VideoNode,
+      FileNode,
       Link.configure({ openOnClick: true, autolink: true }),
       Youtube.configure({ controls: true, width: 640, height: 360 }),
       HorizontalRule,
@@ -323,8 +388,28 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           }, 50)
         }
         window.addEventListener('canopy:insertImage', onInsert)
+
+        function onInsertVideo(e: any) {
+          const src = e.detail?.src
+          if (!src) return
+          editor.chain().focus().insertContent({ type: 'video', attrs: { src } }).run()
+          setTimeout(() => editor.commands.insertContent({ type: 'paragraph' }), 50)
+        }
+        window.addEventListener('canopy:insertVideo', onInsertVideo)
+
+        function onInsertFile(e: any) {
+          const { src, name, size, mime } = e.detail || {}
+          if (!src) return
+          editor.chain().focus().insertContent({ type: 'fileAttachment', attrs: { src, name, size, mime } }).run()
+          setTimeout(() => editor.commands.insertContent({ type: 'paragraph' }), 50)
+        }
+        window.addEventListener('canopy:insertFile', onInsertFile)
         // Store cleanup for later
-        ;(editor as any)._imageCleanup = () => window.removeEventListener('canopy:insertImage', onInsert)
+        ;(editor as any)._imageCleanup = () => {
+          window.removeEventListener('canopy:insertImage', onInsert)
+          window.removeEventListener('canopy:insertVideo', onInsertVideo)
+          window.removeEventListener('canopy:insertFile', onInsertFile)
+        }
       },
       onDestroy: () => {
         ;(editor as any)._imageCleanup?.()
@@ -447,27 +532,26 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
     }
   }
 
-  // Image drag & drop / paste
+  // Image drag & drop / paste — dispatch to PageView uploader (avoids base64 bug)
   const handleDrop = useCallback((e: React.DragEvent) => {
     if (!editable || !editor) return
-    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
+    const files = Array.from(e.dataTransfer.files)
     if (!files.length) return
+    const hasBlock = files.some(f => !f.type.startsWith('image/') && !f.type.startsWith('video/'))
+    if (!files.some(f => f.type.startsWith('image/') || f.type.startsWith('video/') || hasBlock)) return
     e.preventDefault()
     files.forEach(file => {
-      const reader = new FileReader()
-      reader.onload = ev => { if (ev.target?.result) editor.chain().focus().setImage({ src: ev.target.result as string }).run() }
-      reader.readAsDataURL(file)
+      window.dispatchEvent(new CustomEvent('canopy:uploadFile', { detail: { file } }))
     })
   }, [editor, editable])
 
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     if (!editable || !editor) return
-    const files = Array.from(e.clipboardData.files).filter(f => f.type.startsWith('image/'))
+    const files = Array.from(e.clipboardData.files)
     if (!files.length) return
+    e.preventDefault()
     files.forEach(file => {
-      const reader = new FileReader()
-      reader.onload = ev => { if (ev.target?.result) editor.chain().focus().setImage({ src: ev.target.result as string }).run() }
-      reader.readAsDataURL(file)
+      window.dispatchEvent(new CustomEvent('canopy:uploadFile', { detail: { file } }))
     })
   }, [editor, editable])
 

@@ -27,6 +27,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   const [toast, setToast] = useState('')
   const [showSubpagePicker, setShowSubpagePicker] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
+  const [mediaTab, setMediaTab] = useState<'image'|'video'|'file'>('image')
   const [imagePickerCallback, setImagePickerCallback] = useState<{ onUrl: (u: string) => void; onFile: (s: string) => void } | null>(null)
   const imagePickerCallbackRef = useRef<{ onUrl: (u: string) => void; onFile: (s: string) => void } | null>(null)
   const [imageUrl, setImageUrl] = useState('')
@@ -115,6 +116,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   // Image picker listener
   useEffect(() => {
     function onImagePicker(e: any) {
+      setMediaTab('image')
       // Callback comes from Editor via ref, stored in event detail or separately
       if (e.detail?.onUrl) {
         const cb = { onUrl: e.detail.onUrl, onFile: e.detail.onFile }
@@ -125,7 +127,27 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
       setShowImagePicker(true)
     }
     window.addEventListener('canopy:showImagePicker', onImagePicker)
-    return () => window.removeEventListener('canopy:showImagePicker', onImagePicker)
+
+    async function onUploadFile(e: any) {
+      const file: File = e.detail?.file
+      if (!file) return
+      showToast('Uploading…')
+      const url = await uploadFile(file)
+      if (!url) return
+      if (file.type.startsWith('image/')) {
+        window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
+      } else if (file.type.startsWith('video/')) {
+        window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
+      } else {
+        window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: file.name, size: file.size, mime: file.type } }))
+      }
+    }
+    window.addEventListener('canopy:uploadFile', onUploadFile)
+
+    return () => {
+      window.removeEventListener('canopy:showImagePicker', onImagePicker)
+      window.removeEventListener('canopy:uploadFile', onUploadFile)
+    }
   }, [])
 
   // Sync title display
@@ -185,6 +207,15 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     setShowIconPicker(false)
     // Immediately update sidebar
     window.dispatchEvent(new CustomEvent('canopy:pageUpdate', { detail: { id: page.id, icon } }))
+  }
+
+  async function uploadFile(file: File, bucket = 'images'): Promise<string | null> {
+    const ext = file.name.split('.').pop()
+    const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const { error } = await supabase.storage.from(bucket).upload(path, file)
+    if (error) { showToast('Upload failed: ' + error.message); return null }
+    const { data } = supabase.storage.from(bucket).getPublicUrl(path)
+    return data.publicUrl
   }
 
   async function uploadCover(file: File) {
@@ -385,7 +416,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
           )}
 
           {/* Page body */}
-          <div className='page-body-padding print-content' style={{ maxWidth: '960px', margin: '0 auto', padding: page.cover_url ? '24px 32px 80px' : '48px 32px 80px' }}>
+          <div className='page-body-padding print-content' style={{ maxWidth: '720px', margin: '0 auto', padding: page.cover_url ? '24px 60px 80px' : '64px 60px 80px' }}>
 
             {/* Icon area */}
             <div style={{ marginBottom: '4px', position: 'relative' }}>
@@ -566,10 +597,17 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         <>
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200 }} onClick={() => setShowImagePicker(false)} />
           <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '24px', width: '400px', boxShadow: 'var(--shadow-lg)', zIndex: 201 }} className="scale-in">
-            <h3 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '16px' }}>Insert image</h3>
+            <div style={{ display: 'flex', gap: '4px', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
+              {(['image','video','file'] as const).map(t => (
+                <button key={t} onClick={() => setMediaTab(t)}
+                  style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: mediaTab === t ? 600 : 400, background: mediaTab === t ? 'var(--accent)' : 'none', color: mediaTab === t ? '#fff' : 'var(--text-secondary)' }}>
+                  {t === 'image' ? '🖼 Image' : t === 'video' ? '🎬 Video' : '📎 File'}
+                </button>
+              ))}
+            </div>
             {/* URL input */}
             <div style={{ marginBottom: '14px' }}>
-              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '6px' }}>Image URL</label>
+              <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '6px' }}>{mediaTab === 'image' ? 'Image URL' : mediaTab === 'video' ? 'Video URL' : 'File URL'}</label>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://..."
                   onKeyDown={e => { if (e.key === 'Enter' && imageUrl) { imagePickerCallback?.onUrl(imageUrl); setShowImagePicker(false) } }}
@@ -578,10 +616,13 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                     const url = imageUrl.trim()
                     if (!url) return
                     const cb = imagePickerCallbackRef.current || imagePickerCallback
-                    if (cb?.onUrl) {
-                      cb.onUrl(url)
+                    if (mediaTab === 'image') {
+                      if (cb?.onUrl) cb.onUrl(url)
+                      else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
+                    } else if (mediaTab === 'video') {
+                      window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
                     } else {
-                      window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
+                      window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: url.split('/').pop() } }))
                     }
                     setShowImagePicker(false)
                     setImageUrl('')
@@ -602,39 +643,47 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
               style={{ display: 'block', border: '2px dashed var(--border)', borderRadius: '8px', padding: '20px', textAlign: 'center', cursor: 'pointer', transition: 'all 0.15s' }}
               onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)'; (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
               onDragLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.background = 'none' }}
-              onDrop={e => {
+              onDrop={async e => {
                 e.preventDefault()
                 const file = e.dataTransfer.files[0]
-                if (file?.type.startsWith('image/')) {
-                  const reader = new FileReader()
-                  reader.onload = ev => {
-                if (ev.target?.result) {
-                  const src = ev.target.result as string
-                  if (imagePickerCallback?.onFile) { imagePickerCallback.onFile(src) }
-                  else { window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src } })) }
-                  setShowImagePicker(false)
+                if (!file) return
+                showToast('Uploading…')
+                const url = await uploadFile(file)
+                if (!url) return
+                if (mediaTab === 'image' || file.type.startsWith('image/')) {
+                  const cb = imagePickerCallbackRef.current || imagePickerCallback
+                  if (cb?.onFile) cb.onFile(url)
+                  else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
+                } else if (mediaTab === 'video' || file.type.startsWith('video/')) {
+                  window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
+                } else {
+                  window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: file.name, size: file.size } }))
                 }
-              }
-                  reader.readAsDataURL(file)
-                }
+                setShowImagePicker(false)
+                imagePickerCallbackRef.current = null
               }}>
-              <div style={{ fontSize: '28px', marginBottom: '8px' }}>🖼️</div>
-              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Drag & drop an image here</div>
+              <div style={{ fontSize: '28px', marginBottom: '8px' }}>{mediaTab === 'image' ? '🖼️' : mediaTab === 'video' ? '🎬' : '📎'}</div>
+              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Drag & drop here</div>
               <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>or click to browse</div>
-              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => {
+              <input type="file"
+                accept={mediaTab === 'image' ? 'image/*' : mediaTab === 'video' ? 'video/*' : '*/*'}
+                style={{ display: 'none' }} onChange={async e => {
                 const file = e.target.files?.[0]
-                if (file) {
-                  const reader = new FileReader()
-                  reader.onload = ev => {
-                if (ev.target?.result) {
-                  const src = ev.target.result as string
-                  if (imagePickerCallback?.onFile) { imagePickerCallback.onFile(src) }
-                  else { window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src } })) }
-                  setShowImagePicker(false)
+                if (!file) return
+                showToast('Uploading…')
+                const url = await uploadFile(file)
+                if (!url) return
+                if (mediaTab === 'image') {
+                  const cb = imagePickerCallbackRef.current || imagePickerCallback
+                  if (cb?.onFile) cb.onFile(url)
+                  else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
+                } else if (mediaTab === 'video') {
+                  window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
+                } else {
+                  window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: file.name, size: file.size } }))
                 }
-              }
-                  reader.readAsDataURL(file)
-                }
+                setShowImagePicker(false)
+                imagePickerCallbackRef.current = null
               }} />
             </label>
             <button onClick={() => setShowImagePicker(false)} style={{ marginTop: '12px', width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '4px' }}>Cancel</button>
