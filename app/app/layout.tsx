@@ -8,17 +8,17 @@ export default async function AppLayout({ children }) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [workspacesResult, pagesResult, sharedResult] = await Promise.all([
+  const [workspacesResult, pagesResult, sharedResult, membershipsResult] = await Promise.all([
     supabase.from('workspaces').select('*').eq('owner_id', user.id).order('created_at'),
     supabase.from('pages')
       .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
       .eq('owner_id', user.id)
       .order('position'),
     supabase.rpc('get_shared_pages', { user_uuid: user.id }),
+    supabase.from('workspace_members').select('workspace_id, role').eq('user_id', user.id)
   ])
 
   let workspaces = workspacesResult.data || []
-
   if (workspaces.length === 0) {
     const { data: ws } = await supabase.from('workspaces')
       .insert({ name: 'My Workspace', icon: '🌿', owner_id: user.id })
@@ -26,27 +26,14 @@ export default async function AppLayout({ children }) {
     if (ws) workspaces = [ws]
   }
 
-  // Step 1: get membership rows
-  const { data: memberships, error: memError } = await supabase
-    .from('workspace_members')
-    .select('workspace_id, role')
-    .eq('user_id', user.id)
-
-  console.log('[layout] user:', user.id, user.email)
-  console.log('[layout] memberships:', JSON.stringify(memberships), 'error:', memError?.message)
-
-  // Step 2: fetch workspace objects
+  // Fetch shared workspace objects separately (avoids PostgREST join issues)
   let memberWorkspaces: any[] = []
-  if (memberships && memberships.length > 0) {
+  const memberships = membershipsResult.data || []
+  if (memberships.length > 0) {
     const wsIds = memberships.map((m: any) => m.workspace_id)
-    console.log('[layout] fetching workspaces for ids:', wsIds)
-    const { data: memberWsData, error: wsError } = await supabase
-      .from('workspaces')
-      .select('*')
-      .in('id', wsIds)
-    console.log('[layout] memberWsData:', JSON.stringify(memberWsData), 'error:', wsError?.message)
-    if (memberWsData) {
-      memberWorkspaces = memberWsData.map((ws: any) => ({
+    const { data: wsData } = await supabase.from('workspaces').select('*').in('id', wsIds)
+    if (wsData) {
+      memberWorkspaces = wsData.map((ws: any) => ({
         ...ws,
         _memberRole: memberships.find((m: any) => m.workspace_id === ws.id)?.role || 'member'
       }))
