@@ -435,8 +435,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     const { error } = await supabase.from('workspace_members').insert({
       workspace_id: currentWs.id,
       user_id: userId,
-      role: inviteRole,
-      invited_by: user.id
+      role: inviteRole
     })
     if (error) {
       if (error.code === '23505') showToastMsg('Already a member')
@@ -741,10 +740,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               <div style={{ margin: '12px 12px 0', borderTop: '1px solid var(--border)' }} />
               <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '4px 4px 0', gap: '4px' }}
                 onClick={() => setSharedCollapsed(o => !o)}>
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, transition: 'transform 0.15s', transform: sharedCollapsed ? 'rotate(-90deg)' : 'none', marginLeft: '2px' }}>
+                <SectionLabel>Shared with me</SectionLabel>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, transition: 'transform 0.15s', transform: sharedCollapsed ? 'rotate(-90deg)' : 'none', marginRight: '6px' }}>
                   <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                <SectionLabel>Shared with me</SectionLabel>
               </div>
               {!sharedCollapsed && renderSharedTree(null)}
             </>

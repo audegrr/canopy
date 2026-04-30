@@ -397,6 +397,15 @@ body.focus-mode .tiptap { max-width: 680px; margin: 0 auto; font-size: 16px; lin
   background: #fff0f0 !important;
 }
 
+/* ── Theme transition — smooth fade on all elements ──── */
+*, *::before, *::after {
+  transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease !important;
+}
+/* Exceptions: things that should never transition */
+button, a, input, select, textarea {
+  transition: background-color 0.4s ease, border-color 0.4s ease, color 0.4s ease, box-shadow 0.15s ease, opacity 0.15s ease !important;
+}
+
 /* ── Dark mode ─────────────────────────────────────────── */
 [data-theme="dark"] {
   --bg: #1f1f1e;
