@@ -736,6 +736,22 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                 </div>
               ))}
               <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+              {memberWorkspaces.length > 0 && <>
+                <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+                <div style={{ padding: '4px 12px 2px', fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Shared with me</div>
+                {memberWorkspaces.map((ws: any) => (
+                  <div key={ws.id} onClick={() => { switchWorkspace(ws); setWsMenuOpen(false) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', background: ws.id === currentWs.id ? 'var(--sidebar-active)' : 'transparent' }}
+                    onMouseEnter={e => { if (ws.id !== currentWs.id) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                    onMouseLeave={e => { if (ws.id !== currentWs.id) (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+                    <span style={{ fontSize: '20px', flexShrink: 0 }}>{ws.icon}</span>
+                    <span style={{ flex: 1, fontSize: '13px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ws.name}</span>
+                    <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '8px', background: 'var(--sidebar-active)', color: 'var(--text-tertiary)', flexShrink: 0 }}>{ws._memberRole}</span>
+                    {ws.id === currentWs.id && <span style={{ fontSize: '11px', color: 'var(--accent)', fontWeight: 700 }}>✓</span>}
+                  </div>
+                ))}
+              </>}
+              <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
               <MenuItem onClick={createWorkspace}>➕ New workspace</MenuItem>
             </div>
           )}
