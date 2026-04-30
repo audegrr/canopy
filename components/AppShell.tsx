@@ -392,11 +392,36 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     setRenamingWs(false)
   }
 
-  function switchWorkspace(ws: Workspace) {
+  async function switchWorkspace(ws: any) {
     setCurrentWs(ws)
     localStorage.setItem('canopy_workspace', ws.id)
-    navigate('/app')
     setWsMenuOpen(false)
+    setNavigating(true)
+
+    // Load pages for this workspace
+    // For own workspaces: filter by owner_id
+    // For member workspaces: filter by workspace_id (can see all pages)
+    const isOwn = ws.owner_id === user.id
+    let pagesQuery = supabase
+      .from('pages')
+      .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
+      .eq('workspace_id', ws.id)
+      .order('position')
+
+    if (isOwn) {
+      pagesQuery = pagesQuery.eq('owner_id', user.id)
+    }
+
+    const { data: wsPages } = await pagesQuery
+    setPages((wsPages || []).map(p => ({
+      ...p,
+      content: [], cover_url: '', created_at: '', updated_at: '',
+      icon: p.icon || '', parent_id: p.parent_id ?? null,
+      link_permission: p.link_permission || 'none',
+    })))
+
+    setNavigating(false)
+    navigate('/app')
   }
 
   // Theme management
