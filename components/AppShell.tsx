@@ -764,7 +764,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               <div style={{ margin: '10px 12px 0', borderTop: '1px solid var(--border)' }} />
               <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px 14px 3px', gap: '4px' }}
                 onClick={() => setSharedCollapsed(o => !o)}>
-                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1, userSelect: 'none' }}>Shared with me</span>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1, userSelect: 'none', fontFamily: 'var(--font-sans)' }}>Shared with me</div>
                 <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, transition: 'transform 0.15s', transform: sharedCollapsed ? 'rotate(-90deg)' : 'none', marginRight: '2px' }}>
                   <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
