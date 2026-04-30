@@ -8,18 +8,13 @@ export default async function AppLayout({ children }) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Run queries in parallel
-  const [workspacesResult, pagesResult, sharedResult, membershipResult] = await Promise.all([
+  const [workspacesResult, pagesResult, sharedResult] = await Promise.all([
     supabase.from('workspaces').select('*').eq('owner_id', user.id).order('created_at'),
     supabase.from('pages')
       .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
       .eq('owner_id', user.id)
       .order('position'),
     supabase.rpc('get_shared_pages', { user_uuid: user.id }),
-    // Get workspace memberships for this user
-    supabase.from('workspace_members')
-      .select('workspace_id, role')
-      .eq('user_id', user.id)
   ])
 
   let workspaces = workspacesResult.data || []
@@ -31,31 +26,41 @@ export default async function AppLayout({ children }) {
     if (ws) workspaces = [ws]
   }
 
-  // Load the actual workspace objects for memberships (separate query, no join)
+  // Step 1: get membership rows
+  const { data: memberships, error: memError } = await supabase
+    .from('workspace_members')
+    .select('workspace_id, role')
+    .eq('user_id', user.id)
+
+  console.log('[layout] user:', user.id, user.email)
+  console.log('[layout] memberships:', JSON.stringify(memberships), 'error:', memError?.message)
+
+  // Step 2: fetch workspace objects
   let memberWorkspaces: any[] = []
-  const memberships = membershipResult.data || []
-  if (memberships.length > 0) {
-    const wsIds = memberships.map(m => m.workspace_id)
-    const { data: memberWsData } = await supabase
+  if (memberships && memberships.length > 0) {
+    const wsIds = memberships.map((m: any) => m.workspace_id)
+    console.log('[layout] fetching workspaces for ids:', wsIds)
+    const { data: memberWsData, error: wsError } = await supabase
       .from('workspaces')
       .select('*')
       .in('id', wsIds)
+    console.log('[layout] memberWsData:', JSON.stringify(memberWsData), 'error:', wsError?.message)
     if (memberWsData) {
-      memberWorkspaces = memberWsData.map(ws => ({
+      memberWorkspaces = memberWsData.map((ws: any) => ({
         ...ws,
-        _memberRole: memberships.find(m => m.workspace_id === ws.id)?.role || 'member'
+        _memberRole: memberships.find((m: any) => m.workspace_id === ws.id)?.role || 'member'
       }))
     }
   }
 
-  const pages = (pagesResult.data || []).map(p => ({
+  const pages = (pagesResult.data || []).map((p: any) => ({
     ...p,
     content: [], cover_url: '', created_at: '', updated_at: '',
     icon: p.icon || '', parent_id: p.parent_id ?? null,
     link_permission: p.link_permission || 'none',
   }))
 
-  const sharedPages = (sharedResult.data || []).map(p => ({
+  const sharedPages = (sharedResult.data || []).map((p: any) => ({
     id: p.id, title: p.title, icon: p.icon || '',
     owner_id: p.owner_id, permission: p.permission, parent_id: p.parent_id ?? null
   }))

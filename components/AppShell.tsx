@@ -708,7 +708,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               <span style={{ flex: 1, fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentWs.name}</span>
             )}
             <button onClick={e => { e.stopPropagation(); setWsSettingsTab('general'); setWsSettingsOpen(true); setWsMenuOpen(false); loadWsMembers() }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '16px', padding: '3px 5px', borderRadius: '4px', flexShrink: 0, opacity: 0, transition: 'opacity 0.1s, background 0.1s', lineHeight: 1 }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '18px', padding: '2px 5px', borderRadius: '4px', flexShrink: 0, opacity: 0, transition: 'opacity 0.1s, background 0.1s', lineHeight: 1 }}
               className="ws-gear-btn" title="Workspace settings"
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>⚙</button>
