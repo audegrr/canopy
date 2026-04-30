@@ -422,12 +422,30 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
   async function inviteMember() {
     if (!inviteEmail.trim()) return
-    const { data: profile } = await supabase.from('profiles').select('id').eq('email', inviteEmail.trim()).single()
-    if (!profile) { showToastMsg('User not found'); return }
-    await supabase.from('workspace_members').insert({ workspace_id: currentWs.id, user_id: profile.id, role: inviteRole, invited_by: user.id })
+    // Try profiles table first (email column)
+    let userId: string | null = null
+    const { data: profile } = await supabase.from('profiles').select('id').eq('email', inviteEmail.trim().toLowerCase()).single()
+    if (profile) { userId = profile.id }
+    else {
+      // Fallback: search by full_name match or direct user lookup
+      const { data: p2 } = await supabase.from('profiles').select('id, email').ilike('email', inviteEmail.trim()).limit(1)
+      if (p2 && p2.length > 0) userId = p2[0].id
+    }
+    if (!userId) { showToastMsg('No user found with this email'); return }
+    const { error } = await supabase.from('workspace_members').insert({
+      workspace_id: currentWs.id,
+      user_id: userId,
+      role: inviteRole,
+      invited_by: user.id
+    })
+    if (error) {
+      if (error.code === '23505') showToastMsg('Already a member')
+      else showToastMsg('Error: ' + error.message)
+      return
+    }
     setInviteEmail('')
     loadWsMembers()
-    showToastMsg('Invitation sent!')
+    showToastMsg('Member added!')
   }
 
   async function removeMember(userId: string) {
@@ -667,8 +685,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               <span style={{ flex: 1, fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentWs.name}</span>
             )}
             <button onClick={e => { e.stopPropagation(); setWsSettingsTab('general'); setWsSettingsOpen(true); setWsMenuOpen(false); loadWsMembers() }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '13px', padding: '2px 4px', borderRadius: '3px', flexShrink: 0, opacity: 0, transition: 'opacity 0.1s' }}
-              className="ws-gear-btn" title="Workspace settings">⚙</button>
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '16px', padding: '3px 5px', borderRadius: '4px', flexShrink: 0, opacity: 0, transition: 'opacity 0.1s, background 0.1s', lineHeight: 1 }}
+              className="ws-gear-btn" title="Workspace settings"
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>⚙</button>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: '1px' }} xmlns="http://www.w3.org/2000/svg">
               <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -719,10 +739,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           {sharedPages.length > 0 && (
             <>
               <div style={{ margin: '12px 12px 0', borderTop: '1px solid var(--border)' }} />
-              <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '0 4px' }}
+              <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '4px 4px 0', gap: '4px' }}
                 onClick={() => setSharedCollapsed(o => !o)}>
-                <SectionLabel style={{ marginTop: '8px', flex: 1 }}>Shared with me</SectionLabel>
-                <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '6px', transition: 'transform 0.15s', transform: sharedCollapsed ? 'rotate(-90deg)' : 'none' }}>⌄</span>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, transition: 'transform 0.15s', transform: sharedCollapsed ? 'rotate(-90deg)' : 'none', marginLeft: '2px' }}>
+                  <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                <SectionLabel>Shared with me</SectionLabel>
               </div>
               {!sharedCollapsed && renderSharedTree(null)}
             </>
@@ -1000,6 +1022,17 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               {wsSettingsTab === 'general' && (
                 <div>
                   <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>General</div>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '12px' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '50px', flexShrink: 0, paddingTop: '4px' }}>Icon</div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {['🌿','🌲','🌳','🌴','🌵','🍀','🌱','🌾','🍁','🌸','🏔','🏠','💼','🚀','⭐','💡','🎯','📚','🎨','🔮','🦋','🧠','💎','🔑','🌍'].map(em => (
+                        <button key={em} onClick={async () => { await supabase.from('workspaces').update({ icon: em }).eq('id', currentWs.id); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, icon: em } : w)) }}
+                          style={{ background: currentWs.icon === em ? 'var(--accent-light)' : 'none', border: currentWs.icon === em ? '2px solid var(--accent)' : '1px solid var(--border)', cursor: 'pointer', fontSize: '18px', padding: '3px 5px', borderRadius: '5px', lineHeight: 1 }}>
+                          {em}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                     <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '50px', flexShrink: 0 }}>Name</div>
                     <input defaultValue={currentWs.name} onBlur={async e => { await supabase.from('workspaces').update({ name: e.target.value }).eq('id', currentWs.id); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, name: e.target.value } : w)); showToastMsg('Saved!') }} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }} onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }}  />
