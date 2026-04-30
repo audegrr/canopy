@@ -1,4 +1,6 @@
 // @ts-nocheck
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AppShell from '@/components/AppShell'
