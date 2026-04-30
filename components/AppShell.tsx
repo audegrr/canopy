@@ -736,7 +736,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                 </div>
               ))}
               <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-              <MenuItem onClick={() => { setWsNameInput(currentWs.name); setRenamingWs(true); setWsMenuOpen(false) }}>✏️ Rename workspace</MenuItem>
               <MenuItem onClick={createWorkspace}>➕ New workspace</MenuItem>
             </div>
           )}

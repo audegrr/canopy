@@ -8,17 +8,17 @@ export default async function AppLayout({ children }) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  // Run all queries in parallel
-  const [workspacesResult, pagesResult, sharedResult, memberWsResult] = await Promise.all([
+  // Run queries in parallel
+  const [workspacesResult, pagesResult, sharedResult, membershipResult] = await Promise.all([
     supabase.from('workspaces').select('*').eq('owner_id', user.id).order('created_at'),
     supabase.from('pages')
       .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
       .eq('owner_id', user.id)
       .order('position'),
     supabase.rpc('get_shared_pages', { user_uuid: user.id }),
-    // Load workspaces shared with this user via workspace_members
+    // Get workspace memberships for this user
     supabase.from('workspace_members')
-      .select('role, workspaces(*)')
+      .select('workspace_id, role')
       .eq('user_id', user.id)
   ])
 
@@ -31,10 +31,22 @@ export default async function AppLayout({ children }) {
     if (ws) workspaces = [ws]
   }
 
-  // Shared workspaces (member of someone else's workspace)
-  const memberWorkspaces = (memberWsResult.data || [])
-    .filter(m => m.workspaces)
-    .map(m => ({ ...m.workspaces, _memberRole: m.role }))
+  // Load the actual workspace objects for memberships (separate query, no join)
+  let memberWorkspaces: any[] = []
+  const memberships = membershipResult.data || []
+  if (memberships.length > 0) {
+    const wsIds = memberships.map(m => m.workspace_id)
+    const { data: memberWsData } = await supabase
+      .from('workspaces')
+      .select('*')
+      .in('id', wsIds)
+    if (memberWsData) {
+      memberWorkspaces = memberWsData.map(ws => ({
+        ...ws,
+        _memberRole: memberships.find(m => m.workspace_id === ws.id)?.role || 'member'
+      }))
+    }
+  }
 
   const pages = (pagesResult.data || []).map(p => ({
     ...p,
