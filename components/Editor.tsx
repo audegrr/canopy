@@ -285,7 +285,9 @@ const SLASH_ITEMS = [
   { id: 'divider', label: 'Divider', hint: 'Visual divider', icon: '—', section: 'Basic blocks' },
   { id: 'toc', label: 'Table of contents', hint: 'Show page headings', icon: '≡', section: 'Advanced' },
   { id: 'table', label: 'Table', hint: 'Insert a table', icon: '⊞', section: 'Advanced' },
-  { id: 'image', label: 'Image / Video / File', hint: 'Upload or embed URL', icon: '🖼', section: 'Media' },
+  { id: 'image', label: 'Image', hint: 'Upload or embed an image', icon: '🖼', section: 'Media' },
+  { id: 'video', label: 'Video', hint: 'Upload or embed a video', icon: '🎬', section: 'Media' },
+  { id: 'file', label: 'File', hint: 'Attach a PDF, Word, Excel…', icon: '📎', section: 'Media' },
   { id: 'video', label: 'YouTube', hint: 'Embed a video', icon: '▶', section: 'Media' },
   { id: 'subpage', label: 'Sub-page', hint: 'Embed a linked page', icon: '📄', section: 'Advanced' },
   { id: 'database', label: 'Database', hint: 'Embed a database', icon: '🗄️', section: 'Advanced' },
@@ -511,7 +513,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
       }
       case 'video': {
         const url = window.prompt('YouTube URL:')
-        if (url) editor.chain().focus().setYoutubeVideo({ src: url }).run()
+        if (url) editor.chain().focus().insertContent({ type: 'video', attrs: { src: url } }).run()
         break
       }
       case 'subpage': {

@@ -116,7 +116,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   // Image picker listener
   useEffect(() => {
     function onImagePicker(e: any) {
-      setMediaTab('image')
+      setMediaTab(e.detail?.tab || 'image')
       // Callback comes from Editor via ref, stored in event detail or separately
       if (e.detail?.onUrl) {
         const cb = { onUrl: e.detail.onUrl, onFile: e.detail.onFile }
@@ -127,6 +127,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
       setShowImagePicker(true)
     }
     window.addEventListener('canopy:showImagePicker', onImagePicker)
+    window.addEventListener('canopy:showMediaPicker', onImagePicker)
 
     async function onUploadFile(e: any) {
       const file: File = e.detail?.file
@@ -146,6 +147,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
 
     return () => {
       window.removeEventListener('canopy:showImagePicker', onImagePicker)
+      window.removeEventListener('canopy:showMediaPicker', onImagePicker)
       window.removeEventListener('canopy:uploadFile', onUploadFile)
     }
   }, [])
@@ -597,14 +599,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         <>
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200 }} onClick={() => setShowImagePicker(false)} />
           <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '24px', width: '400px', boxShadow: 'var(--shadow-lg)', zIndex: 201 }} className="scale-in">
-            <div style={{ display: 'flex', gap: '4px', marginBottom: '16px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
-              {(['image','video','file'] as const).map(t => (
-                <button key={t} onClick={() => setMediaTab(t)}
-                  style={{ padding: '5px 12px', borderRadius: '6px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: mediaTab === t ? 600 : 400, background: mediaTab === t ? 'var(--accent)' : 'none', color: mediaTab === t ? '#fff' : 'var(--text-secondary)' }}>
-                  {t === 'image' ? '🖼 Image' : t === 'video' ? '🎬 Video' : '📎 File'}
-                </button>
-              ))}
-            </div>
+            <h3 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '16px' }}>
+              {mediaTab === 'image' ? '🖼 Insert image' : mediaTab === 'video' ? '🎬 Insert video' : '📎 Attach file'}
+            </h3>
             {/* URL input */}
             <div style={{ marginBottom: '14px' }}>
               <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '6px' }}>{mediaTab === 'image' ? 'Image URL' : mediaTab === 'video' ? 'Video URL' : 'File URL'}</label>
