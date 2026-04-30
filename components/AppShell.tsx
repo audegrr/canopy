@@ -12,6 +12,7 @@ type Props = {
   currentWorkspace: Workspace
   pages: Page[]
   sharedPages: SharedPage[]
+  memberWorkspaces?: any[]
   children: React.ReactNode
 }
 
@@ -28,7 +29,7 @@ function InstantPageView({ data, onNavigate }: { data: any; onNavigate: (path: s
   )
 }
 
-export default function AppShell({ user, workspaces: initWS, currentWorkspace: initCWS, pages: initPages, sharedPages, children }: Props) {
+export default function AppShell({ user, workspaces: initWS, currentWorkspace: initCWS, pages: initPages, sharedPages, memberWorkspaces = [], children }: Props) {
   const [workspaces, setWorkspaces] = useState(initWS)
   const [currentWs, setCurrentWs] = useState(initCWS)
   const [pages, setPages] = useState(initPages)
@@ -416,34 +417,57 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }, [theme])
 
   async function loadWsMembers() {
-    const { data } = await supabase.from('workspace_members').select('*, profiles(email, full_name)').eq('workspace_id', currentWs.id)
-    setWsMembers(data || [])
+    const { data, error } = await supabase
+      .from('workspace_members')
+      .select('id, user_id, role, workspace_id')
+      .eq('workspace_id', currentWs.id)
+    if (error) { console.error('loadWsMembers:', error); return }
+    if (!data || data.length === 0) { setWsMembers([]); return }
+    // Enrich with profile data
+    const userIds = data.map(m => m.user_id)
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, email, full_name')
+      .in('id', userIds)
+    const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]))
+    setWsMembers(data.map(m => ({ ...m, profile: profileMap[m.user_id] || null })))
   }
 
   async function inviteMember() {
-    if (!inviteEmail.trim()) return
-    // Try profiles table first (email column)
-    let userId: string | null = null
-    const { data: profile } = await supabase.from('profiles').select('id').eq('email', inviteEmail.trim().toLowerCase()).single()
-    if (profile) { userId = profile.id }
-    else {
-      // Fallback: search by full_name match or direct user lookup
-      const { data: p2 } = await supabase.from('profiles').select('id, email').ilike('email', inviteEmail.trim()).limit(1)
-      if (p2 && p2.length > 0) userId = p2[0].id
-    }
-    if (!userId) { showToastMsg('No user found with this email'); return }
+    const email = inviteEmail.trim().toLowerCase()
+    if (!email) return
+
+    // Find user by email in profiles
+    const { data: profiles, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, email')
+      .eq('email', email)
+
+    if (profileError) { showToastMsg('Error: ' + profileError.message); return }
+    if (!profiles || profiles.length === 0) { showToastMsg('No Canopy account found for this email'); return }
+
+    const userId = profiles[0].id
+
+    // Check not already a member
+    const { data: existing } = await supabase
+      .from('workspace_members')
+      .select('id')
+      .eq('workspace_id', currentWs.id)
+      .eq('user_id', userId)
+
+    if (existing && existing.length > 0) { showToastMsg('Already a member'); return }
+
+    // Insert
     const { error } = await supabase.from('workspace_members').insert({
       workspace_id: currentWs.id,
       user_id: userId,
       role: inviteRole
     })
-    if (error) {
-      if (error.code === '23505') showToastMsg('Already a member')
-      else showToastMsg('Error: ' + error.message)
-      return
-    }
+
+    if (error) { showToastMsg('Error adding member: ' + error.message); return }
+
     setInviteEmail('')
-    loadWsMembers()
+    await loadWsMembers()
     showToastMsg('Member added!')
   }
 
@@ -738,10 +762,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           {sharedPages.length > 0 && (
             <>
               <div style={{ margin: '12px 12px 0', borderTop: '1px solid var(--border)' }} />
-              <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '4px 4px 0', gap: '4px' }}
+              <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '6px 8px 2px', gap: '4px' }}
                 onClick={() => setSharedCollapsed(o => !o)}>
-                <SectionLabel>Shared with me</SectionLabel>
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, transition: 'transform 0.15s', transform: sharedCollapsed ? 'rotate(-90deg)' : 'none', marginRight: '6px' }}>
+                <span style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', flex: 1 }}>Shared with me</span>
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, transition: 'transform 0.15s', transform: sharedCollapsed ? 'rotate(-90deg)' : 'none', marginRight: '4px' }}>
                   <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
               </div>
@@ -1054,8 +1078,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                   </div>
                   {wsMembers.map((m: any) => (
                     <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
-                      <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--sidebar-active)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>{(m.profiles?.full_name || m.profiles?.email || '?')[0]?.toUpperCase()}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: '13px', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.profiles?.full_name || m.profiles?.email}</div></div>
+                      <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--sidebar-active)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>{(m.profile?.full_name || m.profile?.email || '?')[0]?.toUpperCase()}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: '13px', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.profile?.full_name || m.profile?.email || m.user_id}</div></div>
                       <select defaultValue={m.role} onChange={async e => { await supabase.from('workspace_members').update({ role: e.target.value }).eq('id', m.id); loadWsMembers() }} style={{ border: '1px solid var(--border)', borderRadius: '4px', fontSize: '11px', padding: '2px 4px', fontFamily: 'var(--font-sans)', background: 'var(--surface)', color: 'var(--text)' }}>
                         <option value="member">member</option>
                         <option value="viewer">viewer</option>

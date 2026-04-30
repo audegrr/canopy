@@ -9,13 +9,17 @@ export default async function AppLayout({ children }) {
   if (!user) redirect('/login')
 
   // Run all queries in parallel
-  const [workspacesResult, pagesResult, sharedResult] = await Promise.all([
+  const [workspacesResult, pagesResult, sharedResult, memberWsResult] = await Promise.all([
     supabase.from('workspaces').select('*').eq('owner_id', user.id).order('created_at'),
     supabase.from('pages')
       .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
       .eq('owner_id', user.id)
       .order('position'),
-    supabase.rpc('get_shared_pages', { user_uuid: user.id })
+    supabase.rpc('get_shared_pages', { user_uuid: user.id }),
+    // Load workspaces shared with this user via workspace_members
+    supabase.from('workspace_members')
+      .select('role, workspaces(*)')
+      .eq('user_id', user.id)
   ])
 
   let workspaces = workspacesResult.data || []
@@ -26,6 +30,11 @@ export default async function AppLayout({ children }) {
       .select().single()
     if (ws) workspaces = [ws]
   }
+
+  // Shared workspaces (member of someone else's workspace)
+  const memberWorkspaces = (memberWsResult.data || [])
+    .filter(m => m.workspaces)
+    .map(m => ({ ...m.workspaces, _memberRole: m.role }))
 
   const pages = (pagesResult.data || []).map(p => ({
     ...p,
@@ -43,6 +52,7 @@ export default async function AppLayout({ children }) {
     <AppShell
       user={{ id: user.id, email: user.email || '', name: user.user_metadata?.full_name || user.email || '' }}
       workspaces={workspaces}
+      memberWorkspaces={memberWorkspaces}
       currentWorkspace={workspaces[0] || { id: '', name: 'Workspace', icon: '🌿', owner_id: user.id, created_at: '' }}
       pages={pages}
       sharedPages={sharedPages}
