@@ -49,9 +49,12 @@ export default function PageRoute() {
 
   useEffect(() => {
     if (!id) return
-    // Show page instantly from window cache while load() runs
+    // Clear state so canEdit from previous page doesn't linger
+    setState(null)
+    setError(false)
+    // Show page content instantly from window cache (canEdit=false until load() resolves)
     const winCache = (window as any).__pageCache?.get(id)
-    if (winCache) setState(prev => prev ?? { ...winCache, canEdit: false })
+    if (winCache) setState({ ...winCache, canEdit: false })
 
     const supabase = createClient()
 

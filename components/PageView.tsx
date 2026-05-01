@@ -137,8 +137,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     async function onUploadFile(e: any) {
       const file: File = e.detail?.file
       if (!file) return
-      showToast('Uploading…')
-      const url = await uploadFile(file)
+      const url = await uploadFileRef.current?.(file)
       if (!url) return
       if (file.type.startsWith('image/')) {
         window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
@@ -218,6 +217,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     window.dispatchEvent(new CustomEvent('canopy:pageUpdate', { detail: { id: page.id, icon } }))
   }
 
+  const uploadFileRef = useRef<(file: File) => Promise<string | null>>(null as any)
   async function uploadFile(file: File, bucket = 'images'): Promise<string | null> {
     const ext = file.name.split('.').pop()
     const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
@@ -226,6 +226,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     const { data } = supabase.storage.from(bucket).getPublicUrl(path)
     return data.publicUrl
   }
+  uploadFileRef.current = uploadFile
 
   async function uploadCover(file: File) {
     setIsUploadingCover(true)
@@ -661,7 +662,6 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                 e.preventDefault()
                 const file = e.dataTransfer.files[0]
                 if (!file) return
-                showToast('Uploading…')
                 const url = await uploadFile(file)
                 if (!url) return
                 if (mediaTab === 'image' || file.type.startsWith('image/')) {
@@ -684,7 +684,6 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                 style={{ display: 'none' }} onChange={async e => {
                 const file = e.target.files?.[0]
                 if (!file) return
-                showToast('Uploading…')
                 const url = await uploadFile(file)
                 if (!url) return
                 if (mediaTab === 'image') {
