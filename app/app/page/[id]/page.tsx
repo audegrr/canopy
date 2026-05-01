@@ -37,32 +37,20 @@ export default function PageRoute() {
   const params = useParams()
   const id = params?.id as string
   const router = useRouter()
+  // Show page content instantly from cache, but always recompute canEdit
+  const winCache = typeof window !== 'undefined' ? (window as any).__pageCache?.get(id) : null
   const [state, setState] = useState<{
     page: any; canEdit: boolean; isOwner: boolean; userId: string
-  } | null>(cache.get(id) || null)
+  } | null>(winCache ? { ...winCache, canEdit: false } : null)
   const [error, setError] = useState(false)
 
   // Clear navigation loading bar immediately
   useEffect(() => {
     window.dispatchEvent(new CustomEvent('canopy:pageReady'))
   }, [id])
-  const loadingRef = useRef('')
 
   useEffect(() => {
-    if (!id || loadingRef.current === id) return
-    loadingRef.current = id
-
-    // Check module cache first (trusted), then window cache (page data only, recompute canEdit)
-    const moduleCache = cache.get(id)
-    if (moduleCache) {
-      setState(moduleCache)
-    } else {
-      const winCache = typeof window !== 'undefined' && (window as any).__pageCache?.get(id)
-      if (winCache) {
-        // Use page data for instant display but don't trust canEdit from AppShell cache
-        setState({ ...winCache, canEdit: false }) // will be corrected by load() below
-      }
-    }
+    if (!id) return
 
     const supabase = createClient()
 
