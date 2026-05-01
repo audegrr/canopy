@@ -110,12 +110,38 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     setTimeout(warmNext, 500)
   }, [pages.length])
 
-  // Restore last active workspace from localStorage
+  // Restore last active workspace + page from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('canopy_workspace')
-    if (saved) {
-      const found = workspaces.find(w => w.id === saved)
-      if (found) setCurrentWs(found)
+    const savedWs = localStorage.getItem('canopy_workspace')
+    const savedPage = localStorage.getItem('canopy_last_page')
+    if (savedWs) {
+      const found = [...workspaces, ...memberWorkspaces].find(w => w.id === savedWs)
+      if (found && found.id !== currentWs.id) {
+        // Load pages for member workspace then restore last page
+        const isOwn = found.owner_id === user.id
+        const q = supabase.from('pages')
+          .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
+          .eq('workspace_id', found.id)
+          .order('position')
+        const qFiltered = isOwn ? q.eq('owner_id', user.id) : q
+        qFiltered.then(({ data }) => {
+          if (data) {
+            setPages(data.map(p => ({
+              ...p, content: [], cover_url: '', created_at: '', updated_at: '',
+              icon: p.icon || '', parent_id: p.parent_id ?? null,
+              link_permission: p.link_permission || 'none',
+            })))
+          }
+          setCurrentWs(found)
+          if (savedPage && savedPage !== '/app') {
+            router.replace(savedPage)
+          }
+        })
+      } else if (savedPage && savedPage !== '/app' && pathname === '/app') {
+        router.replace(savedPage)
+      }
+    } else if (savedPage && savedPage !== '/app' && pathname === '/app') {
+      router.replace(savedPage)
     }
   }, [])
 
@@ -151,6 +177,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }, [])
 
   function navigate(path: string) {
+    // Persist last page for refresh restore
+    if (path.startsWith('/app')) localStorage.setItem('canopy_last_page', path)
     const pageId = path.match(/\/app\/page\/([^?]+)/)?.[1]
     if (pageId) {
       const cached = (window as any).__pageCache?.get(pageId)

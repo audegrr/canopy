@@ -23,7 +23,11 @@ if (typeof window !== 'undefined') {
       ])
       if (!page) return
       const isOwner = page.owner_id === user.id
-      const canEdit = isOwner || share?.permission === 'edit' || page.link_permission === 'edit'
+      const { data: wsMem } = await sb.from('workspace_members').select('role, workspace_id').eq('user_id', user.id)
+      const canEdit = isOwner
+        || share?.permission === 'edit'
+        || page.link_permission === 'edit'
+        || (wsMem || []).some((m: any) => m.workspace_id === page.workspace_id && ['owner','member'].includes(m.role))
       cache.set(pid, { page, canEdit, isOwner, userId: user.id })
     } catch {}
   })
@@ -61,20 +65,26 @@ export default function PageRoute() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
 
-      const [{ data: page }, { data: share }] = await Promise.all([
+      const [{ data: page }, { data: share }, { data: wsMember }] = await Promise.all([
         supabase.from('pages').select('*').eq('id', id).single(),
         supabase.from('page_shares').select('permission')
-          .eq('page_id', id).eq('user_id', user.id).single()
+          .eq('page_id', id).eq('user_id', user.id).single(),
+        supabase.from('workspace_members').select('role')
+          .eq('user_id', user.id).limit(10)
       ])
 
       if (!page && !share) { setError(true); return }
       if (!page) { router.push(`/share/${id}`); return }
 
       const isOwner = page.owner_id === user.id
-      const canView = isOwner || !!share || page.link_permission !== 'none'
+      const isMember = (wsMember || []).some((m: any) => m.workspace_id === page.workspace_id)
+      const canView = isOwner || !!share || page.link_permission !== 'none' || isMember
       if (!canView) { setError(true); return }
 
-      const canEdit = isOwner || share?.permission === 'edit' || page.link_permission === 'edit'
+      const canEdit = isOwner
+        || share?.permission === 'edit'
+        || page.link_permission === 'edit'
+        || (wsMember || []).some((m: any) => m.workspace_id === page.workspace_id && ['owner','member'].includes(m.role))
       const result = { page, canEdit, isOwner, userId: user.id }
       cache.set(id, result)
       setState(result)
