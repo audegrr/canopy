@@ -37,11 +37,9 @@ export default function PageRoute() {
   const params = useParams()
   const id = params?.id as string
   const router = useRouter()
-  // Show page content instantly from cache, but always recompute canEdit
-  const winCache = typeof window !== 'undefined' ? (window as any).__pageCache?.get(id) : null
   const [state, setState] = useState<{
     page: any; canEdit: boolean; isOwner: boolean; userId: string
-  } | null>(winCache ? { ...winCache, canEdit: false } : null)
+  } | null>(null)
   const [error, setError] = useState(false)
 
   // Clear navigation loading bar immediately
@@ -51,6 +49,9 @@ export default function PageRoute() {
 
   useEffect(() => {
     if (!id) return
+    // Show page instantly from window cache while load() runs
+    const winCache = (window as any).__pageCache?.get(id)
+    if (winCache) setState(prev => prev ?? { ...winCache, canEdit: false })
 
     const supabase = createClient()
 

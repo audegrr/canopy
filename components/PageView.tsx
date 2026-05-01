@@ -128,6 +128,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     }
     window.addEventListener('canopy:showImagePicker', onImagePicker)
     window.addEventListener('canopy:showMediaPicker', onImagePicker)
+    // Also listen for direct video/file picker requests
+    function onVideoPicker() { setMediaTab('video'); setShowImagePicker(true) }
+    function onFilePicker() { setMediaTab('file'); setShowImagePicker(true) }
+    window.addEventListener('canopy:showVideoPicker', onVideoPicker)
+    window.addEventListener('canopy:showFilePicker', onFilePicker)
 
     async function onUploadFile(e: any) {
       const file: File = e.detail?.file
@@ -148,6 +153,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     return () => {
       window.removeEventListener('canopy:showImagePicker', onImagePicker)
       window.removeEventListener('canopy:showMediaPicker', onImagePicker)
+      window.removeEventListener('canopy:showVideoPicker', onVideoPicker)
+      window.removeEventListener('canopy:showFilePicker', onFilePicker)
       window.removeEventListener('canopy:uploadFile', onUploadFile)
     }
   }, [])
@@ -606,8 +613,18 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
             <div style={{ marginBottom: '14px' }}>
               <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'block', marginBottom: '6px' }}>{mediaTab === 'image' ? 'Image URL' : mediaTab === 'video' ? 'Video URL' : 'File URL'}</label>
               <div style={{ display: 'flex', gap: '8px' }}>
-                <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder="https://..."
-                  onKeyDown={e => { if (e.key === 'Enter' && imageUrl) { imagePickerCallback?.onUrl(imageUrl); setShowImagePicker(false) } }}
+                <input value={imageUrl} onChange={e => setImageUrl(e.target.value)} placeholder={mediaTab === 'video' ? 'YouTube, Dropbox, or any video URL…' : mediaTab === 'file' ? 'https://… (PDF, Word, Excel…)' : 'https://…'}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && imageUrl.trim()) {
+                      const url = imageUrl.trim()
+                      const cb = imagePickerCallbackRef.current || imagePickerCallback
+                      if (mediaTab === 'image') { if (cb?.onUrl) cb.onUrl(url); else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } })) }
+                      else if (mediaTab === 'video') { window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } })) }
+                      else { window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: url.split('/').pop() } })) }
+                      setShowImagePicker(false); setImageUrl(''); imagePickerCallbackRef.current = null
+                    }
+                    if (e.key === 'Escape') setShowImagePicker(false)
+                  }}
                   style={{ flex: 1, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontSize: '13px', outline: 'none' }} autoFocus />
                 <button onClick={() => {
                     const url = imageUrl.trim()

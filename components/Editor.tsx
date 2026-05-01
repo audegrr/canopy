@@ -288,7 +288,6 @@ const SLASH_ITEMS = [
   { id: 'image', label: 'Image', hint: 'Upload or embed an image', icon: '🖼', section: 'Media' },
   { id: 'video', label: 'Video', hint: 'Upload or embed a video', icon: '🎬', section: 'Media' },
   { id: 'file', label: 'File', hint: 'Attach a PDF, Word, Excel…', icon: '📎', section: 'Media' },
-  { id: 'video', label: 'YouTube', hint: 'Embed a video', icon: '▶', section: 'Media' },
   { id: 'subpage', label: 'Sub-page', hint: 'Embed a linked page', icon: '📄', section: 'Advanced' },
   { id: 'database', label: 'Database', hint: 'Embed a database', icon: '🗄️', section: 'Advanced' },
 ]
