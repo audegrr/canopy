@@ -98,7 +98,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             ;(window as any).__pageCache = (window as any).__pageCache || new Map()
             ;(window as any).__pageCache.set(p.id, {
               page, isOwner,
-              canEdit: isOwner || page.link_permission === 'edit',
+              // Don't cache canEdit — it depends on viewer identity (workspace members etc.)
+              canEdit: null,
               userId: user.id,
             })
           }

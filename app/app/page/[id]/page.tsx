@@ -52,11 +52,16 @@ export default function PageRoute() {
     if (!id || loadingRef.current === id) return
     loadingRef.current = id
 
-    // Check module cache first, then window cache from AppShell prewarm
-    const cached = cache.get(id) || (typeof window !== 'undefined' && (window as any).__pageCache?.get(id))
-    if (cached) {
-      cache.set(id, cached) // promote to module cache
-      setState(cached)
+    // Check module cache first (trusted), then window cache (page data only, recompute canEdit)
+    const moduleCache = cache.get(id)
+    if (moduleCache) {
+      setState(moduleCache)
+    } else {
+      const winCache = typeof window !== 'undefined' && (window as any).__pageCache?.get(id)
+      if (winCache) {
+        // Use page data for instant display but don't trust canEdit from AppShell cache
+        setState({ ...winCache, canEdit: false }) // will be corrected by load() below
+      }
     }
 
     const supabase = createClient()
