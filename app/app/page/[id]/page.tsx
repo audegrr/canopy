@@ -69,26 +69,34 @@ export default function PageRoute() {
         supabase.from('pages').select('*').eq('id', id).single(),
         supabase.from('page_shares').select('permission')
           .eq('page_id', id).eq('user_id', user.id).single(),
-        supabase.from('workspace_members').select('role')
-          .eq('user_id', user.id).limit(10)
+        supabase.from('workspace_members').select('role, workspace_id')
+          .eq('user_id', user.id)
       ])
 
-      if (!page && !share) { setError(true); return }
-      if (!page) { router.push(`/share/${id}`); return }
+      // If page not found, might be a workspace member page — RLS allows it
+      // but only if workspace_members RLS is working correctly
+      let resolvedPage = page
+      if (!resolvedPage) {
+        // Try again — the page might be accessible via workspace membership
+        const { data: p2 } = await supabase.from('pages').select('*').eq('id', id).single()
+        resolvedPage = p2
+      }
+      if (!resolvedPage && !share) { setError(true); return }
+      if (!resolvedPage) { router.push(`/share/${id}`); return }
 
-      const isOwner = page.owner_id === user.id
-      const isMember = (wsMember || []).some((m: any) => m.workspace_id === page.workspace_id)
-      const canView = isOwner || !!share || page.link_permission !== 'none' || isMember
+      const isOwner = resolvedPage.owner_id === user.id
+      const isMember = (wsMember || []).some((m: any) => m.workspace_id === resolvedPage.workspace_id)
+      const canView = isOwner || !!share || resolvedPage.link_permission !== 'none' || isMember
       if (!canView) { setError(true); return }
 
       const canEdit = isOwner
         || share?.permission === 'edit'
-        || page.link_permission === 'edit'
-        || (wsMember || []).some((m: any) => m.workspace_id === page.workspace_id && ['owner','member'].includes(m.role))
-      const result = { page, canEdit, isOwner, userId: user.id }
+        || resolvedPage.link_permission === 'edit'
+        || (wsMember || []).some((m: any) => m.workspace_id === resolvedPage.workspace_id && ['owner','member'].includes(m.role))
+      const result = { page: resolvedPage, canEdit, isOwner, userId: user.id }
       cache.set(id, result)
       setState(result)
-      document.title = (page.title || 'Untitled') + ' — Canopy'
+      document.title = (resolvedPage.title || 'Untitled') + ' — Canopy'
     }
 
     load()
