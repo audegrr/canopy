@@ -325,6 +325,7 @@ function FBtn({ onClick, active, children, title, btnRef }: { onClick?: () => vo
     <button
       ref={btnRef as React.RefObject<HTMLButtonElement>}
       onClick={onClick}
+      title={title}
       data-tip={title}
       className={`floating-btn ${active ? 'active' : ''}`}>
       {children}
@@ -511,8 +512,11 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
         break
       }
       case 'video': {
-        const url = window.prompt('YouTube URL:')
-        if (url) editor.chain().focus().insertContent({ type: 'video', attrs: { src: url } }).run()
+        window.dispatchEvent(new CustomEvent('canopy:showImagePicker', { detail: { tab: 'video' } }))
+        break
+      }
+      case 'file': {
+        window.dispatchEvent(new CustomEvent('canopy:showImagePicker', { detail: { tab: 'file' } }))
         break
       }
       case 'subpage': {
@@ -564,7 +568,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
   const main = (
     <div style={{ position: 'relative' }} onDrop={handleDrop} onDragOver={e => e.preventDefault()} onPaste={handlePaste}>
       {/* Floating bubble menu on selection */}
-      <BubbleMenu editor={editor} tippyOptions={{ duration: 100, placement: 'top', interactive: true, hideOnClick: false }}
+      <BubbleMenu editor={editor} tippyOptions={{ duration: 100, placement: 'top', interactive: true, hideOnClick: false, maxWidth: 'calc(100vw - 32px)' }}
         shouldShow={({ editor }) => {
           if (!bubbleMenuEnabledRef.current) return false
           return editor.isActive('image') || (!editor.state.selection.empty)
@@ -621,7 +625,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           <FBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title='Numbered list'>1.</FBtn>
           <FBtn onClick={() => editor.chain().focus().toggleTaskList().run()} active={editor.isActive('taskList')} title='To-do list'>☑</FBtn>
           <FBtn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title='Quote'>❝</FBtn>
-          <FBtn onClick={() => editor.chain().focus().insertContent({ type: 'callout', content: [{ type: 'text', text: ' ' }] }).run()} active={false}>💡</FBtn>
+          <FBtn onClick={() => editor.chain().focus().insertContent({ type: 'callout', content: [{ type: 'text', text: ' ' }] }).run()} active={false} title='Callout'>💡</FBtn>
           <FBtn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')} title='Code block'>{'<>'}</FBtn>
           <div className="floating-sep" />
           {/* Link */}
