@@ -556,15 +556,17 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     if (error) { showToastMsg('Error adding member: ' + error.message); return }
 
     // Notify the invited user
-    try {
-      await supabase.from('notifications').insert({
+    fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         user_id: userId,
         type: 'workspace_invite',
         title: `Added to workspace "${currentWs.name}"`,
         body: `${user.name} invited you as ${inviteRole === 'member' ? 'member' : 'viewer'}.`,
         data: { workspace_id: currentWs.id, workspace_name: currentWs.name }
       })
-    } catch {}
+    }).catch(() => {})
 
     setInviteEmail('')
     await loadWsMembers()

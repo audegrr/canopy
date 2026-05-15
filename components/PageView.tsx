@@ -285,15 +285,17 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         }, { onConflict: 'page_id,user_id' })
       }
     }
-    try {
-      await supabase.from('notifications').insert({
+    fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         user_id: userId,
         type: 'page_share',
         title: `"${(page as any).title || 'Untitled'}" was shared with you`,
         body: `You received ${inviteRole === 'edit' ? 'edit' : 'view'} access.`,
         data: { page_id: page.id, page_title: (page as any).title }
       })
-    } catch {}
+    }).catch(() => {})
     setInviteEmail('')
     loadShares()
     showToast(`✅ Shared with ${inviteEmail}`)

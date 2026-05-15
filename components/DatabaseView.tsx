@@ -106,7 +106,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
     const newData = { ...rec.data, [fieldId]: value }
     await supabase.from('db_records').update({ data: newData }).eq('id', recId)
     setRecords(r => r.map(x => x.id === recId ? { ...x, data: newData } : x))
-    setEditingCell(null)
+    setEditingCell(prev => (prev?.recId === recId && prev?.fieldId === fieldId) ? null : prev)
   }
 
   async function addField() {

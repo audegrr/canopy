@@ -21,7 +21,7 @@ const VideoNode = Node.create({
   name: 'video', group: 'block', atom: true,
   addAttributes() { return { src: {}, width: { default: '100%' } } },
   parseHTML() { return [{ tag: 'div[data-video]' }] },
-  renderHTML({ HTMLAttributes }) { return ['div', mergeAttributes(HTMLAttributes, { 'data-video': '' }), 0] },
+  renderHTML({ HTMLAttributes }) { return ['div', mergeAttributes(HTMLAttributes, { 'data-video': '' })] },
   addNodeView() {
     return ({ node }: any) => {
       const dom = document.createElement('div')
@@ -59,7 +59,7 @@ const FileNode = Node.create({
   name: 'fileAttachment', group: 'block', atom: true,
   addAttributes() { return { src: { default: null }, name: { default: 'File' }, size: { default: 0 }, mime: { default: '' } } },
   parseHTML() { return [{ tag: 'div[data-file]' }] },
-  renderHTML({ HTMLAttributes }) { return ['div', mergeAttributes(HTMLAttributes, { 'data-file': '' }), 0] },
+  renderHTML({ HTMLAttributes }) { return ['div', mergeAttributes(HTMLAttributes, { 'data-file': '' })] },
   addNodeView() {
     return ({ node }: any) => {
       const dom = document.createElement('div')
@@ -426,12 +426,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           const { src, name, size, mime } = e.detail || {}
           if (!src) return
           const attrs = { src, name: name || src.split('/').pop() || 'File', size: size || 0, mime: mime || '' }
-          const node = editor.schema.nodes.fileAttachment?.create(attrs)
-          if (node) {
-            editor.chain().focus().insertContent(node.toJSON()).run()
-          } else {
-            editor.chain().focus().insertContent({ type: 'fileAttachment', attrs }).run()
-          }
+          editor.chain().focus().insertContent({ type: 'fileAttachment', attrs }).run()
           setTimeout(() => { try { editor.commands.insertContent({ type: 'paragraph' }) } catch {} }, 50)
         }
         window.addEventListener('canopy:insertFile', onInsertFile)
@@ -560,12 +555,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
       case 'file': {
         const insertFileFn = (src: string, name?: string, size?: number, mime?: string) => {
           const attrs = { src, name: name || src.split('/').pop() || 'File', size: size || 0, mime: mime || '' }
-          const node = editor.schema.nodes.fileAttachment?.create(attrs)
-          if (node) {
-            editor.chain().focus().insertContent(node.toJSON()).run()
-          } else {
-            editor.chain().focus().insertContent({ type: 'fileAttachment', attrs }).run()
-          }
+          editor.chain().focus().insertContent({ type: 'fileAttachment', attrs }).run()
           setTimeout(() => { try { editor.commands.insertContent({ type: 'paragraph' }) } catch {} }, 50)
         }
         window.dispatchEvent(new CustomEvent('canopy:showImagePicker', { detail: { tab: 'file', onUrl: insertFileFn, onFile: insertFileFn } }))
