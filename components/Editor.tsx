@@ -66,14 +66,37 @@ const FileNode = Node.create({
       dom.style.cssText = 'margin:6px 0;'
       const ext = (node.attrs.name || '').split('.').pop()?.toLowerCase() || ''
       const icon = ['pdf'].includes(ext) ? '📄' : ['doc','docx'].includes(ext) ? '📝' : ['xls','xlsx'].includes(ext) ? '📊' : ['zip','rar'].includes(ext) ? '📦' : ['mp3','wav','ogg'].includes(ext) ? '🎵' : '📎'
-      dom.innerHTML = `<a href="${node.attrs.src}" target="_blank" rel="noopener"
-        style="display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;text-decoration:none;color:var(--text);background:var(--surface);font-family:var(--font-sans);font-size:13px;cursor:pointer;transition:background 0.1s;"
-        onmouseover="this.style.background='var(--sidebar-hover)'" onmouseout="this.style.background='var(--surface)'">
-        <span style="font-size:20px">${icon}</span>
-        <span>${node.attrs.name || 'File'}</span>
-        ${node.attrs.size ? `<span style="color:var(--text-tertiary);font-size:12px">${formatBytes(node.attrs.size)}</span>` : ''}
-        <span style="color:var(--accent);font-size:12px">↓ Download</span>
-      </a>`
+
+      const a = document.createElement('a')
+      a.href = node.attrs.src || '#'
+      a.target = '_blank'
+      a.rel = 'noopener'
+      a.style.cssText = 'display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border);border-radius:8px;text-decoration:none;color:var(--text);background:var(--surface);font-family:var(--font-sans);font-size:13px;cursor:pointer;transition:background 0.1s;'
+      a.addEventListener('mouseover', () => { a.style.background = 'var(--sidebar-hover)' })
+      a.addEventListener('mouseout', () => { a.style.background = 'var(--surface)' })
+
+      const iconSpan = document.createElement('span')
+      iconSpan.style.fontSize = '20px'
+      iconSpan.textContent = icon
+      a.appendChild(iconSpan)
+
+      const nameSpan = document.createElement('span')
+      nameSpan.textContent = node.attrs.name || 'File'
+      a.appendChild(nameSpan)
+
+      if (node.attrs.size) {
+        const sizeSpan = document.createElement('span')
+        sizeSpan.style.cssText = 'color:var(--text-tertiary);font-size:12px'
+        sizeSpan.textContent = formatBytes(node.attrs.size)
+        a.appendChild(sizeSpan)
+      }
+
+      const dlSpan = document.createElement('span')
+      dlSpan.style.cssText = 'color:var(--accent);font-size:12px'
+      dlSpan.textContent = '↓ Download'
+      a.appendChild(dlSpan)
+
+      dom.appendChild(a)
       return { dom }
     }
   }
@@ -588,8 +611,10 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
       case 'file': {
         const insertFileFn = (src: string, name?: string, size?: number, mime?: string) => {
           const attrs = { src, name: name || src.split('/').pop() || 'File', size: size || 0, mime: mime || '' }
-          editor.chain().focus().insertContent({ type: 'fileAttachment', attrs }).run()
-          setTimeout(() => { try { editor.commands.insertContent({ type: 'paragraph' }) } catch {} }, 50)
+          editor.chain().focus().insertContent([
+            { type: 'fileAttachment', attrs },
+            { type: 'paragraph' },
+          ]).run()
         }
         window.dispatchEvent(new CustomEvent('canopy:showImagePicker', { detail: { tab: 'file', onUrl: insertFileFn, onFile: insertFileFn } }))
         break
