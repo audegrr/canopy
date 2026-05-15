@@ -678,18 +678,20 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                 const url = await uploadFile(file)
                 if (!url) return
                 const cb = imagePickerCallbackRef.current || imagePickerCallback
-                if (mediaTab === 'image' || file.type.startsWith('image/')) {
-                  if (cb?.onFile) cb.onFile(url)
-                  else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
-                } else if (mediaTab === 'video' || file.type.startsWith('video/')) {
-                  if (cb?.onFile) cb.onFile(url)
-                  else window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
-                } else {
-                  if (cb?.onFile) (cb.onFile as any)(url, file.name, file.size, file.type)
-                  else window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: file.name, size: file.size } }))
-                }
-                setShowImagePicker(false)
                 imagePickerCallbackRef.current = null
+                setShowImagePicker(false)
+                setTimeout(() => {
+                  if (mediaTab === 'image' || file.type.startsWith('image/')) {
+                    if (cb?.onFile) cb.onFile(url)
+                    else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
+                  } else if (mediaTab === 'video' || file.type.startsWith('video/')) {
+                    if (cb?.onFile) cb.onFile(url)
+                    else window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
+                  } else {
+                    if (cb?.onFile) (cb.onFile as any)(url, file.name, file.size, file.type)
+                    else window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: file.name, size: file.size } }))
+                  }
+                }, 50)
               }}>
               <div style={{ fontSize: '28px', marginBottom: '8px' }}>{mediaTab === 'image' ? '🖼️' : mediaTab === 'video' ? '🎬' : '📎'}</div>
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Drag & drop here</div>
@@ -702,18 +704,20 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                 const url = await uploadFile(file)
                 if (!url) return
                 const cb = imagePickerCallbackRef.current || imagePickerCallback
-                if (mediaTab === 'image') {
-                  if (cb?.onFile) cb.onFile(url)
-                  else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
-                } else if (mediaTab === 'video') {
-                  if (cb?.onFile) cb.onFile(url)
-                  else window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
-                } else {
-                  if (cb?.onFile) (cb.onFile as any)(url, file.name, file.size, file.type)
-                  else window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: file.name, size: file.size } }))
-                }
-                setShowImagePicker(false)
                 imagePickerCallbackRef.current = null
+                setShowImagePicker(false)
+                setTimeout(() => {
+                  if (mediaTab === 'image') {
+                    if (cb?.onFile) cb.onFile(url)
+                    else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
+                  } else if (mediaTab === 'video') {
+                    if (cb?.onFile) cb.onFile(url)
+                    else window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
+                  } else {
+                    if (cb?.onFile) (cb.onFile as any)(url, file.name, file.size, file.type)
+                    else window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: file.name, size: file.size } }))
+                  }
+                }, 50)
               }} />
             </label>
             <button onClick={() => setShowImagePicker(false)} style={{ marginTop: '12px', width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '4px' }}>Cancel</button>

@@ -24,7 +24,10 @@ if (typeof window !== 'undefined') {
       if (!page) return
       const isOwner = page.owner_id === user.id
       const { data: wsMem } = await sb.from('workspace_members').select('role, workspace_id').eq('user_id', user.id)
+      const { data: ownedWs } = await sb.from('workspaces').select('id').eq('id', page.workspace_id).eq('owner_id', user.id).single()
+      const isWsOwner = !!ownedWs
       const canEdit = isOwner
+        || isWsOwner
         || share?.permission === 'edit'
         || page.link_permission === 'edit'
         || (wsMem || []).some((m: any) => m.workspace_id === page.workspace_id && ['owner','member'].includes(m.role))
@@ -86,11 +89,19 @@ export default function PageRoute() {
       if (!resolvedPage) { router.push(`/share/${id}`); return }
 
       const isOwner = resolvedPage.owner_id === user.id
+
+      // Check if the current user owns the workspace (workspace creators are NOT in workspace_members)
+      const { data: ownedWorkspace } = await supabase
+        .from('workspaces').select('id')
+        .eq('id', resolvedPage.workspace_id).eq('owner_id', user.id).single()
+      const isWsOwner = !!ownedWorkspace
+
       const isMember = (wsMember || []).some((m: any) => m.workspace_id === resolvedPage.workspace_id)
-      const canView = isOwner || !!share || resolvedPage.link_permission !== 'none' || isMember
+      const canView = isOwner || isWsOwner || !!share || resolvedPage.link_permission !== 'none' || isMember
       if (!canView) { setError(true); return }
 
       const canEdit = isOwner
+        || isWsOwner
         || share?.permission === 'edit'
         || resolvedPage.link_permission === 'edit'
         || (wsMember || []).some((m: any) => m.workspace_id === resolvedPage.workspace_id && ['owner','member'].includes(m.role))
