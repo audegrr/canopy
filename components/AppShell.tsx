@@ -91,18 +91,21 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     function warmNext() {
       if (i >= allPages.length) return
       const p = allPages[i++]
-      // Fire and forget — fetch page content into module-level cache
       ;(async () => {
         try {
           const { data: page } = await supabase.from('pages').select('*').eq('id', p.id).single()
           if (page) {
             const isOwner = page.owner_id === user.id
+            // Resolve canEdit from available context without extra queries
+            const memberWs = memberWorkspaces.find((ws: any) => ws.id === page.workspace_id)
+            const sharedWithEdit = (p as any).permission === 'edit'
+            const canEdit = isOwner
+              || page.link_permission === 'edit'
+              || sharedWithEdit
+              || (memberWs != null && ['member', 'owner'].includes(memberWs._memberRole))
             ;(window as any).__pageCache = (window as any).__pageCache || new Map()
             ;(window as any).__pageCache.set(p.id, {
-              page, isOwner,
-              // Don't cache canEdit — it depends on viewer identity (workspace members etc.)
-              canEdit: null,
-              userId: user.id,
+              page, isOwner, canEdit, userId: user.id,
             })
           }
         } catch {}
@@ -111,7 +114,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     }
     // Start warming after 500ms (let the UI render first)
     setTimeout(warmNext, 500)
-  }, [pages.length])
+  }, [currentWs.id, pages.length])
 
   // Restore last active workspace + page from localStorage
   useEffect(() => {
@@ -211,7 +214,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     const pageId = path.match(/\/app\/page\/([^?]+)/)?.[1]
     if (pageId) {
       const cached = (window as any).__pageCache?.get(pageId)
-      if (cached) {
+      // Only use instant page when canEdit is definitively known (not null/undefined),
+      // otherwise fall through to router.push so the route computes real permissions.
+      if (cached && cached.canEdit != null) {
         // Show instantly from cache — no router navigation needed
         setInstantPage(cached)
         // Update URL silently

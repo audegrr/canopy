@@ -28,7 +28,11 @@ if (typeof window !== 'undefined') {
         || share?.permission === 'edit'
         || page.link_permission === 'edit'
         || (wsMem || []).some((m: any) => m.workspace_id === page.workspace_id && ['owner','member'].includes(m.role))
-      cache.set(pid, { page, canEdit, isOwner, userId: user.id })
+      const result = { page, canEdit, isOwner, userId: user.id }
+      cache.set(pid, result)
+      // Also sync to window.__pageCache so instant navigation uses correct permissions
+      ;(window as any).__pageCache = (window as any).__pageCache || new Map()
+      ;(window as any).__pageCache.set(pid, result)
     } catch {}
   })
 }
@@ -92,6 +96,9 @@ export default function PageRoute() {
         || (wsMember || []).some((m: any) => m.workspace_id === resolvedPage.workspace_id && ['owner','member'].includes(m.role))
       const result = { page: resolvedPage, canEdit, isOwner, userId: user.id }
       cache.set(id, result)
+      // Keep window.__pageCache in sync so future instant navigations use real permissions
+      ;(window as any).__pageCache = (window as any).__pageCache || new Map()
+      ;(window as any).__pageCache.set(id, result)
       setState(result)
       document.title = (resolvedPage.title || 'Untitled') + ' — Canopy'
     }
