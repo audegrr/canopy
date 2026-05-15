@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { useEditor, EditorContent, BubbleMenu, NodeViewWrapper, NodeViewContent, ReactNodeViewRenderer } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -450,7 +450,35 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           bubbleMenuEnabledRef.current = false
           setBlockCtxMenu({ x: event.clientX, y: event.clientY, pos: pos?.pos ?? 0 })
           return true
-        }
+        },
+        dragover: (_view, event) => {
+          const types = Array.from((event as DragEvent).dataTransfer?.types || [])
+          if (types.includes('Files')) {
+            event.preventDefault()
+            return true
+          }
+          return false
+        },
+        drop: (_view, event) => {
+          if (!editable) return false
+          const files = Array.from((event as DragEvent).dataTransfer?.files || [])
+          if (!files.length) return false
+          event.preventDefault()
+          files.forEach(file => {
+            window.dispatchEvent(new CustomEvent('canopy:uploadFile', { detail: { file } }))
+          })
+          return true
+        },
+        paste: (_view, event) => {
+          if (!editable) return false
+          const files = Array.from((event as ClipboardEvent).clipboardData?.files || [])
+          if (!files.length) return false
+          event.preventDefault()
+          files.forEach(file => {
+            window.dispatchEvent(new CustomEvent('canopy:uploadFile', { detail: { file } }))
+          })
+          return true
+        },
       },
       handleKeyDown(view, event) {
         if (event.key === '/') {
@@ -579,29 +607,6 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
     }
   }
 
-  // Image drag & drop / paste — dispatch to PageView uploader (avoids base64 bug)
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    if (!editable || !editor) return
-    const files = Array.from(e.dataTransfer.files)
-    if (!files.length) return
-    const hasBlock = files.some(f => !f.type.startsWith('image/') && !f.type.startsWith('video/'))
-    if (!files.some(f => f.type.startsWith('image/') || f.type.startsWith('video/') || hasBlock)) return
-    e.preventDefault()
-    files.forEach(file => {
-      window.dispatchEvent(new CustomEvent('canopy:uploadFile', { detail: { file } }))
-    })
-  }, [editor, editable])
-
-  const handlePaste = useCallback((e: React.ClipboardEvent) => {
-    if (!editable || !editor) return
-    const files = Array.from(e.clipboardData.files)
-    if (!files.length) return
-    e.preventDefault()
-    files.forEach(file => {
-      window.dispatchEvent(new CustomEvent('canopy:uploadFile', { detail: { file } }))
-    })
-  }, [editor, editable])
-
   if (!editor) return null
 
   const items = getItems(slashMenu?.query || '')
@@ -611,7 +616,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
   const inBlockquote = editor.isActive('blockquote')
 
   const main = (
-    <div style={{ position: 'relative' }} onDrop={handleDrop} onDragOver={e => e.preventDefault()} onPaste={handlePaste}>
+    <div style={{ position: 'relative' }}>
       {/* Floating bubble menu on selection */}
       <BubbleMenu editor={editor} tippyOptions={{ duration: 100, placement: 'top', interactive: true, hideOnClick: false, maxWidth: 'calc(100vw - 32px)' }}
         shouldShow={({ editor }) => {
