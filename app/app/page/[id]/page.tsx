@@ -61,7 +61,7 @@ export default function PageRoute() {
     setError(false)
     // Show page content instantly from window cache (canEdit=false until load() resolves)
     const winCache = (window as any).__pageCache?.get(id)
-    if (winCache) setState({ ...winCache, canEdit: false })
+    if (winCache) setState(winCache)
 
     const supabase = createClient()
 

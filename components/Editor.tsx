@@ -460,7 +460,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           return false
         },
         drop: (_view, event) => {
-          if (!editable) return false
+          if (!_view.editable) return false
           const files = Array.from((event as DragEvent).dataTransfer?.files || [])
           if (!files.length) return false
           event.preventDefault()
@@ -470,7 +470,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           return true
         },
         paste: (_view, event) => {
-          if (!editable) return false
+          if (!_view.editable) return false
           const files = Array.from((event as ClipboardEvent).clipboardData?.files || [])
           if (!files.length) return false
           event.preventDefault()
@@ -481,6 +481,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
         },
       },
       handleKeyDown(view, event) {
+        if (!view.editable) return false
         if (event.key === '/') {
           const { from } = view.state.selection
           const coords = view.coordsAtPos(from)
