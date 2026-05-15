@@ -465,7 +465,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', fontWeight: 500, minWidth: '16px', textAlign: 'center', flexShrink: 0 }}>{FIELD_ICONS[f.type]}</span>
                           <span style={{ flex: 1, cursor: canEdit ? 'pointer' : 'default', fontSize: 12, fontWeight: 500 }}
-                            onDoubleClick={() => canEdit && document.getElementById(`field-name-${f.id}`)?.focus()}>
+                            onClick={e => { e.stopPropagation(); if (canEdit) setRenamingFieldId(f.id) }}>
                             {f.name}
                           </span>
                           {canEdit && <FieldMenu field={f}
