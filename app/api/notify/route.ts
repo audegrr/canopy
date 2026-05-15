@@ -17,18 +17,11 @@ export async function POST(req: Request) {
   }
 
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!serviceRoleKey) {
-    // Fallback: skip notification silently — service role key not configured
-    return NextResponse.json({ ok: true, skipped: true })
-  }
+  const insertClient = serviceRoleKey
+    ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, { auth: { persistSession: false } })
+    : serverClient
 
-  const admin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    serviceRoleKey,
-    { auth: { persistSession: false } }
-  )
-
-  const { error } = await admin.from('notifications').insert({
+  const { error } = await insertClient.from('notifications').insert({
     user_id,
     type,
     title,
