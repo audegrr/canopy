@@ -218,15 +218,12 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   }
 
   const uploadFileRef = useRef<(file: File) => Promise<string | null>>(null as any)
-  async function uploadFile(file: File, bucket?: string): Promise<string | null> {
-    const effectiveBucket = bucket ?? (
-      file.type.startsWith('image/') || file.type.startsWith('video/') ? 'images' : 'files'
-    )
+  async function uploadFile(file: File, bucket = 'images'): Promise<string | null> {
     const ext = file.name.split('.').pop()
     const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-    const { error } = await supabase.storage.from(effectiveBucket).upload(path, file)
+    const { error } = await supabase.storage.from(bucket).upload(path, file)
     if (error) { showToast('Upload failed: ' + error.message); return null }
-    const { data } = supabase.storage.from(effectiveBucket).getPublicUrl(path)
+    const { data } = supabase.storage.from(bucket).getPublicUrl(path)
     return data.publicUrl
   }
   uploadFileRef.current = uploadFile

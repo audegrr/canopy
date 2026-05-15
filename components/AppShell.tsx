@@ -123,14 +123,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     if (savedWs) {
       const found = [...workspaces, ...memberWorkspaces].find(w => w.id === savedWs)
       if (found && found.id !== currentWs.id) {
-        // Load pages for member workspace then restore last page
-        const isOwn = found.owner_id === user.id
-        const q = supabase.from('pages')
+        // Load all pages for workspace (including those created by other members)
+        supabase.from('pages')
           .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
           .eq('workspace_id', found.id)
           .order('position')
-        const qFiltered = isOwn ? q.eq('owner_id', user.id) : q
-        qFiltered.then(({ data }) => {
+          .then(({ data }) => {
           if (data) {
             setPages(data.map(p => ({
               ...p, content: [], cover_url: '', created_at: '', updated_at: '',
@@ -155,6 +153,32 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     if (isMobile) setSidebarOpen(false)
     setNavigating(false)
   }, [pathname])
+
+  // Realtime sync: new pages/databases created by other members appear instantly
+  useEffect(() => {
+    if (!currentWs.id) return
+    const channel = supabase.channel(`ws_pages_${currentWs.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pages' }, (payload: any) => {
+        const p = payload.new
+        if (p.workspace_id !== currentWs.id) return
+        setPages(prev => {
+          if (prev.find(x => x.id === p.id)) return prev
+          return [...prev, {
+            ...p,
+            content: [], cover_url: '',
+            icon: p.icon || '', parent_id: p.parent_id ?? null,
+            link_permission: p.link_permission || 'none',
+          }]
+        })
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pages' }, (payload: any) => {
+        const p = payload.old
+        if (p.workspace_id !== currentWs.id) return
+        setPages(prev => prev.filter(x => x.id !== p.id))
+      })
+      .subscribe()
+    return () => { channel.unsubscribe() }
+  }, [currentWs.id])
 
   useEffect(() => {
     if (!currentPageId) return
@@ -366,9 +390,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }
 
   async function createDatabase(parentId: string | null = null) {
+    const maxPos = pages.filter(p => p.parent_id === parentId).reduce((m, p) => Math.max(m, p.position), 0)
     const { data } = await supabase.from('pages').insert({
       workspace_id: currentWs.id, parent_id: parentId, title: 'Untitled database',
-      icon: '🗄️', content: [], position: Date.now(), is_database: true, link_permission: 'none'
+      icon: '🗄️', content: [], position: maxPos + 1, is_database: true, link_permission: 'none'
     }).select().single()
     if (data) { setPages(p => [...p, data as Page]); navigate(`/app/page/${data.id}`) }
     setContextMenu(null)
@@ -460,21 +485,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     setWsMenuOpen(false)
     setNavigating(true)
 
-    // Load pages for this workspace
-    // For own workspaces: filter by owner_id
-    // For member workspaces: filter by workspace_id (can see all pages)
-    const isOwn = ws.owner_id === user.id
-    let pagesQuery = supabase
+    // Load all pages for workspace (including those created by other members)
+    const { data: wsPages } = await supabase
       .from('pages')
       .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
       .eq('workspace_id', ws.id)
       .order('position')
-
-    if (isOwn) {
-      pagesQuery = pagesQuery.eq('owner_id', user.id)
-    }
-
-    const { data: wsPages } = await pagesQuery
     setPages((wsPages || []).map(p => ({
       ...p,
       content: [], cover_url: '', created_at: '', updated_at: '',
