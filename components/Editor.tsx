@@ -417,8 +417,10 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
         function onInsertVideo(e: any) {
           const src = e.detail?.src
           if (!src) return
-          editor.chain().focus().insertContent({ type: 'video', attrs: { src } }).run()
-          setTimeout(() => editor.commands.insertContent({ type: 'paragraph' }), 50)
+          editor.chain().focus().insertContent([
+            { type: 'video', attrs: { src } },
+            { type: 'paragraph' },
+          ]).run()
         }
         window.addEventListener('canopy:insertVideo', onInsertVideo)
 
@@ -426,8 +428,10 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           const { src, name, size, mime } = e.detail || {}
           if (!src) return
           const attrs = { src, name: name || src.split('/').pop() || 'File', size: size || 0, mime: mime || '' }
-          editor.chain().focus().insertContent({ type: 'fileAttachment', attrs }).run()
-          setTimeout(() => { try { editor.commands.insertContent({ type: 'paragraph' }) } catch {} }, 50)
+          editor.chain().focus().insertContent([
+            { type: 'fileAttachment', attrs },
+            { type: 'paragraph' },
+          ]).run()
         }
         window.addEventListener('canopy:insertFile', onInsertFile)
         // Store cleanup for later
