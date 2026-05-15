@@ -114,7 +114,7 @@ html, body {
 .tiptap hr { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
 .tiptap table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 0.9rem; }
 .tiptap th { background: var(--sidebar-bg); font-weight: 500; }
-.tiptap th, .tiptap td { border: 1px solid var(--border); padding: 6px 10px; min-width: 80px; vertical-align: top; }
+.tiptap th, .tiptap td { border: 1px solid var(--border); padding: 6px 10px; min-width: 80px; vertical-align: top; position: relative; }
 .tiptap td.selectedCell, .tiptap th.selectedCell { background: var(--accent-light); }
 .tiptap .tableWrapper { overflow-x: auto; }
 .tiptap ul[data-type="taskList"] { list-style: none; padding-left: 0; }
@@ -351,6 +351,24 @@ body.focus-mode .tiptap { max-width: 680px; margin: 0 auto; font-size: 16px; lin
 .exporting-pdf [data-export-hide] {
   display: none !important;
 }
+
+/* ── TABLE COLUMN RESIZE ─────────────────────────────────────────── */
+.column-resize-handle {
+  position: absolute;
+  right: -2px;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--accent);
+  opacity: 0;
+  cursor: col-resize;
+  pointer-events: none;
+  z-index: 20;
+}
+.tiptap th:hover > .column-resize-handle,
+.tiptap td:hover > .column-resize-handle { opacity: 0.25; }
+.selectedCell > .column-resize-handle { opacity: 0.4; }
+.resize-cursor, .resize-cursor * { cursor: col-resize !important; }
 
 /* Tooltip for bubble menu buttons */
 /* Tooltips: clip-path trick — overflow hidden for scroll, visible for tooltips */

@@ -11,9 +11,10 @@ type Props = {
   updateAttributes: (attrs: any) => void
   deleteNode: () => void
   selected: boolean
+  editor: any
 }
 
-export default function DatabaseBlock({ node, updateAttributes, deleteNode, selected }: Props) {
+export default function DatabaseBlock({ node, updateAttributes, deleteNode, selected, editor }: Props) {
   const [page, setPage] = useState<any>(null)
   const [fields, setFields] = useState<Field[]>([])
   const [records, setRecords] = useState<Record_[]>([])
@@ -23,6 +24,7 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
   const [editingCell, setEditingCell] = useState<{ recId: string; fieldId: string } | null>(null)
   const [editVal, setEditVal] = useState('')
   const supabase = createClient()
+  const canEdit = editor?.isEditable ?? true
 
   useEffect(() => {
     if (!node.attrs.pageId) { setLoading(false); return }
@@ -51,6 +53,7 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
   }
 
   async function addRecord() {
+    if (!canEdit) return
     const { data } = await supabase.from('db_records').insert({
       page_id: node.attrs.pageId, data: {}, position: records.length
     }).select().single()
@@ -58,6 +61,7 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
   }
 
   async function updateCell(recId: string, fieldId: string, value: any) {
+    if (!canEdit) return
     const rec = records.find(r => r.id === recId)
     if (!rec) return
     const newData = { ...rec.data, [fieldId]: value }
@@ -66,6 +70,7 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
   }
 
   async function deleteRecord(id: string) {
+    if (!canEdit) return
     await supabase.from('db_records').delete().eq('id', id)
     setRecords(r => r.filter(x => x.id !== id))
   }
@@ -82,7 +87,7 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
     <NodeViewWrapper>
       <div style={{ border: '1px dashed var(--border)', borderRadius: '8px', padding: '12px 16px', margin: '8px 0', color: 'var(--text-tertiary)', fontSize: '13px', display: 'flex', gap: '8px', alignItems: 'center' }}>
         <span>🗄️</span> Database not found
-        <button onClick={deleteNode} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '12px' }}>✕</button>
+        {canEdit && <button onClick={deleteNode} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '12px' }}>✕</button>}
       </div>
     </NodeViewWrapper>
   )
@@ -154,9 +159,13 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
                   {records.map((rec, i) => (
                     <tr key={rec.id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.01)' }}>
                       {fields.map(f => (
-                        <td key={f.id} style={{ padding: '4px 10px', borderRight: '1px solid var(--border)', verticalAlign: 'middle' }}
-                          onClick={() => { setEditingCell({ recId: rec.id, fieldId: f.id }); setEditVal(String(rec.data?.[f.id] ?? '')) }}>
-                          {editingCell?.recId === rec.id && editingCell?.fieldId === f.id ? (
+                        <td key={f.id} style={{ padding: '4px 10px', borderRight: '1px solid var(--border)', verticalAlign: 'middle', cursor: canEdit ? 'pointer' : 'default' }}
+                          onClick={() => {
+                            if (!canEdit) return
+                            setEditingCell({ recId: rec.id, fieldId: f.id })
+                            setEditVal(String(rec.data?.[f.id] ?? ''))
+                          }}>
+                          {canEdit && editingCell?.recId === rec.id && editingCell?.fieldId === f.id ? (
                             f.type === 'select' ? (
                               <select autoFocus value={editVal} onChange={e => setEditVal(e.target.value)}
                                 onBlur={() => { updateCell(rec.id, f.id, editVal); setEditingCell(null) }}
@@ -179,10 +188,12 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
                         </td>
                       ))}
                       <td style={{ padding: '2px 4px', textAlign: 'right' }}>
-                        <button onClick={() => deleteRecord(rec.id)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '11px', opacity: 0, padding: '2px 4px' }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '0' }}>✕</button>
+                        {canEdit && (
+                          <button onClick={() => deleteRecord(rec.id)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '11px', opacity: 0, padding: '2px 4px' }}
+                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
+                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '0' }}>✕</button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -215,12 +226,14 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
             )}
 
             {/* Add row */}
-            <button onClick={addRecord}
-              style={{ width: '100%', padding: '6px 10px', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', fontSize: '12px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '4px' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>
-              + New row
-            </button>
+            {canEdit && (
+              <button onClick={addRecord}
+                style={{ width: '100%', padding: '6px 10px', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', fontSize: '12px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '4px' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>
+                + New row
+              </button>
+            )}
           </div>
         )}
       </div>

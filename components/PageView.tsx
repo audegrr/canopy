@@ -285,6 +285,15 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         }, { onConflict: 'page_id,user_id' })
       }
     }
+    try {
+      await supabase.from('notifications').insert({
+        user_id: userId,
+        type: 'page_share',
+        title: `"${(page as any).title || 'Untitled'}" was shared with you`,
+        body: `You received ${inviteRole === 'edit' ? 'edit' : 'view'} access.`,
+        data: { page_id: page.id, page_title: (page as any).title }
+      })
+    } catch {}
     setInviteEmail('')
     loadShares()
     showToast(`✅ Shared with ${inviteEmail}`)
@@ -620,8 +629,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                       const url = imageUrl.trim()
                       const cb = imagePickerCallbackRef.current || imagePickerCallback
                       if (mediaTab === 'image') { if (cb?.onUrl) cb.onUrl(url); else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } })) }
-                      else if (mediaTab === 'video') { window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } })) }
-                      else { window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: url.split('/').pop() } })) }
+                      else if (mediaTab === 'video') { if (cb?.onUrl) cb.onUrl(url); else window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } })) }
+                      else { if (cb?.onUrl) (cb.onUrl as any)(url); else window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: url.split('/').pop() } })) }
                       setShowImagePicker(false); setImageUrl(''); imagePickerCallbackRef.current = null
                     }
                     if (e.key === 'Escape') setShowImagePicker(false)
@@ -635,9 +644,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                       if (cb?.onUrl) cb.onUrl(url)
                       else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
                     } else if (mediaTab === 'video') {
-                      window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
+                      if (cb?.onUrl) cb.onUrl(url)
+                      else window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
                     } else {
-                      window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: url.split('/').pop() } }))
+                      if (cb?.onUrl) (cb.onUrl as any)(url)
+                      else window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: url.split('/').pop() } }))
                     }
                     setShowImagePicker(false)
                     setImageUrl('')
@@ -664,14 +675,16 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                 if (!file) return
                 const url = await uploadFile(file)
                 if (!url) return
+                const cb = imagePickerCallbackRef.current || imagePickerCallback
                 if (mediaTab === 'image' || file.type.startsWith('image/')) {
-                  const cb = imagePickerCallbackRef.current || imagePickerCallback
                   if (cb?.onFile) cb.onFile(url)
                   else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
                 } else if (mediaTab === 'video' || file.type.startsWith('video/')) {
-                  window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
+                  if (cb?.onFile) cb.onFile(url)
+                  else window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
                 } else {
-                  window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: file.name, size: file.size } }))
+                  if (cb?.onFile) (cb.onFile as any)(url, file.name, file.size, file.type)
+                  else window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: file.name, size: file.size } }))
                 }
                 setShowImagePicker(false)
                 imagePickerCallbackRef.current = null
@@ -686,14 +699,16 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                 if (!file) return
                 const url = await uploadFile(file)
                 if (!url) return
+                const cb = imagePickerCallbackRef.current || imagePickerCallback
                 if (mediaTab === 'image') {
-                  const cb = imagePickerCallbackRef.current || imagePickerCallback
                   if (cb?.onFile) cb.onFile(url)
                   else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
                 } else if (mediaTab === 'video') {
-                  window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
+                  if (cb?.onFile) cb.onFile(url)
+                  else window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
                 } else {
-                  window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: file.name, size: file.size } }))
+                  if (cb?.onFile) (cb.onFile as any)(url, file.name, file.size, file.type)
+                  else window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: file.name, size: file.size } }))
                 }
                 setShowImagePicker(false)
                 imagePickerCallbackRef.current = null

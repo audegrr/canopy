@@ -69,6 +69,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [newWsName, setNewWsName] = useState('')
   const [newWsIcon, setNewWsIcon] = useState('🌿')
   const [instantPage, setInstantPage] = useState<{ page: any; canEdit: boolean; isOwner: boolean; userId: string } | null>(null)
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [notifOpen, setNotifOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -176,6 +178,32 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     window.addEventListener('canopy:pageUpdate', onPageUpdate)
     return () => window.removeEventListener('canopy:pageUpdate', onPageUpdate)
   }, [])
+
+  useEffect(() => {
+    let channel: any
+    async function loadNotifs() {
+      try {
+        const { data } = await supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30)
+        if (data) setNotifications(data)
+        channel = supabase.channel('notifs_' + user.id)
+          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, (payload: any) => {
+            setNotifications(prev => [payload.new, ...prev])
+          })
+          .subscribe()
+      } catch {}
+    }
+    loadNotifs()
+    return () => { channel?.unsubscribe() }
+  }, [user.id])
+
+  const unreadCount = notifications.filter(n => !n.read).length
+
+  async function markAllRead() {
+    try {
+      await supabase.from('notifications').update({ read: true }).eq('user_id', user.id).eq('read', false)
+      setNotifications(ns => ns.map(n => ({ ...n, read: true })))
+    } catch {}
+  }
 
   function navigate(path: string) {
     // Persist last page for refresh restore
@@ -521,6 +549,17 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     })
 
     if (error) { showToastMsg('Error adding member: ' + error.message); return }
+
+    // Notify the invited user
+    try {
+      await supabase.from('notifications').insert({
+        user_id: userId,
+        type: 'workspace_invite',
+        title: `Added to workspace "${currentWs.name}"`,
+        body: `${user.name} invited you as ${inviteRole === 'member' ? 'member' : 'viewer'}.`,
+        data: { workspace_id: currentWs.id, workspace_name: currentWs.name }
+      })
+    } catch {}
 
     setInviteEmail('')
     await loadWsMembers()
@@ -924,6 +963,46 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             title="Search & commands (⌘F)">
             🔍 Search <kbd style={{ fontSize: '11px', background: 'var(--border)', border: 'none', borderRadius: '3px', padding: '1px 5px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)' }}>⌘F</kbd>
           </button>
+
+          {/* Notification bell */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+              onClick={() => { const opening = !notifOpen; setNotifOpen(o => !o); if (opening) markAllRead() }}
+              style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '5px 7px', borderRadius: '6px', fontSize: '16px', lineHeight: 1, display: 'flex', alignItems: 'center' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
+              title="Notifications">
+              🔔
+              {unreadCount > 0 && (
+                <span style={{ position: 'absolute', top: '2px', right: '2px', minWidth: '15px', height: '15px', borderRadius: '50%', background: '#eb5757', color: '#fff', fontSize: '9px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: '0 2px' }}>
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+            {notifOpen && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setNotifOpen(false)} />
+                <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: '300px', maxHeight: '380px', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', boxShadow: 'var(--shadow-lg)', zIndex: 200 }} className="scale-in">
+                  <div style={{ padding: '11px 14px', fontWeight: 600, fontSize: '13px', borderBottom: '1px solid var(--border)', color: 'var(--text)' }}>Notifications</div>
+                  {notifications.length === 0 ? (
+                    <div style={{ padding: '28px 14px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '13px' }}>No notifications</div>
+                  ) : notifications.map(n => (
+                    <div key={n.id}
+                      style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: n.read ? 'transparent' : 'var(--accent-light)', cursor: n.data?.page_id ? 'pointer' : 'default' }}
+                      onClick={() => { if (n.data?.page_id) { navigate(`/app/page/${n.data.page_id}`); setNotifOpen(false) } }}
+                      onMouseEnter={e => { if (n.data?.page_id) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = n.read ? 'transparent' : 'var(--accent-light)' }}>
+                      <div style={{ fontSize: '13px', fontWeight: n.read ? 400 : 600, color: 'var(--text)', marginBottom: '2px' }}>{n.title}</div>
+                      {n.body && <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{n.body}</div>}
+                      <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '3px' }}>
+                        {new Date(n.created_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
 
           {navigating && (
             <div style={{ width: '16px', height: '16px', border: '2px solid var(--border)', borderTop: '2px solid var(--accent)', borderRadius: '50%', animation: 'spin 0.6s linear infinite', flexShrink: 0 }} />
