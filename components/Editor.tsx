@@ -57,7 +57,7 @@ function formatBytes(bytes: number) {
 
 const FileNode = Node.create({
   name: 'fileAttachment', group: 'block', atom: true,
-  addAttributes() { return { src: {}, name: { default: 'File' }, size: { default: 0 }, mime: { default: '' } } },
+  addAttributes() { return { src: { default: null }, name: { default: 'File' }, size: { default: 0 }, mime: { default: '' } } },
   parseHTML() { return [{ tag: 'div[data-file]' }] },
   renderHTML({ HTMLAttributes }) { return ['div', mergeAttributes(HTMLAttributes, { 'data-file': '' }), 0] },
   addNodeView() {
@@ -425,8 +425,14 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
         function onInsertFile(e: any) {
           const { src, name, size, mime } = e.detail || {}
           if (!src) return
-          editor.chain().focus().insertContent({ type: 'fileAttachment', attrs: { src, name, size, mime } }).run()
-          setTimeout(() => editor.commands.insertContent({ type: 'paragraph' }), 50)
+          const attrs = { src, name: name || src.split('/').pop() || 'File', size: size || 0, mime: mime || '' }
+          const node = editor.schema.nodes.fileAttachment?.create(attrs)
+          if (node) {
+            editor.chain().focus().insertContent(node.toJSON()).run()
+          } else {
+            editor.chain().focus().insertContent({ type: 'fileAttachment', attrs }).run()
+          }
+          setTimeout(() => { try { editor.commands.insertContent({ type: 'paragraph' }) } catch {} }, 50)
         }
         window.addEventListener('canopy:insertFile', onInsertFile)
         // Store cleanup for later
@@ -553,8 +559,14 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
       }
       case 'file': {
         const insertFileFn = (src: string, name?: string, size?: number, mime?: string) => {
-          editor.chain().focus().insertContent({ type: 'fileAttachment', attrs: { src, name: name || src.split('/').pop() || 'File', size: size || 0, mime: mime || '' } }).run()
-          setTimeout(() => editor.commands.insertContent({ type: 'paragraph' }), 50)
+          const attrs = { src, name: name || src.split('/').pop() || 'File', size: size || 0, mime: mime || '' }
+          const node = editor.schema.nodes.fileAttachment?.create(attrs)
+          if (node) {
+            editor.chain().focus().insertContent(node.toJSON()).run()
+          } else {
+            editor.chain().focus().insertContent({ type: 'fileAttachment', attrs }).run()
+          }
+          setTimeout(() => { try { editor.commands.insertContent({ type: 'paragraph' }) } catch {} }, 50)
         }
         window.dispatchEvent(new CustomEvent('canopy:showImagePicker', { detail: { tab: 'file', onUrl: insertFileFn, onFile: insertFileFn } }))
         break
@@ -660,24 +672,47 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
             </FBtn>
             <div className="floating-sep" />
           </>}
-          {/* Headings: not when in blockquote or code block */}
-          {!inBlockquote && !inCodeBlock && <>
-            <FBtn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive('heading', { level: 1 })} title='Heading 1'>H1</FBtn>
-            <FBtn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive('heading', { level: 2 })} title='Heading 2'>H2</FBtn>
-            <FBtn onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()} active={editor.isActive('heading', { level: 3 })} title='Heading 3'>H3</FBtn>
-          </>}
-          {/* Lists, quote, callout: not when in heading or code block */}
-          {!inHeading && !inCodeBlock && <>
-            <FBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive('bulletList')} title='Bullet list'>•</FBtn>
-            <FBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive('orderedList')} title='Numbered list'>1.</FBtn>
-            <FBtn onClick={() => editor.chain().focus().toggleTaskList().run()} active={editor.isActive('taskList')} title='To-do list'>☑</FBtn>
-            <FBtn onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive('blockquote')} title='Quote'>❝</FBtn>
-            <FBtn onClick={() => editor.chain().focus().insertContent({ type: 'callout', content: [{ type: 'text', text: ' ' }] }).run()} active={false} title='Callout'>💡</FBtn>
-          </>}
-          {/* Code block: not when in heading or blockquote */}
-          {!inHeading && !inBlockquote && <>
-            <FBtn onClick={() => editor.chain().focus().toggleCodeBlock().run()} active={editor.isActive('codeBlock')} title='Code block'>{'<>'}</FBtn>
-          </>}
+          {/* Block types — always shown; click handlers enforce mutual exclusivity */}
+          <FBtn onClick={() => {
+            if (inBlockquote) editor.chain().focus().toggleBlockquote().toggleHeading({ level: 1 }).run()
+            else if (inCodeBlock) editor.chain().focus().clearNodes().toggleHeading({ level: 1 }).run()
+            else editor.chain().focus().toggleHeading({ level: 1 }).run()
+          }} active={editor.isActive('heading', { level: 1 })} title='Heading 1'>H1</FBtn>
+          <FBtn onClick={() => {
+            if (inBlockquote) editor.chain().focus().toggleBlockquote().toggleHeading({ level: 2 }).run()
+            else if (inCodeBlock) editor.chain().focus().clearNodes().toggleHeading({ level: 2 }).run()
+            else editor.chain().focus().toggleHeading({ level: 2 }).run()
+          }} active={editor.isActive('heading', { level: 2 })} title='Heading 2'>H2</FBtn>
+          <FBtn onClick={() => {
+            if (inBlockquote) editor.chain().focus().toggleBlockquote().toggleHeading({ level: 3 }).run()
+            else if (inCodeBlock) editor.chain().focus().clearNodes().toggleHeading({ level: 3 }).run()
+            else editor.chain().focus().toggleHeading({ level: 3 }).run()
+          }} active={editor.isActive('heading', { level: 3 })} title='Heading 3'>H3</FBtn>
+          <FBtn onClick={() => {
+            if (inHeading || inCodeBlock) editor.chain().focus().clearNodes().toggleBulletList().run()
+            else if (inBlockquote) editor.chain().focus().toggleBlockquote().toggleBulletList().run()
+            else editor.chain().focus().toggleBulletList().run()
+          }} active={editor.isActive('bulletList')} title='Bullet list'>•</FBtn>
+          <FBtn onClick={() => {
+            if (inHeading || inCodeBlock) editor.chain().focus().clearNodes().toggleOrderedList().run()
+            else if (inBlockquote) editor.chain().focus().toggleBlockquote().toggleOrderedList().run()
+            else editor.chain().focus().toggleOrderedList().run()
+          }} active={editor.isActive('orderedList')} title='Numbered list'>1.</FBtn>
+          <FBtn onClick={() => {
+            if (inHeading || inCodeBlock) editor.chain().focus().clearNodes().toggleTaskList().run()
+            else if (inBlockquote) editor.chain().focus().toggleBlockquote().toggleTaskList().run()
+            else editor.chain().focus().toggleTaskList().run()
+          }} active={editor.isActive('taskList')} title='To-do list'>☑</FBtn>
+          <FBtn onClick={() => {
+            if (inHeading || inCodeBlock) editor.chain().focus().clearNodes().toggleBlockquote().run()
+            else editor.chain().focus().toggleBlockquote().run()
+          }} active={editor.isActive('blockquote')} title='Quote'>❝</FBtn>
+          <FBtn onClick={() => editor.chain().focus().insertContent({ type: 'callout', content: [{ type: 'text', text: ' ' }] }).run()} active={false} title='Callout'>💡</FBtn>
+          <FBtn onClick={() => {
+            if (inHeading) editor.chain().focus().clearNodes().toggleCodeBlock().run()
+            else if (inBlockquote) editor.chain().focus().toggleBlockquote().toggleCodeBlock().run()
+            else editor.chain().focus().toggleCodeBlock().run()
+          }} active={editor.isActive('codeBlock')} title='Code block'>{'<>'}</FBtn>
           {/* Link and alignment: not in code blocks */}
           {!inCodeBlock && <>
             <div className="floating-sep" />
