@@ -18,6 +18,7 @@ type Props = {
 
 export default function PageView({ page: initialPage, canEdit, isOwner, userId }: Props) {
   const [page, setPage] = useState(initialPage)
+  const initialContentRef = useRef(initialPage.content)
   const [saved, setSaved] = useState(true)
   const [showIconPicker, setShowIconPicker] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
@@ -529,7 +530,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                 : <>
                     {canEdit && <DragHandle editor={editorInstance} />}
                     <Editor
-                      content={page.content}
+                      key={page.id}
+                      content={initialContentRef.current}
                       editable={canEdit}
                       onUpdate={onContentUpdate}
                       onEditorReady={setEditorInstance}
