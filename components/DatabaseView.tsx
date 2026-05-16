@@ -464,7 +464,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                         )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', fontWeight: 500, minWidth: '16px', textAlign: 'center', flexShrink: 0 }}>{FIELD_ICONS[f.type]}</span>
-                          <span style={{ flex: 1, cursor: canEdit ? 'pointer' : 'default', fontSize: 12, fontWeight: 500 }}
+                          <span style={{ flex: 1, cursor: canEdit ? 'pointer' : 'default', fontSize: 13, fontWeight: 500 }}
                             onClick={e => { e.stopPropagation(); if (canEdit) setRenamingFieldId(f.id) }}>
                             {f.name}
                           </span>
@@ -491,7 +491,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                         <button onClick={() => setAddingField(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16, padding: '0 4px' }} title="Add field">+</button>
                       )}
                     </th>
-                    {canEdit && <th style={{ width: 28, minWidth: 28, position: 'sticky', right: 0, background: 'var(--surface)', borderLeft: '1px solid var(--border)' }} />}
+                    {canEdit && <th style={{ width: 28, minWidth: 28, position: 'sticky', right: 0, background: 'var(--sidebar-bg)' }} />}
                   </tr>
                 </thead>
                 <tbody>
