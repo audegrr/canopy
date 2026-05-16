@@ -665,13 +665,28 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           </>}
           {/* All other controls — hidden for images */}
           {!editor.isActive('image') && <>
-          {/* Inline formatting: hidden in code blocks (marks are stripped there) */}
-          {!inCodeBlock && <>
-            <FBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive('bold')} title='Bold'><b>B</b></FBtn>
-            <FBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive('italic')} title='Italic'><i>I</i></FBtn>
-            <FBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive('underline')} title='Underline'><u>U</u></FBtn>
-            <FBtn onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive('strike')} title='Strikethrough'><s>S</s></FBtn>
-            <FBtn onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive('code')} title='Inline code'>{'`'}</FBtn>
+          {/* Inline formatting — always shown; in code block, converts block to paragraph first */}
+          <>
+            <FBtn onClick={() => {
+              if (inCodeBlock) editor.chain().focus().clearNodes().toggleBold().run()
+              else editor.chain().focus().toggleBold().run()
+            }} active={editor.isActive('bold')} title='Bold'><b>B</b></FBtn>
+            <FBtn onClick={() => {
+              if (inCodeBlock) editor.chain().focus().clearNodes().toggleItalic().run()
+              else editor.chain().focus().toggleItalic().run()
+            }} active={editor.isActive('italic')} title='Italic'><i>I</i></FBtn>
+            <FBtn onClick={() => {
+              if (inCodeBlock) editor.chain().focus().clearNodes().toggleUnderline().run()
+              else editor.chain().focus().toggleUnderline().run()
+            }} active={editor.isActive('underline')} title='Underline'><u>U</u></FBtn>
+            <FBtn onClick={() => {
+              if (inCodeBlock) editor.chain().focus().clearNodes().toggleStrike().run()
+              else editor.chain().focus().toggleStrike().run()
+            }} active={editor.isActive('strike')} title='Strikethrough'><s>S</s></FBtn>
+            <FBtn onClick={() => {
+              if (inCodeBlock) editor.chain().focus().clearNodes().toggleCode().run()
+              else editor.chain().focus().toggleCode().run()
+            }} active={editor.isActive('code')} title='Inline code'>{'`'}</FBtn>
             <div className="floating-sep" />
             <FBtn btnRef={colorBtnRef} onClick={() => {
               const { from, to } = editor.state.selection
@@ -696,7 +711,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
               <span style={{ background: editor.getAttributes('highlight').color || '#fdf3a7', padding: '0 3px', borderRadius: '2px', color: '#37352f' }}>H</span>
             </FBtn>
             <div className="floating-sep" />
-          </>}
+          </>
           {/* Block types — always shown; click handlers enforce mutual exclusivity */}
           <FBtn onClick={() => {
             if (inBlockquote) editor.chain().focus().toggleBlockquote().toggleHeading({ level: 1 }).run()
@@ -732,14 +747,21 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
             if (inHeading || inCodeBlock) editor.chain().focus().clearNodes().toggleBlockquote().run()
             else editor.chain().focus().toggleBlockquote().run()
           }} active={editor.isActive('blockquote')} title='Quote'>❝</FBtn>
-          <FBtn onClick={() => editor.chain().focus().insertContent({ type: 'callout', content: [{ type: 'text', text: ' ' }] }).run()} active={false} title='Callout'>💡</FBtn>
+          <FBtn onClick={() => {
+            const { from, to } = editor.state.selection
+            const text = from !== to ? editor.state.doc.textBetween(from, to) : ''
+            editor.chain().focus()
+              .deleteSelection()
+              .insertContent({ type: 'callout', attrs: { emoji: '💡' }, content: text ? [{ type: 'text', text }] : [] })
+              .run()
+          }} active={false} title='Callout'>💡</FBtn>
           <FBtn onClick={() => {
             if (inHeading) editor.chain().focus().clearNodes().toggleCodeBlock().run()
             else if (inBlockquote) editor.chain().focus().toggleBlockquote().toggleCodeBlock().run()
             else editor.chain().focus().toggleCodeBlock().run()
           }} active={editor.isActive('codeBlock')} title='Code block'>{'<>'}</FBtn>
-          {/* Link and alignment: not in code blocks */}
-          {!inCodeBlock && <>
+          {/* Link and alignment — always shown */}
+          <>
             <div className="floating-sep" />
             <FBtn onClick={() => {
               const prev = editor.getAttributes('link').href
@@ -751,7 +773,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
             <FBtn onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title='Align left'>⬅</FBtn>
             <FBtn onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} title='Center'>↔</FBtn>
             <FBtn onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} title='Align right'>➡</FBtn>
-          </>}
+          </>
           </>}
         </div>
       </BubbleMenu>
