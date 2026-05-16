@@ -13,8 +13,9 @@ export function useTheme() {
     const root = document.documentElement
     const applyTheme = (t: string) => {
       const isDark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-      root.style.transition = 'background 0.4s ease, color 0.4s ease'
+      root.classList.add('theme-transitioning')
       root.setAttribute('data-theme', isDark ? 'dark' : 'light')
+      setTimeout(() => root.classList.remove('theme-transitioning'), 200)
     }
     applyTheme(theme)
     localStorage.setItem('canopy-theme', theme)
