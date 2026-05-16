@@ -30,7 +30,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const [fields, setFields] = useState<DbField[]>([])
   const [records, setRecords] = useState<DbRecord[]>([])
   const [view, setView] = useState<View>('table')
-  const [filter, setFilter] = useState({ field: '', op: 'contains', value: '' })
+  const [filters, setFilters] = useState<{ id: number; field: string; op: string; value: string }[]>([])
   const [sort, setSort] = useState({ field: '', dir: 'asc' as 'asc' | 'desc' })
   const [editingCell, setEditingCell] = useState<{ recId: string; fieldId: string } | null>(null)
   const [addingField, setAddingField] = useState(false)
@@ -43,6 +43,9 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const [dragColIdx, setDragColIdx] = useState<number | null>(null)
   const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null)
   const [renamingFieldId, setRenamingFieldId] = useState<string | null>(null)
+  const [detailRecId, setDetailRecId] = useState<string | null>(null)
+  const [draggingCardId, setDraggingCardId] = useState<string | null>(null)
+  const [dragOverGroup, setDragOverGroup] = useState<string | null>(null)
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [page.id])
@@ -185,14 +188,19 @@ export default function DatabaseView({ page, canEdit }: Props) {
 
   // Filter & sort
   let displayRecords = [...records]
-  if (filter.field && filter.value) {
-    displayRecords = displayRecords.filter(r => {
-      const val = String(r.data?.[filter.field] ?? '')
-      if (filter.op === 'contains') return val.toLowerCase().includes(filter.value.toLowerCase())
-      if (filter.op === 'equals') return val === filter.value
-      if (filter.op === 'not_empty') return !!val
-      return true
-    })
+  const activeFilters = filters.filter(f => f.field && (f.op === 'not_empty' || f.value))
+  if (activeFilters.length > 0) {
+    displayRecords = displayRecords.filter(r =>
+      activeFilters.every(f => {
+        const val = String(r.data?.[f.field] ?? '')
+        if (f.op === 'contains') return val.toLowerCase().includes(f.value.toLowerCase())
+        if (f.op === 'equals') return val === f.value
+        if (f.op === 'not_equals') return val !== f.value
+        if (f.op === 'not_empty') return !!val
+        if (f.op === 'is_empty') return !val
+        return true
+      })
+    )
   }
   if (sort.field) {
     displayRecords.sort((a, b) => {
@@ -409,6 +417,53 @@ export default function DatabaseView({ page, canEdit }: Props) {
     return <span style={{ color: val ? 'var(--text)' : 'var(--text-tertiary)', fontSize: 13 }}>{val || ''}</span>
   }
 
+  function RecordDetail({ recId, onClose }: { recId: string; onClose: () => void }) {
+    const rec = records.find(r => r.id === recId)
+    if (!rec) return null
+    const titleVal = fields[0] ? String(rec.data?.[fields[0].id] ?? '') : ''
+    return (
+      <>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 399, background: 'rgba(15,10,5,0.2)' }} onClick={onClose} />
+        <div style={{ position: 'fixed', right: 0, top: 0, bottom: 0, width: 460, background: 'var(--surface)', zIndex: 400, boxShadow: '-4px 0 24px rgba(0,0,0,0.14)', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 15, fontWeight: 600, flex: 1, color: 'var(--text)' }}>{titleVal || 'Untitled'}</span>
+            {canEdit && (
+              <button onClick={() => { deleteRecord(rec.id); onClose() }} title="Delete record"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 13, padding: '3px 6px', borderRadius: 4, fontFamily: 'var(--font-sans)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)'; (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                🗑️
+              </button>
+            )}
+            <button onClick={onClose}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 18, padding: '2px 6px', borderRadius: 4, lineHeight: 1 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+              ✕
+            </button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+            {fields.map(f => (
+              <div key={f.id} style={{ marginBottom: 14, display: 'grid', gridTemplateColumns: '130px 1fr', gap: 8, alignItems: 'start' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 5, paddingTop: 6 }}>
+                  <span style={{ opacity: 0.7, fontSize: 11 }}>{FIELD_ICONS[f.type]}</span>
+                  <span>{f.name}</span>
+                </div>
+                <div data-cell={`${rec.id}-${f.id}`}
+                  style={{ minHeight: 30, padding: '4px 6px', borderRadius: 5, border: '1px solid transparent', cursor: canEdit ? 'pointer' : 'default', transition: 'border-color 0.1s', background: 'transparent' }}
+                  onClick={() => canEdit && setEditingCell({ recId: rec.id, fieldId: f.id })}
+                  onMouseEnter={e => { if (canEdit) (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'transparent' }}>
+                  <CellValue rec={rec} field={f} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </>
+    )
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* DB Header */}
@@ -424,7 +479,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
         <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
         <button onClick={() => setShowFilters(o => !o)}
           style={{ background: showFilters ? 'var(--accent-light)' : 'none', color: showFilters ? 'var(--accent)' : 'var(--text-secondary)', border: 'none', padding: '4px 10px', borderRadius: 5, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-          ⚡ Filter {filter.value && '(1)'}
+          ⚡ Filter {activeFilters.length > 0 && `(${activeFilters.length})`}
         </button>
         <select value={sort.field} onChange={e => setSort(s => ({ ...s, field: e.target.value }))} style={ctrlSt}>
           <option value="">↕ Sort</option>
@@ -438,20 +493,44 @@ export default function DatabaseView({ page, canEdit }: Props) {
         )}
       </div>
 
-      {/* Filter row */}
+      {/* Filter rows */}
       {showFilters && (
-        <div data-export-hide style={{ padding: '8px 16px', background: 'var(--sidebar-bg)', borderBottom: '1px solid var(--border)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <select value={filter.field} onChange={e => setFilter(f => ({ ...f, field: e.target.value }))} style={ctrlSt}>
-            <option value="">Field</option>
-            {fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
-          </select>
-          <select value={filter.op} onChange={e => setFilter(f => ({ ...f, op: e.target.value }))} style={ctrlSt}>
-            <option value="contains">contains</option>
-            <option value="equals">equals</option>
-            <option value="not_empty">is not empty</option>
-          </select>
-          {filter.op !== 'not_empty' && <input value={filter.value} onChange={e => setFilter(f => ({ ...f, value: e.target.value }))} placeholder="Value…" style={{ ...ctrlSt, width: 120 }} />}
-          <button onClick={() => setFilter({ field: '', op: 'contains', value: '' })} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)' }}>Clear</button>
+        <div data-export-hide style={{ padding: '8px 16px', background: 'var(--sidebar-bg)', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {filters.map(f => (
+            <div key={f.id} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <select value={f.field} onChange={e => setFilters(fs => fs.map(x => x.id === f.id ? { ...x, field: e.target.value } : x))} style={ctrlSt}>
+                <option value="">Field…</option>
+                {fields.map(fld => <option key={fld.id} value={fld.id}>{fld.name}</option>)}
+              </select>
+              <select value={f.op} onChange={e => setFilters(fs => fs.map(x => x.id === f.id ? { ...x, op: e.target.value } : x))} style={ctrlSt}>
+                <option value="contains">contains</option>
+                <option value="equals">equals</option>
+                <option value="not_equals">does not equal</option>
+                <option value="not_empty">is not empty</option>
+                <option value="is_empty">is empty</option>
+              </select>
+              {f.op !== 'not_empty' && f.op !== 'is_empty' && (
+                <input value={f.value} onChange={e => setFilters(fs => fs.map(x => x.id === f.id ? { ...x, value: e.target.value } : x))}
+                  placeholder="Value…" style={{ ...ctrlSt, width: 120 }} />
+              )}
+              <button onClick={() => setFilters(fs => fs.filter(x => x.id !== f.id))}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--text-tertiary)', padding: '2px 4px', borderRadius: 4, lineHeight: 1 }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>✕</button>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button onClick={() => setFilters(fs => [...fs, { id: Date.now(), field: '', op: 'contains', value: '' }])}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--accent)', fontFamily: 'var(--font-sans)', padding: '2px 0' }}>
+              + Add filter
+            </button>
+            {filters.length > 0 && (
+              <button onClick={() => setFilters([])}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)' }}>
+                Clear all
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -463,6 +542,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
               <table className="db-table" style={{ minWidth: '100%' }}>
                 <thead>
                   <tr>
+                    <th data-export-hide style={{ width: 28, minWidth: 28, position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 1 }} />
                     {fields.map((f, colIdx) => (
                       <th key={f.id} style={{ minWidth: 140, position: 'relative' }}
                         draggable={canEdit && colIdx > 0}
@@ -510,6 +590,11 @@ export default function DatabaseView({ page, canEdit }: Props) {
                 <tbody>
                   {displayRecords.map((rec, i) => (
                     <tr key={rec.id}>
+                      <td data-export-hide style={{ width: 28, minWidth: 28, padding: 0, position: 'sticky', left: 0, background: 'var(--surface)', borderRight: '1px solid var(--border)', textAlign: 'center' }}>
+                        <button onClick={() => setDetailRecId(rec.id)} title="Open record"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: '2px 4px', borderRadius: 3, opacity: 0, transition: 'opacity 0.1s' }}
+                          className="open-row-btn">⤢</button>
+                      </td>
                       {fields.map(f => (
                         <td key={f.id} data-cell={`${rec.id}-${f.id}`} style={{ position: 'relative' }}
                           onClick={e => {
@@ -553,14 +638,30 @@ export default function DatabaseView({ page, canEdit }: Props) {
                 Add a <strong>Select</strong> field to enable board view.
               </div>
             ) : boardGroups.map(group => (
-              <div key={group.label} className="db-board-col">
+              <div key={group.label} className="db-board-col"
+                onDragOver={e => { e.preventDefault(); setDragOverGroup(group.label) }}
+                onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverGroup(null) }}
+                onDrop={async e => {
+                  e.preventDefault()
+                  if (!draggingCardId || !selectField) return
+                  const targetVal = group.label === 'No status' ? '' : group.label
+                  await updateCell(draggingCardId, selectField.id, targetVal)
+                  setDraggingCardId(null)
+                  setDragOverGroup(null)
+                }}
+                style={{ outline: dragOverGroup === group.label && draggingCardId ? '2px solid var(--accent)' : 'none', borderRadius: 8, transition: 'outline 0.1s' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                   {group.color && <span style={{ width: 10, height: 10, borderRadius: '50%', background: group.color, flexShrink: 0 }} />}
                   <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{group.label}</span>
                   <span style={{ background: 'var(--border)', borderRadius: 10, padding: '1px 7px', fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 'auto' }}>{group.records.length}</span>
                 </div>
                 {group.records.map(rec => (
-                  <div key={rec.id} className="db-board-card">
+                  <div key={rec.id} className="db-board-card"
+                    draggable={canEdit}
+                    onDragStart={() => setDraggingCardId(rec.id)}
+                    onDragEnd={() => { setDraggingCardId(null); setDragOverGroup(null) }}
+                    onClick={() => setDetailRecId(rec.id)}
+                    style={{ cursor: 'pointer', opacity: draggingCardId === rec.id ? 0.4 : 1, transition: 'opacity 0.15s' }}>
                     {fields.filter(f => f.id !== selectField.id).slice(0, 4).map(f => (
                       <div key={f.id} style={{ marginBottom: 4 }}>
                         <div style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 1 }}>{f.name}</div>
@@ -585,17 +686,27 @@ export default function DatabaseView({ page, canEdit }: Props) {
         )}
 
         {view === 'gallery' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12, padding: 16 }}>
-            {displayRecords.map(rec => (
-              <div key={rec.id} className="db-board-card">
-                {fields.slice(0, 3).map(f => (
-                  <div key={f.id} style={{ marginBottom: 4, fontSize: 13 }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 1 }}>{f.name}</div>
-                    <CellValue rec={rec} field={f} />
-                  </div>
-                ))}
-              </div>
-            ))}
+          <div style={{ padding: 16 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+              {displayRecords.map(rec => (
+                <div key={rec.id} className="db-board-card" onClick={() => setDetailRecId(rec.id)} style={{ cursor: 'pointer' }}>
+                  {fields.slice(0, 3).map(f => (
+                    <div key={f.id} style={{ marginBottom: 4, fontSize: 13 }}>
+                      <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 1 }}>{f.name}</div>
+                      <CellValue rec={rec} field={f} />
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            {canEdit && (
+              <button data-export-hide onClick={addRecord}
+                style={{ marginTop: 10, padding: '7px 14px', background: 'none', border: '1px dashed var(--border)', borderRadius: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
+                + New record
+              </button>
+            )}
           </div>
         )}
 
@@ -614,6 +725,8 @@ export default function DatabaseView({ page, canEdit }: Props) {
           </div>
         )}
       </div>
+
+      {detailRecId && <RecordDetail recId={detailRecId} onClose={() => setDetailRecId(null)} />}
 
       {toast && (
         <div style={{ position: 'fixed', bottom: 24, right: 24, background: '#37352f', color: '#fff', padding: '10px 16px', borderRadius: 8, fontSize: 13, zIndex: 300 }} className="fade-in">{toast}</div>

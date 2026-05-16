@@ -354,7 +354,26 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     if (!newWsName.trim()) return
     const { data, error } = await supabase.from('workspaces').insert({ name: newWsName.trim(), icon: newWsIcon, owner_id: user.id }).select().single()
     if (error) { showError('Failed to create workspace'); return }
-    if (data) { setWorkspaces(w => [...w, data]); switchWorkspace(data) }
+    if (data) {
+      const gettingStartedContent = {
+        type: 'doc',
+        content: [
+          { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Welcome to ' + newWsName.trim() + '!' }] },
+          { type: 'paragraph', content: [{ type: 'text', text: 'This is your workspace. Here are a few things you can do:' }] },
+          { type: 'bulletList', content: [
+            { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Create pages' }, { type: 'text', text: ' — click the + button in the sidebar to add a new page.' }] }] },
+            { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Create databases' }, { type: 'text', text: ' — use ⊞ in the sidebar to track structured data with table, board, and gallery views.' }] }] },
+            { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Organise with drag & drop' }, { type: 'text', text: ' — reorder pages by dragging them in the sidebar.' }] }] },
+            { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Invite teammates' }, { type: 'text', text: ' — open workspace settings to share access.' }] }] },
+            { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Share pages' }, { type: 'text', text: ' — right-click any page to share it via a public link.' }] }] },
+          ]},
+          { type: 'paragraph', content: [{ type: 'text', text: 'Feel free to delete this page once you\'re up and running.' }] },
+        ]
+      }
+      await supabase.from('pages').insert({ workspace_id: data.id, title: 'Getting started', icon: '👋', content: gettingStartedContent, position: 1, is_database: false, owner_id: user.id })
+      setWorkspaces(w => [...w, data])
+      switchWorkspace(data)
+    }
     setNewWsModal(false)
   }
 
