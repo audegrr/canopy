@@ -1,10 +1,13 @@
 'use client'
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { Workspace, Page, SharedPage, User } from '@/lib/types'
+import type { Workspace, Page, SharedPage, User, MemberWorkspace, WsMember } from '@/lib/types'
 import PageView from './PageView'
 import CommandPalette from './CommandPalette'
+import { useNotifications } from '@/hooks/useNotifications'
+import { useTheme } from '@/hooks/useTheme'
+import { exportPageAsPDF, exportPageAsWord, exportPageAsCSV } from '@/lib/export'
 
 type Props = {
   user: User
@@ -12,7 +15,7 @@ type Props = {
   currentWorkspace: Workspace
   pages: Page[]
   sharedPages: SharedPage[]
-  memberWorkspaces?: any[]
+  memberWorkspaces?: MemberWorkspace[]
   children: React.ReactNode
 }
 
@@ -42,11 +45,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [wsSettingsOpen, setWsSettingsOpen] = useState(false)
   const [wsSettingsTab, setWsSettingsTab] = useState<'general'|'members'>('general')
   const [sharedCollapsed, setSharedCollapsed] = useState(false)
-  const [theme, setTheme] = useState<'light'|'dark'|'system'>(() => {
-    if (typeof window !== 'undefined') return (localStorage.getItem('canopy-theme') as any) || 'light'
-    return 'light'
-  })
-  const [wsMembers, setWsMembers] = useState<any[]>([])
+  const { theme, setTheme } = useTheme()
+  const [wsMembers, setWsMembers] = useState<WsMember[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'member'|'viewer'>('member')
   const [profileName, setProfileName] = useState(user.name)
@@ -59,7 +59,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [navigating, setNavigating] = useState(false)
   const [renamingPageId, setRenamingPageId] = useState<string | null>(null)
   const [renameVal, setRenameVal] = useState('')
-  const [toast, setToast] = useState('')
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [showDeleteAccount, setShowDeleteAccount] = useState(false)
   const [exportMenu, setExportMenu] = useState<{ x: number; y: number; pageId: string } | null>(null)
@@ -69,11 +69,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [newWsName, setNewWsName] = useState('')
   const [newWsIcon, setNewWsIcon] = useState('🌿')
   const [instantPage, setInstantPage] = useState<{ page: any; canEdit: boolean; isOwner: boolean; userId: string } | null>(null)
-  const [notifications, setNotifications] = useState<any[]>([])
-  const [notifOpen, setNotifOpen] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
+  const { notifications, notifOpen, setNotifOpen, unreadCount, markAllRead, clearAll: clearAllNotifications } = useNotifications(user.id, supabase)
   const currentPageId = pathname.match(/\/app\/page\/([^/]+)/)?.[1] || null
 
   useEffect(() => {
@@ -97,8 +96,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           if (page) {
             const isOwner = page.owner_id === user.id
             // Resolve canEdit from available context without extra queries
-            const memberWs = memberWorkspaces.find((ws: any) => ws.id === page.workspace_id)
-            const sharedWithEdit = (p as any).permission === 'edit'
+            const memberWs = memberWorkspaces.find(ws => ws.id === page.workspace_id)
+            const sharedWithEdit = (p as (Page | SharedPage) & { permission?: string }).permission === 'edit'
             const canEdit = isOwner
               || page.link_permission === 'edit'
               || sharedWithEdit
@@ -121,7 +120,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     const savedWs = localStorage.getItem('canopy_workspace')
     const savedPage = localStorage.getItem('canopy_last_page')
     if (savedWs) {
-      const found = [...workspaces, ...memberWorkspaces].find(w => w.id === savedWs)
+      const found = ([...workspaces, ...memberWorkspaces] as Workspace[]).find(w => w.id === savedWs)
       if (found && found.id !== currentWs.id) {
         // Load all pages for workspace (including those created by other members)
         supabase.from('pages')
@@ -206,31 +205,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     return () => window.removeEventListener('canopy:pageUpdate', onPageUpdate)
   }, [])
 
-  useEffect(() => {
-    let channel: any
-    async function loadNotifs() {
-      try {
-        const { data } = await supabase.from('notifications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(30)
-        if (data) setNotifications(data)
-        channel = supabase.channel('notifs_' + user.id)
-          .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` }, (payload: any) => {
-            setNotifications(prev => [payload.new, ...prev])
-          })
-          .subscribe()
-      } catch {}
-    }
-    loadNotifs()
-    return () => { channel?.unsubscribe() }
-  }, [user.id])
-
-  const unreadCount = notifications.filter(n => !n.read).length
-
-  async function markAllRead() {
-    try {
-      await supabase.from('notifications').update({ read: true }).eq('user_id', user.id).eq('read', false)
-      setNotifications(ns => ns.map(n => ({ ...n, read: true })))
-    } catch {}
-  }
 
   function navigate(path: string) {
     // Persist last page for refresh restore
@@ -255,121 +229,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     router.push(path)
   }
 
-  async function exportPageAsPDF(pageId: string) {
-    const { data: p } = await supabase.from('pages').select('title, content').eq('id', pageId).single()
-    if (!p) return
-    const win = window.open('', '_blank')
-    if (!win) return
-    win.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${p.title || 'Untitled'}</title>
-    <style>body{font-family:Inter,-apple-system,sans-serif;max-width:800px;margin:40px auto;font-size:14px;line-height:1.6;color:#37352f;}
-    h1{font-size:22pt;font-weight:700;margin-bottom:12pt;}h2{font-size:16pt;font-weight:600;}h3{font-size:13pt;font-weight:600;}
-    p{margin:4pt 0;}ul,ol{padding-left:20pt;}table{border-collapse:collapse;width:100%;}td,th{border:1px solid #e9e9e7;padding:6px 10px;}
-    blockquote{border-left:3px solid #ccc;padding:4px 16px;color:#787774;font-style:italic;}
-    code{background:#f0f0f0;padding:2px 4px;border-radius:3px;font-family:monospace;}
-    </style></head><body>`)
-    win.document.write(`<h1>${p.title || 'Untitled'}</h1>`)
-    // Render JSON content to HTML
-    function renderContent(nodes: any[]): string {
-      if (!nodes) return ''
-      return nodes.map(node => {
-        switch(node.type) {
-          case 'heading': return `<h${node.attrs?.level || 1}>${renderContent(node.content || [])}</h${node.attrs?.level || 1}>`
-          case 'paragraph': return `<p>${renderContent(node.content || [])}</p>`
-          case 'text': {
-            let t = node.text || ''
-            if (node.marks) node.marks.forEach((m: any) => {
-              if (m.type === 'bold') t = `<strong>${t}</strong>`
-              if (m.type === 'italic') t = `<em>${t}</em>`
-              if (m.type === 'underline') t = `<u>${t}</u>`
-              if (m.type === 'strike') t = `<s>${t}</s>`
-              if (m.type === 'code') t = `<code>${t}</code>`
-              if (m.type === 'link') t = `<a href="${m.attrs?.href}">${t}</a>`
-            })
-            return t
-          }
-          case 'bulletList': return `<ul>${renderContent(node.content || [])}</ul>`
-          case 'orderedList': return `<ol>${renderContent(node.content || [])}</ol>`
-          case 'listItem': return `<li>${renderContent(node.content || [])}</li>`
-          case 'blockquote': return `<blockquote>${renderContent(node.content || [])}</blockquote>`
-          case 'codeBlock': return `<pre><code>${renderContent(node.content || [])}</code></pre>`
-          case 'hardBreak': return '<br>'
-          case 'horizontalRule': return '<hr>'
-          case 'image': return `<img src="${node.attrs?.src}" style="max-width:100%">`
-          case 'table': return `<table>${renderContent(node.content || [])}</table>`
-          case 'tableRow': return `<tr>${renderContent(node.content || [])}</tr>`
-          case 'tableCell': case 'tableHeader': return `<td>${renderContent(node.content || [])}</td>`
-          default: return renderContent(node.content || [])
-        }
-      }).join('')
-    }
-    const content = Array.isArray(p.content) ? p.content : (p.content?.content || [])
-    win.document.write(renderContent(content))
-    win.document.write('</body></html>')
-    win.document.close()
-    win.focus()
-    setTimeout(() => { win.print(); }, 500)
-    setExportMenu(null)
-  }
-
-  async function exportPageAsWord(pageId: string) {
-    const { data: p } = await supabase.from('pages').select('title, content, icon').eq('id', pageId).single()
-    if (!p) return
-    function renderContent(nodes: any[]): string {
-      if (!nodes) return ''
-      return nodes.map(node => {
-        switch(node.type) {
-          case 'heading': return `<h${node.attrs?.level || 1}>${renderContent(node.content || [])}</h${node.attrs?.level || 1}>`
-          case 'paragraph': return `<p>${renderContent(node.content || [])}</p>`
-          case 'text': {
-            let t = node.text || ''
-            if (node.marks) node.marks.forEach((m: any) => {
-              if (m.type === 'bold') t = `<strong>${t}</strong>`
-              if (m.type === 'italic') t = `<em>${t}</em>`
-              if (m.type === 'underline') t = `<u>${t}</u>`
-            })
-            return t
-          }
-          case 'bulletList': return `<ul>${renderContent(node.content || [])}</ul>`
-          case 'orderedList': return `<ol>${renderContent(node.content || [])}</ol>`
-          case 'listItem': return `<li>${renderContent(node.content || [])}</li>`
-          case 'blockquote': return `<blockquote>${renderContent(node.content || [])}</blockquote>`
-          case 'horizontalRule': return '<hr>'
-          default: return renderContent(node.content || [])
-        }
-      }).join('')
-    }
-    const content = Array.isArray(p.content) ? p.content : (p.content?.content || [])
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${p.title}</title>
-    <style>body{font-family:Arial,sans-serif;font-size:12pt;line-height:1.5;}h1{font-size:18pt;}h2{font-size:14pt;}table{border-collapse:collapse;}td,th{border:1px solid #ccc;padding:6px;}</style>
-    </head><body><h1>${p.icon || ''} ${p.title || 'Untitled'}</h1>${renderContent(content)}</body></html>`
-    const blob = new Blob([html], { type: 'application/msword' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href = url; a.download = (p.title || 'page') + '.doc'; a.click()
-    URL.revokeObjectURL(url)
-    setExportMenu(null)
-  }
-  async function exportPageAsCSV(pageId: string) {
-    const [{ data: fields }, { data: records }, { data: p }] = await Promise.all([
-      supabase.from('db_fields').select('*').eq('page_id', pageId).order('position'),
-      supabase.from('db_records').select('*').eq('page_id', pageId).order('position'),
-      supabase.from('pages').select('title').eq('id', pageId).single(),
-    ])
-    if (!fields) return
-    const header = fields.map((f: any) => `"${f.name.replace(/"/g, '""')}"`).join(',')
-    const rows = (records || []).map((rec: any) =>
-      fields.map((f: any) => `"${String(rec.data?.[f.id] ?? '').replace(/"/g, '""')}"`)
-        .join(',')
-    )
-    const csv = [header, ...rows].join('\n')
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = (p?.title || 'database') + '.csv'
-    a.click()
-    URL.revokeObjectURL(url)
-    setExportMenu(null)
-  }
+  const onExportDone = () => setExportMenu(null)
 
   function prefetch(path: string) { router.prefetch(path) }
 
@@ -395,15 +255,17 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     showToastMsg('Page moved to ' + (targetWs?.name || 'workspace'))
   }
 
-  function showToastMsg(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2500) }
+  function showToastMsg(msg: string) { setToast({ msg, type: 'success' }); setTimeout(() => setToast(null), 2500) }
+  function showError(msg: string) { setToast({ msg, type: 'error' }); setTimeout(() => setToast(null), 3500) }
 
   // ── PAGE ACTIONS ────────────────────────────────────────────
   async function createPage(parentId: string | null = null) {
     const maxPos = pages.filter(p => p.parent_id === parentId).reduce((m, p) => Math.max(m, p.position), 0)
-    const { data } = await supabase.from('pages').insert({
+    const { data, error } = await supabase.from('pages').insert({
       workspace_id: currentWs.id, parent_id: parentId, title: 'Untitled',
       icon: '', content: [], position: maxPos + 1, is_database: false, link_permission: 'none'
     }).select().single()
+    if (error) { showError('Failed to create page'); setContextMenu(null); return }
     if (data) {
       setPages(p => [...p, data as Page])
       if (parentId) setExpandedPages(e => new Set([...e, parentId]))
@@ -414,16 +276,18 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
   async function createDatabase(parentId: string | null = null) {
     const maxPos = pages.filter(p => p.parent_id === parentId).reduce((m, p) => Math.max(m, p.position), 0)
-    const { data } = await supabase.from('pages').insert({
+    const { data, error } = await supabase.from('pages').insert({
       workspace_id: currentWs.id, parent_id: parentId, title: 'Untitled database',
       icon: '🗄️', content: [], position: maxPos + 1, is_database: true, link_permission: 'none'
     }).select().single()
+    if (error) { showError('Failed to create database'); setContextMenu(null); return }
     if (data) { setPages(p => [...p, data as Page]); navigate(`/app/page/${data.id}`) }
     setContextMenu(null)
   }
 
   async function deletePage(pageId: string) {
-    await supabase.from('pages').delete().eq('id', pageId)
+    const { error } = await supabase.from('pages').delete().eq('id', pageId)
+    if (error) { showError('Failed to delete page'); setContextMenu(null); return }
     setPages(p => p.filter(x => x.id !== pageId))
     if (currentPageId === pageId) navigate('/app')
     setContextMenu(null)
@@ -431,16 +295,18 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
   async function duplicatePage(pageId: string) {
     const { data } = await supabase.from('pages').select('*').eq('id', pageId).single()
-    if (!data) return
-    const { data: copy } = await supabase.from('pages').insert({
+    if (!data) { showError('Page not found'); setContextMenu(null); return }
+    const { data: copy, error } = await supabase.from('pages').insert({
       ...data, id: undefined, title: (data.title || 'Untitled') + ' (copy)', created_at: undefined, updated_at: undefined
     }).select().single()
+    if (error) { showError('Failed to duplicate page'); setContextMenu(null); return }
     if (copy) { setPages(p => [...p, copy as Page]); navigate(`/app/page/${copy.id}`) }
     setContextMenu(null)
   }
 
   async function renamePage(pageId: string, title: string) {
-    await supabase.from('pages').update({ title }).eq('id', pageId)
+    const { error } = await supabase.from('pages').update({ title }).eq('id', pageId)
+    if (error) { showError('Failed to rename page'); return }
     setPages(p => p.map(x => x.id === pageId ? { ...x, title } : x))
     setRenamingPageId(null)
   }
@@ -482,15 +348,18 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
   async function confirmCreateWorkspace() {
     if (!newWsName.trim()) return
-    const { data } = await supabase.from('workspaces').insert({ name: newWsName.trim(), icon: newWsIcon, owner_id: user.id }).select().single()
+    const { data, error } = await supabase.from('workspaces').insert({ name: newWsName.trim(), icon: newWsIcon, owner_id: user.id }).select().single()
+    if (error) { showError('Failed to create workspace'); return }
     if (data) { setWorkspaces(w => [...w, data]); switchWorkspace(data) }
     setNewWsModal(false)
   }
 
   async function deleteWorkspace(wsId: string) {
     if (!confirm('Delete this workspace and all its pages? This cannot be undone.')) return
-    await supabase.from('pages').delete().eq('workspace_id', wsId)
-    await supabase.from('workspaces').delete().eq('id', wsId)
+    const { error: pagesErr } = await supabase.from('pages').delete().eq('workspace_id', wsId)
+    if (pagesErr) { showError('Failed to delete workspace pages'); return }
+    const { error } = await supabase.from('workspaces').delete().eq('id', wsId)
+    if (error) { showError('Failed to delete workspace'); return }
     setWorkspaces(w => w.filter(x => x.id !== wsId))
     if (currentWs.id === wsId) { const next = workspaces.find(w => w.id !== wsId); if (next) switchWorkspace(next) }
   }
@@ -502,7 +371,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     setRenamingWs(false)
   }
 
-  async function switchWorkspace(ws: any) {
+  async function switchWorkspace(ws: Workspace | MemberWorkspace) {
     setCurrentWs(ws)
     localStorage.setItem('canopy_workspace', ws.id)
     setWsMenuOpen(false)
@@ -527,22 +396,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     router.replace('/app')
   }
 
-  // Theme management
-  useEffect(() => {
-    const root = document.documentElement
-    const applyTheme = (t: string) => {
-      const isDark = t === 'dark' || (t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
-      root.style.transition = 'background 0.4s ease, color 0.4s ease'
-      root.setAttribute('data-theme', isDark ? 'dark' : 'light')
-    }
-    applyTheme(theme)
-    localStorage.setItem('canopy-theme', theme)
-    if (theme === 'system') {
-      const mq = window.matchMedia('(prefers-color-scheme: dark)')
-      mq.addEventListener('change', () => applyTheme('system'))
-      return () => mq.removeEventListener('change', () => applyTheme('system'))
-    }
-  }, [theme])
 
   async function loadWsMembers() {
     const { data, error } = await supabase
@@ -768,7 +621,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     })
   }
 
-  const breadcrumbs = (() => {
+  const breadcrumbs = useMemo(() => {
     if (!currentPageId) return []
     const crumbs: { id: string; title: string; icon: string }[] = []
     let cur = pages.find(p => p.id === currentPageId)
@@ -777,7 +630,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       cur = cur.parent_id ? pages.find(p => p.id === cur!.parent_id) : undefined
     }
     return crumbs
-  })()
+  }, [currentPageId, pages])
 
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
@@ -880,7 +733,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               {memberWorkspaces.length > 0 && <>
                 <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
                 <div style={{ padding: '4px 12px 2px', fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Shared with me</div>
-                {memberWorkspaces.map((ws: any) => (
+                {memberWorkspaces.map((ws) => (
                   <div key={ws.id} onClick={() => { switchWorkspace(ws); setWsMenuOpen(false) }}
                     style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', background: ws.id === currentWs.id ? 'var(--sidebar-active)' : 'transparent' }}
                     onMouseEnter={e => { if (ws.id !== currentWs.id) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
@@ -1007,7 +860,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
             title="Search & commands (⌘F)">
-            🔍 Search <kbd style={{ fontSize: '11px', background: 'var(--border)', border: 'none', borderRadius: '3px', padding: '1px 5px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)' }}>⌘F</kbd>
+            🔍 Search {!isMobile && <kbd style={{ fontSize: '11px', background: 'var(--border)', border: 'none', borderRadius: '3px', padding: '1px 5px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)' }}>⌘F</kbd>}
           </button>
 
           {/* Notification bell */}
@@ -1029,14 +882,31 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               <>
                 <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setNotifOpen(false)} />
                 <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: '300px', maxHeight: '380px', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', boxShadow: 'var(--shadow-lg)', zIndex: 200 }} className="scale-in">
-                  <div style={{ padding: '11px 14px', fontWeight: 600, fontSize: '13px', borderBottom: '1px solid var(--border)', color: 'var(--text)' }}>Notifications</div>
+                  <div style={{ padding: '11px 14px', fontWeight: 600, fontSize: '13px', borderBottom: '1px solid var(--border)', color: 'var(--text)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Notifications</span>
+                    {notifications.length > 0 && (
+                      <button onClick={clearAllNotifications} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px', color: 'var(--text-tertiary)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'var(--font-sans)' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>
+                        Clear all
+                      </button>
+                    )}
+                  </div>
                   {notifications.length === 0 ? (
                     <div style={{ padding: '28px 14px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '13px' }}>No notifications</div>
-                  ) : notifications.map(n => (
+                  ) : notifications.map(n => {
+                    const isClickable = !!(n.data?.page_id || n.data?.workspace_id)
+                    return (
                     <div key={n.id}
-                      style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: n.read ? 'transparent' : 'var(--accent-light)', cursor: n.data?.page_id ? 'pointer' : 'default' }}
-                      onClick={() => { if (n.data?.page_id) { navigate(`/app/page/${n.data.page_id}`); setNotifOpen(false) } }}
-                      onMouseEnter={e => { if (n.data?.page_id) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                      style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: n.read ? 'transparent' : 'var(--accent-light)', cursor: isClickable ? 'pointer' : 'default' }}
+                      onClick={() => {
+                        if (n.data?.page_id) { navigate(`/app/page/${n.data.page_id}`); setNotifOpen(false) }
+                        else if (n.data?.workspace_id) {
+                          const ws = [...workspaces, ...memberWorkspaces].find(w => w.id === n.data?.workspace_id)
+                          if (ws) { switchWorkspace(ws); setNotifOpen(false) }
+                        }
+                      }}
+                      onMouseEnter={e => { if (isClickable) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = n.read ? 'transparent' : 'var(--accent-light)' }}>
                       <div style={{ fontSize: '13px', fontWeight: n.read ? 400 : 600, color: 'var(--text)', marginBottom: '2px' }}>{n.title}</div>
                       {n.body && <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{n.body}</div>}
@@ -1044,7 +914,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                         {new Date(n.created_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </>
             )}
@@ -1272,7 +1143,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                     <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: '13px', color: 'var(--text)' }}>{user.name}</div><div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{user.email}</div></div>
                     <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '8px', background: 'var(--accent-light)', color: 'var(--accent)', fontWeight: 500 }}>owner</span>
                   </div>
-                  {wsMembers.map((m: any) => (
+                  {wsMembers.map((m) => (
                     <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
                       <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--sidebar-active)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>{(m.profile?.full_name || m.profile?.email || '?')[0]?.toUpperCase()}</div>
                       <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: '13px', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.profile?.full_name || m.profile?.email || m.user_id}</div></div>
@@ -1285,7 +1156,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                   ))}
                   <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }}>
                     <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="Invite by email…" onKeyDown={e => { if (e.key === 'Enter') inviteMember() }} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '12px', fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }} onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }} onBlur={e => { (e.target as HTMLElement).style.borderColor = 'var(--border)' }} />
-                    <select value={inviteRole} onChange={e => setInviteRole(e.target.value as any)} style={{ border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 6px', fontSize: '12px', fontFamily: 'var(--font-sans)', background: 'var(--surface)', color: 'var(--text)' }}>
+                    <select value={inviteRole} onChange={e => setInviteRole(e.target.value as 'member' | 'viewer')} style={{ border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 6px', fontSize: '12px', fontFamily: 'var(--font-sans)', background: 'var(--surface)', color: 'var(--text)' }}>
                       <option value="member">member</option>
                       <option value="viewer">viewer</option>
                     </select>
@@ -1304,21 +1175,26 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         return (
           <div className="context-menu scale-in"
             style={{ position: 'fixed', left: Math.min(exportMenu.x, window.innerWidth - 180), top: Math.min(exportMenu.y, window.innerHeight - 100), zIndex: 2001, minWidth: '170px' }}>
-            <MenuItem onClick={() => exportPageAsPDF(exportMenu.pageId)}>📄 Export as PDF</MenuItem>
+            <MenuItem onClick={() => exportPageAsPDF(exportMenu.pageId, supabase, onExportDone)}>📄 Export as PDF</MenuItem>
             {isDb
-              ? <MenuItem onClick={() => exportPageAsCSV(exportMenu.pageId)}>📊 Export as CSV</MenuItem>
-              : <MenuItem onClick={() => exportPageAsWord(exportMenu.pageId)}>📝 Export as Word</MenuItem>
+              ? <MenuItem onClick={() => exportPageAsCSV(exportMenu.pageId, supabase, onExportDone)}>📊 Export as CSV</MenuItem>
+              : <MenuItem onClick={() => exportPageAsWord(exportMenu.pageId, supabase, onExportDone)}>📝 Export as Word</MenuItem>
             }
           </div>
         )
       })()}
 
       {/* Context menu */}
-      {contextMenu && (
+      {contextMenu && (() => {
+        const ownPage = isOwnPage(contextMenu.pageId)
+        const estimatedH = ownPage ? (workspaces.length > 1 ? 340 : 310) : 130
+        const spaceBelow = window.innerHeight - contextMenu.y - 8
+        const menuTop = spaceBelow >= estimatedH ? contextMenu.y : Math.max(8, contextMenu.y - estimatedH)
+        return (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => { setContextMenu(null); setExportMenu(null) }} />
           <div className="context-menu scale-in"
-            style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 220), top: Math.min(contextMenu.y, window.innerHeight - 220), zIndex: 2000 }}>
+            style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 220), top: menuTop, zIndex: 2000, maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
             {isOwnPage(contextMenu.pageId) && <>
               <MenuItem onClick={() => { setRenamingPageId(contextMenu.pageId); setRenameVal(pages.find(p => p.id === contextMenu.pageId)?.title || ''); setContextMenu(null) }}>✏️ Rename</MenuItem>
               <MenuItem onClick={() => duplicatePage(contextMenu.pageId)}>📋 Duplicate</MenuItem>
@@ -1363,7 +1239,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             </>}
           </div>
         </>
-      )}
+        )
+      })()}
 
       {/* Delete account confirmation */}
       {showDeleteAccount && (
@@ -1391,8 +1268,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       />
 
       {toast && (
-        <div style={{ position: 'fixed', bottom: '24px', right: '24px', background: '#37352f', color: '#fff', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', zIndex: 300, boxShadow: 'var(--shadow-lg)' }} className="fade-in">
-          {toast}
+        <div style={{ position: 'fixed', bottom: '24px', right: '24px', background: toast.type === 'error' ? '#eb5757' : '#37352f', color: '#fff', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', zIndex: 300, boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: '8px' }} className="fade-in">
+          {toast.type === 'error' && <span style={{ fontSize: '15px' }}>⚠️</span>}
+          {toast.msg}
         </div>
       )}
     </div>

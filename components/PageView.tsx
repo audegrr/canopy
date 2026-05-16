@@ -461,7 +461,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
           )}
 
           {/* Page body */}
-          <div className='page-body-padding print-content' style={{ maxWidth: '720px', margin: '0 auto', padding: page.cover_url ? '24px 60px 80px' : '64px 60px 80px' }}>
+          <div className='page-body-padding print-content' style={{ maxWidth: '900px', margin: '0 auto', padding: page.cover_url ? '24px 60px 80px' : '64px 60px 80px' }}>
 
             {/* Icon area */}
             <div style={{ marginBottom: '4px', position: 'relative' }}>

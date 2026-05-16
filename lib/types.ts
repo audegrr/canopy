@@ -60,3 +60,31 @@ export type User = {
   email: string
   name: string
 }
+
+export type MemberWorkspace = Workspace & {
+  _memberRole: 'member' | 'viewer' | 'owner'
+}
+
+export type WsMember = {
+  id: string
+  workspace_id: string
+  user_id: string
+  role: 'member' | 'viewer' | 'owner'
+  profile: { id: string; email: string; full_name: string | null } | null
+}
+
+export type Notification = {
+  id: string
+  user_id: string
+  type: string
+  title: string
+  body?: string
+  read: boolean
+  created_at: string
+  data?: {
+    page_id?: string
+    workspace_id?: string
+    workspace_name?: string
+    [key: string]: unknown
+  }
+}
