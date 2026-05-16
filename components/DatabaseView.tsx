@@ -167,6 +167,22 @@ export default function DatabaseView({ page, canEdit }: Props) {
 
   function showToastMsg(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2000) }
 
+  function exportCSV() {
+    const header = fields.map(f => `"${f.name.replace(/"/g, '""')}"`).join(',')
+    const rows = records.map(rec =>
+      fields.map(f => `"${String(rec.data?.[f.id] ?? '').replace(/"/g, '""')}"`)
+        .join(',')
+    )
+    const csv = [header, ...rows].join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = (page.title || 'database') + '.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   // Filter & sort
   let displayRecords = [...records]
   if (filter.field && filter.value) {
@@ -396,7 +412,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* DB Header */}
-      <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, flexWrap: 'wrap', background: 'var(--surface)' }}>
+      <div data-export-hide style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, flexWrap: 'wrap', background: 'var(--surface)' }}>
         <div style={{ display: 'flex', background: 'var(--sidebar-bg)', borderRadius: 6, padding: 2, gap: 2 }}>
           {(['table', 'board', 'gallery'] as View[]).map(v => (
             <button key={v} onClick={() => setView(v)}
@@ -420,11 +436,16 @@ export default function DatabaseView({ page, canEdit }: Props) {
             {sort.dir === 'asc' ? '↑' : '↓'}
           </button>
         )}
+        <div style={{ flex: 1 }} />
+        <button onClick={exportCSV}
+          style={{ background: 'none', color: 'var(--text-secondary)', border: 'none', padding: '4px 10px', borderRadius: 5, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+          ⬇ Excel / CSV
+        </button>
       </div>
 
       {/* Filter row */}
       {showFilters && (
-        <div style={{ padding: '8px 16px', background: 'var(--sidebar-bg)', borderBottom: '1px solid var(--border)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div data-export-hide style={{ padding: '8px 16px', background: 'var(--sidebar-bg)', borderBottom: '1px solid var(--border)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <select value={filter.field} onChange={e => setFilter(f => ({ ...f, field: e.target.value }))} style={ctrlSt}>
             <option value="">Field</option>
             {fields.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
@@ -486,12 +507,9 @@ export default function DatabaseView({ page, canEdit }: Props) {
                         )}
                       </th>
                     ))}
-                    <th style={{ width: 36, minWidth: 36 }}>
-                      {canEdit && (
-                        <button onClick={() => setAddingField(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16, padding: '0 4px' }} title="Add field">+</button>
-                      )}
-                    </th>
-                    {canEdit && <th style={{ width: 28, minWidth: 28, position: 'sticky', right: 0, background: 'var(--sidebar-bg)' }} />}
+                    {canEdit && <th style={{ width: 36, minWidth: 36 }}>
+                      <button onClick={() => setAddingField(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16, padding: '0 4px' }} title="Add field">+</button>
+                    </th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -510,7 +528,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                         </td>
                       ))}
                       {canEdit && (
-                        <td style={{ width: 28, minWidth: 28, padding: 0, position: 'sticky', right: 0, background: 'var(--surface)', borderLeft: '1px solid var(--border)', textAlign: 'center' }}>
+                        <td data-export-hide style={{ width: 28, minWidth: 28, padding: 0, position: 'sticky', right: 0, background: 'var(--surface)', borderLeft: '1px solid var(--border)', textAlign: 'center' }}>
                           <button onClick={() => deleteRecord(rec.id)} title="Delete row"
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 13, padding: '2px 4px', borderRadius: 3, opacity: 0, transition: 'opacity 0.1s, color 0.1s' }}
                             className="delete-row-btn">✕</button>
@@ -523,7 +541,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
             </div>
             {/* + New record at bottom */}
             {canEdit && (
-              <button onClick={addRecord}
+              <button data-export-hide onClick={addRecord}
                 style={{ width: '100%', padding: '7px 16px', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', fontSize: 13, color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6, transition: 'background 0.1s' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>

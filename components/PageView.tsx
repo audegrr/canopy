@@ -402,7 +402,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         </div>
         <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0, transition: 'opacity 0.3s', opacity: saved ? 0 : 1 }}>Saving…</span>
 
-        <ExportMenu onPDF={exportPDF} onWord={exportWord} />
+        <ExportMenu onPDF={exportPDF} onWord={exportWord} isDatabase={!!page.is_database} />
         <TopBarBtn onClick={() => {
           document.body.classList.add('printing-page')
           window.print()
@@ -766,7 +766,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   )
 }
 
-function ExportMenu({ onPDF, onWord }: { onPDF: () => void; onWord: () => void }) {
+function ExportMenu({ onPDF, onWord, isDatabase }: { onPDF: () => void; onWord: () => void; isDatabase?: boolean }) {
   const [open, setOpen] = useState(false)
   return (
     <div style={{ position: 'relative' }}>
@@ -783,12 +783,14 @@ function ExportMenu({ onPDF, onWord }: { onPDF: () => void; onWord: () => void }
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
               📄 Export as PDF
             </div>
-            <div onClick={() => { onWord(); setOpen(false) }}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-              📝 Export as Word
-            </div>
+            {!isDatabase && (
+              <div onClick={() => { onWord(); setOpen(false) }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                📝 Export as Word
+              </div>
+            )}
           </div>
         </>
       )}
