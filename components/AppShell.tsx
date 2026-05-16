@@ -32,13 +32,14 @@ function InstantPageView({ data, onNavigate }: { data: any; onNavigate: (path: s
   )
 }
 
-export default function AppShell({ user, workspaces: initWS, currentWorkspace: initCWS, pages: initPages, sharedPages, memberWorkspaces = [], children }: Props) {
+export default function AppShell({ user, workspaces: initWS, currentWorkspace: initCWS, pages: initPages, sharedPages: initSharedPages, memberWorkspaces = [], children }: Props) {
   const [workspaces, setWorkspaces] = useState(initWS)
   const [currentWs, setCurrentWs] = useState(initCWS)
   const [pages, setPages] = useState(initPages)
+  const [sharedPages, setSharedPages] = useState(initSharedPages)
   const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set())
   const [expandedShared, setExpandedShared] = useState<Set<string>>(new Set())
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window === 'undefined' ? true : window.innerWidth >= 768)
   const [wsMenuOpen, setWsMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<'profile'|'appearance'>('profile')
@@ -334,8 +335,11 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }
 
   async function removeSharedPage(pageId: string) {
-    await supabase.from('page_shares').delete().eq('page_id', pageId).eq('user_id', user.id)
-    window.location.reload()
+    const { error } = await supabase.from('page_shares').delete().eq('page_id', pageId).eq('user_id', user.id)
+    if (error) { showError('Failed to remove shared page'); return }
+    setSharedPages(sp => sp.filter(p => p.id !== pageId))
+    if (currentPageId === pageId) navigate('/app')
+    setContextMenu(null)
   }
 
   // ── WORKSPACE ACTIONS ────────────────────────────────────────
@@ -1004,169 +1008,31 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
       {/* ── SETTINGS MODAL (profile + appearance) ─────────── */}
       {settingsOpen && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 2000 }} onClick={() => setSettingsOpen(false)} />
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: '500px', height: '330px', display: 'flex', overflow: 'hidden', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in">
-            {/* Nav */}
-            <div style={{ width: '150px', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '14px 8px', flexShrink: 0 }}>
-              <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0 6px 8px' }}>Settings</div>
-              {(['profile','appearance'] as const).map(tab => (
-                <div key={tab} onClick={() => setSettingsTab(tab)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', fontWeight: settingsTab === tab ? 500 : 400, color: settingsTab === tab ? 'var(--text)' : 'var(--text-secondary)', background: settingsTab === tab ? 'var(--sidebar-active)' : 'none', marginBottom: '2px' }}
-                  onMouseEnter={e => { if (settingsTab !== tab) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-                  onMouseLeave={e => { if (settingsTab !== tab) (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                  {tab === 'profile' ? '👤' : '🎨'} {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </div>
-              ))}
-              <div style={{ borderTop: '1px solid var(--border)', marginTop: 'auto', paddingTop: '8px', position: 'absolute', bottom: '12px', width: '134px' }}>
-                <div onClick={() => setSettingsOpen(false)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', color: 'var(--red)' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                  🚫 Close
-                </div>
-              </div>
-            </div>
-            {/* Content */}
-            <div style={{ flex: 1, padding: '18px 22px', overflowY: 'auto' }}>
-              {settingsTab === 'profile' && (
-                <div>
-                  <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Profile</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
-                    <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{user.name[0]?.toUpperCase()}</div>
-                    <button style={{ border: '1px solid var(--border)', background: 'none', borderRadius: '5px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--text)' }}>Upload photo</button>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0 }}>Name</div>
-                    <input value={profileName} onChange={e => setProfileName(e.target.value)} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }} onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }} onBlur={e => { (e.target as HTMLElement).style.borderColor = 'var(--border)' }} />
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0 }}>Email</div>
-                    <input defaultValue={user.email} readOnly style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', background: 'var(--sidebar-bg)', outline: 'none' }} />
-                  </div>
-                  <button onClick={saveProfile} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 16px', fontSize: '13px', cursor: 'pointer', fontWeight: 500, fontFamily: 'var(--font-sans)' }}>Save</button>
-                  <div style={{ borderTop: '1px solid var(--border)', marginTop: '16px', paddingTop: '12px' }}>
-                    <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Danger zone</div>
-                    <button onClick={() => { setSettingsOpen(false); setShowDeleteAccount(true) }} style={{ border: '1px solid #fecaca', background: 'none', borderRadius: '5px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--red)' }}>Delete account</button>
-                  </div>
-                </div>
-              )}
-              {settingsTab === 'appearance' && (
-                <div>
-                  <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Appearance</div>
-                  <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
-                    {(['light','dark','system'] as const).map(t => (
-                      <button key={t} onClick={() => setTheme(t)}
-                        style={{ border: `1px solid ${theme === t ? 'var(--accent)' : 'var(--border)'}`, background: theme === t ? 'var(--accent-light)' : 'var(--surface)', color: theme === t ? 'var(--accent)' : 'var(--text)', borderRadius: '7px', padding: '6px 12px', fontSize: '12.5px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: theme === t ? 500 : 400, transition: 'all 0.15s' }}>
-                        {t === 'light' ? '☀️ Light' : t === 'dark' ? '🌙 Dark' : '💻 System'}
-                      </button>
-                    ))}
-                  </div>
-                  {/* Preview */}
-                  <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', height: '80px', transition: 'all 0.4s' }}>
-                    <div style={{ display: 'flex', height: '100%' }}>
-                      <div style={{ width: '76px', background: theme === 'dark' ? '#252524' : 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '8px', flexShrink: 0, transition: 'background 0.4s' }}>
-                        <div style={{ height: '8px', background: theme === 'dark' ? '#3a3a38' : 'var(--border)', borderRadius: '3px', marginBottom: '5px', transition: 'background 0.4s' }} />
-                        <div style={{ height: '8px', background: theme === 'dark' ? '#3a3a38' : 'var(--border)', borderRadius: '3px', width: '70%', transition: 'background 0.4s' }} />
-                      </div>
-                      <div style={{ flex: 1, background: theme === 'dark' ? '#1f1f1e' : 'var(--surface)', padding: '10px', transition: 'background 0.4s' }}>
-                        <div style={{ height: '12px', background: theme === 'dark' ? '#3a3a38' : 'var(--border)', borderRadius: '3px', width: '55%', marginBottom: '6px', transition: 'background 0.4s' }} />
-                        <div style={{ height: '8px', background: theme === 'dark' ? '#2e2e2c' : '#f0f0ee', borderRadius: '3px', transition: 'background 0.4s' }} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </>
+        <SettingsModal
+          user={user} tab={settingsTab} theme={theme}
+          profileName={profileName} setProfileName={setProfileName}
+          onTabChange={setSettingsTab} onThemeChange={setTheme}
+          onSave={saveProfile} onClose={() => setSettingsOpen(false)}
+          onDeleteAccount={() => { setSettingsOpen(false); setShowDeleteAccount(true) }}
+        />
       )}
 
       {/* ── WORKSPACE SETTINGS MODAL ──────────────────────── */}
       {wsSettingsOpen && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 2000 }} onClick={() => setWsSettingsOpen(false)} />
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: '520px', height: '360px', display: 'flex', overflow: 'hidden', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in">
-            <div style={{ width: '150px', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '14px 8px', flexShrink: 0 }}>
-              <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0 6px 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {currentWs.icon} {currentWs.name}
-              </div>
-              {(['general','members'] as const).map(tab => (
-                <div key={tab} onClick={() => { setWsSettingsTab(tab); if (tab === 'members') loadWsMembers() }}
-                  style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', fontWeight: wsSettingsTab === tab ? 500 : 400, color: wsSettingsTab === tab ? 'var(--text)' : 'var(--text-secondary)', background: wsSettingsTab === tab ? 'var(--sidebar-active)' : 'none', marginBottom: '2px' }}
-                  onMouseEnter={e => { if (wsSettingsTab !== tab) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-                  onMouseLeave={e => { if (wsSettingsTab !== tab) (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                  {tab === 'general' ? '⚙️' : '👥'} {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </div>
-              ))}
-              <div style={{ borderTop: '1px solid var(--border)', position: 'absolute', bottom: '12px', width: '134px' }}>
-                <div onClick={() => setWsSettingsOpen(false)}
-                  style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', color: 'var(--red)', marginTop: '8px' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                  🚫 Close
-                </div>
-              </div>
-            </div>
-            <div style={{ flex: 1, padding: '18px 22px', overflowY: 'auto' }}>
-              {wsSettingsTab === 'general' && (
-                <div>
-                  <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>General</div>
-                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '12px' }}>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '50px', flexShrink: 0, paddingTop: '4px' }}>Icon</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                      {['🌿','🌲','🌳','🌴','🌵','🍀','🌱','🌾','🍁','🌸','🏔','🏠','💼','🚀','⭐','💡','🎯','📚','🎨','🔮','🦋','🧠','💎','🔑','🌍'].map(em => (
-                        <button key={em} onClick={async () => { await supabase.from('workspaces').update({ icon: em }).eq('id', currentWs.id); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, icon: em } : w)) }}
-                          style={{ background: currentWs.icon === em ? 'var(--accent-light)' : 'none', border: currentWs.icon === em ? '2px solid var(--accent)' : '1px solid var(--border)', cursor: 'pointer', fontSize: '18px', padding: '3px 5px', borderRadius: '5px', lineHeight: 1 }}>
-                          {em}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '50px', flexShrink: 0 }}>Name</div>
-                    <input defaultValue={currentWs.name} onBlur={async e => { await supabase.from('workspaces').update({ name: e.target.value }).eq('id', currentWs.id); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, name: e.target.value } : w)); showToastMsg('Saved!') }} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }} onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }}  />
-                  </div>
-                  <div style={{ borderTop: '1px solid var(--border)', marginTop: '16px', paddingTop: '12px' }}>
-                    <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Danger zone</div>
-                    <button onClick={() => { if (confirm('Delete this workspace and all its pages?')) deleteWorkspace(currentWs.id) }} style={{ border: '1px solid #fecaca', background: 'none', borderRadius: '5px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--red)' }}>Delete workspace</button>
-                  </div>
-                </div>
-              )}
-              {wsSettingsTab === 'members' && (
-                <div>
-                  <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Members</div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>Members can see and edit all pages in this workspace.</div>
-                  {/* Owner */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 0', borderBottom: '1px solid var(--border)', marginBottom: '4px' }}>
-                    <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{user.name[0]?.toUpperCase()}</div>
-                    <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: '13px', color: 'var(--text)' }}>{user.name}</div><div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{user.email}</div></div>
-                    <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '8px', background: 'var(--accent-light)', color: 'var(--accent)', fontWeight: 500 }}>owner</span>
-                  </div>
-                  {wsMembers.map((m) => (
-                    <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
-                      <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--sidebar-active)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>{(m.profile?.full_name || m.profile?.email || '?')[0]?.toUpperCase()}</div>
-                      <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: '13px', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.profile?.full_name || m.profile?.email || m.user_id}</div></div>
-                      <select defaultValue={m.role} onChange={async e => { await supabase.from('workspace_members').update({ role: e.target.value }).eq('id', m.id); loadWsMembers() }} style={{ border: '1px solid var(--border)', borderRadius: '4px', fontSize: '11px', padding: '2px 4px', fontFamily: 'var(--font-sans)', background: 'var(--surface)', color: 'var(--text)' }}>
-                        <option value="member">member</option>
-                        <option value="viewer">viewer</option>
-                      </select>
-                      <button onClick={() => removeMember(m.user_id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '13px', padding: '2px 4px', borderRadius: '3px' }} onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)' }} onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>✕</button>
-                    </div>
-                  ))}
-                  <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }}>
-                    <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="Invite by email…" onKeyDown={e => { if (e.key === 'Enter') inviteMember() }} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '12px', fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }} onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }} onBlur={e => { (e.target as HTMLElement).style.borderColor = 'var(--border)' }} />
-                    <select value={inviteRole} onChange={e => setInviteRole(e.target.value as 'member' | 'viewer')} style={{ border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 6px', fontSize: '12px', fontFamily: 'var(--font-sans)', background: 'var(--surface)', color: 'var(--text)' }}>
-                      <option value="member">member</option>
-                      <option value="viewer">viewer</option>
-                    </select>
-                    <button onClick={inviteMember} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '5px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Invite</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </>
+        <WsSettingsModal
+          workspace={currentWs} tab={wsSettingsTab} members={wsMembers}
+          owner={user} inviteEmail={inviteEmail} inviteRole={inviteRole}
+          onTabChange={(tab) => { setWsSettingsTab(tab); if (tab === 'members') loadWsMembers() }}
+          onIconChange={async (em) => { await supabase.from('workspaces').update({ icon: em }).eq('id', currentWs.id); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, icon: em } : w)) }}
+          onNameBlur={async (name) => { await supabase.from('workspaces').update({ name }).eq('id', currentWs.id); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, name } : w)); showToastMsg('Saved!') }}
+          onRoleChange={async (memberId, role) => { await supabase.from('workspace_members').update({ role }).eq('id', memberId); loadWsMembers() }}
+          onRemoveMember={removeMember}
+          onInviteEmailChange={setInviteEmail}
+          onInviteRoleChange={setInviteRole}
+          onInvite={inviteMember}
+          onDelete={() => { if (confirm('Delete this workspace and all its pages?')) deleteWorkspace(currentWs.id) }}
+          onClose={() => setWsSettingsOpen(false)}
+        />
       )}
 
       {/* Export submenu from sidebar */}
@@ -1274,6 +1140,185 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         </div>
       )}
     </div>
+  )
+}
+
+// ── SETTINGS MODAL ───────────────────────────────────────────
+function SettingsModal({ user, tab, theme, profileName, setProfileName, onTabChange, onThemeChange, onSave, onClose, onDeleteAccount }: {
+  user: User; tab: 'profile' | 'appearance'; theme: 'light' | 'dark' | 'system'
+  profileName: string; setProfileName: (v: string) => void
+  onTabChange: (t: 'profile' | 'appearance') => void; onThemeChange: (t: 'light' | 'dark' | 'system') => void
+  onSave: () => void; onClose: () => void; onDeleteAccount: () => void
+}) {
+  return (
+    <>
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 2000 }} onClick={onClose} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: '500px', height: '330px', display: 'flex', overflow: 'hidden', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in">
+        <div style={{ width: '150px', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '14px 8px', flexShrink: 0 }}>
+          <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0 6px 8px' }}>Settings</div>
+          {(['profile', 'appearance'] as const).map(t => (
+            <div key={t} onClick={() => onTabChange(t)}
+              style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', fontWeight: tab === t ? 500 : 400, color: tab === t ? 'var(--text)' : 'var(--text-secondary)', background: tab === t ? 'var(--sidebar-active)' : 'none', marginBottom: '2px' }}
+              onMouseEnter={e => { if (tab !== t) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              onMouseLeave={e => { if (tab !== t) (e.currentTarget as HTMLElement).style.background = 'none' }}>
+              {t === 'profile' ? '👤' : '🎨'} {t.charAt(0).toUpperCase() + t.slice(1)}
+            </div>
+          ))}
+          <div style={{ borderTop: '1px solid var(--border)', marginTop: 'auto', paddingTop: '8px', position: 'absolute', bottom: '12px', width: '134px' }}>
+            <div onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', color: 'var(--red)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+              🚫 Close
+            </div>
+          </div>
+        </div>
+        <div style={{ flex: 1, padding: '18px 22px', overflowY: 'auto' }}>
+          {tab === 'profile' && (
+            <div>
+              <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Profile</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{user.name[0]?.toUpperCase()}</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0 }}>Name</div>
+                <input value={profileName} onChange={e => setProfileName(e.target.value)} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }} onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }} onBlur={e => { (e.target as HTMLElement).style.borderColor = 'var(--border)' }} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0 }}>Email</div>
+                <input defaultValue={user.email} readOnly style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', background: 'var(--sidebar-bg)', outline: 'none' }} />
+              </div>
+              <button onClick={onSave} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 16px', fontSize: '13px', cursor: 'pointer', fontWeight: 500, fontFamily: 'var(--font-sans)' }}>Save</button>
+              <div style={{ borderTop: '1px solid var(--border)', marginTop: '16px', paddingTop: '12px' }}>
+                <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Danger zone</div>
+                <button onClick={onDeleteAccount} style={{ border: '1px solid #fecaca', background: 'none', borderRadius: '5px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--red)' }}>Delete account</button>
+              </div>
+            </div>
+          )}
+          {tab === 'appearance' && (
+            <div>
+              <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Appearance</div>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+                {(['light', 'dark', 'system'] as const).map(t => (
+                  <button key={t} onClick={() => onThemeChange(t)}
+                    style={{ border: `1px solid ${theme === t ? 'var(--accent)' : 'var(--border)'}`, background: theme === t ? 'var(--accent-light)' : 'var(--surface)', color: theme === t ? 'var(--accent)' : 'var(--text)', borderRadius: '7px', padding: '6px 12px', fontSize: '12.5px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: theme === t ? 500 : 400, transition: 'all 0.15s' }}>
+                    {t === 'light' ? '☀️ Light' : t === 'dark' ? '🌙 Dark' : '💻 System'}
+                  </button>
+                ))}
+              </div>
+              <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', height: '80px' }}>
+                <div style={{ display: 'flex', height: '100%' }}>
+                  <div style={{ width: '76px', background: theme === 'dark' ? '#252524' : 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '8px', flexShrink: 0, transition: 'background 0.4s' }}>
+                    <div style={{ height: '8px', background: theme === 'dark' ? '#3a3a38' : 'var(--border)', borderRadius: '3px', marginBottom: '5px', transition: 'background 0.4s' }} />
+                    <div style={{ height: '8px', background: theme === 'dark' ? '#3a3a38' : 'var(--border)', borderRadius: '3px', width: '70%', transition: 'background 0.4s' }} />
+                  </div>
+                  <div style={{ flex: 1, background: theme === 'dark' ? '#1f1f1e' : 'var(--surface)', padding: '10px', transition: 'background 0.4s' }}>
+                    <div style={{ height: '12px', background: theme === 'dark' ? '#3a3a38' : 'var(--border)', borderRadius: '3px', width: '55%', marginBottom: '6px', transition: 'background 0.4s' }} />
+                    <div style={{ height: '8px', background: theme === 'dark' ? '#2e2e2c' : '#f0f0ee', borderRadius: '3px', transition: 'background 0.4s' }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ── WORKSPACE SETTINGS MODAL ─────────────────────────────────
+function WsSettingsModal({ workspace, tab, members, owner, inviteEmail, inviteRole, onTabChange, onIconChange, onNameBlur, onRoleChange, onRemoveMember, onInviteEmailChange, onInviteRoleChange, onInvite, onDelete, onClose }: {
+  workspace: Workspace; tab: 'general' | 'members'; members: WsMember[]
+  owner: User; inviteEmail: string; inviteRole: 'member' | 'viewer'
+  onTabChange: (t: 'general' | 'members') => void
+  onIconChange: (em: string) => void; onNameBlur: (name: string) => void
+  onRoleChange: (memberId: string, role: string) => void; onRemoveMember: (userId: string) => void
+  onInviteEmailChange: (v: string) => void; onInviteRoleChange: (v: 'member' | 'viewer') => void
+  onInvite: () => void; onDelete: () => void; onClose: () => void
+}) {
+  return (
+    <>
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 2000 }} onClick={onClose} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: '520px', height: '360px', display: 'flex', overflow: 'hidden', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in">
+        <div style={{ width: '150px', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '14px 8px', flexShrink: 0 }}>
+          <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0 6px 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {workspace.icon} {workspace.name}
+          </div>
+          {(['general', 'members'] as const).map(t => (
+            <div key={t} onClick={() => onTabChange(t)}
+              style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', fontWeight: tab === t ? 500 : 400, color: tab === t ? 'var(--text)' : 'var(--text-secondary)', background: tab === t ? 'var(--sidebar-active)' : 'none', marginBottom: '2px' }}
+              onMouseEnter={e => { if (tab !== t) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              onMouseLeave={e => { if (tab !== t) (e.currentTarget as HTMLElement).style.background = 'none' }}>
+              {t === 'general' ? '⚙️' : '👥'} {t.charAt(0).toUpperCase() + t.slice(1)}
+            </div>
+          ))}
+          <div style={{ borderTop: '1px solid var(--border)', position: 'absolute', bottom: '12px', width: '134px' }}>
+            <div onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', color: 'var(--red)', marginTop: '8px' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+              🚫 Close
+            </div>
+          </div>
+        </div>
+        <div style={{ flex: 1, padding: '18px 22px', overflowY: 'auto' }}>
+          {tab === 'general' && (
+            <div>
+              <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>General</div>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '12px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '50px', flexShrink: 0, paddingTop: '4px' }}>Icon</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                  {['🌿','🌲','🌳','🌴','🌵','🍀','🌱','🌾','🍁','🌸','🏔','🏠','💼','🚀','⭐','💡','🎯','📚','🎨','🔮','🦋','🧠','💎','🔑','🌍'].map(em => (
+                    <button key={em} onClick={() => onIconChange(em)}
+                      style={{ background: workspace.icon === em ? 'var(--accent-light)' : 'none', border: workspace.icon === em ? '2px solid var(--accent)' : '1px solid var(--border)', cursor: 'pointer', fontSize: '18px', padding: '3px 5px', borderRadius: '5px', lineHeight: 1 }}>
+                      {em}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '50px', flexShrink: 0 }}>Name</div>
+                <input defaultValue={workspace.name} onBlur={e => onNameBlur(e.target.value)} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }} onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }} />
+              </div>
+              <div style={{ borderTop: '1px solid var(--border)', marginTop: '16px', paddingTop: '12px' }}>
+                <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Danger zone</div>
+                <button onClick={onDelete} style={{ border: '1px solid #fecaca', background: 'none', borderRadius: '5px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--red)' }}>Delete workspace</button>
+              </div>
+            </div>
+          )}
+          {tab === 'members' && (
+            <div>
+              <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Members</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>Members can see and edit all pages in this workspace.</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 0', borderBottom: '1px solid var(--border)', marginBottom: '4px' }}>
+                <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{owner.name[0]?.toUpperCase()}</div>
+                <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: '13px', color: 'var(--text)' }}>{owner.name}</div><div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{owner.email}</div></div>
+                <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '8px', background: 'var(--accent-light)', color: 'var(--accent)', fontWeight: 500 }}>owner</span>
+              </div>
+              {members.map(m => (
+                <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 0', borderBottom: '1px solid var(--border)' }}>
+                  <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--sidebar-active)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, color: 'var(--text-secondary)', flexShrink: 0 }}>{(m.profile?.full_name || m.profile?.email || '?')[0]?.toUpperCase()}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: '13px', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.profile?.full_name || m.profile?.email || m.user_id}</div></div>
+                  <select defaultValue={m.role} onChange={e => onRoleChange(m.id, e.target.value)} style={{ border: '1px solid var(--border)', borderRadius: '4px', fontSize: '11px', padding: '2px 4px', fontFamily: 'var(--font-sans)', background: 'var(--surface)', color: 'var(--text)' }}>
+                    <option value="member">member</option>
+                    <option value="viewer">viewer</option>
+                  </select>
+                  <button onClick={() => onRemoveMember(m.user_id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '13px', padding: '2px 4px', borderRadius: '3px' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>✕</button>
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: '6px', marginTop: '12px' }}>
+                <input value={inviteEmail} onChange={e => onInviteEmailChange(e.target.value)} placeholder="Invite by email…" onKeyDown={e => { if (e.key === 'Enter') onInvite() }} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '12px', fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }} onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }} onBlur={e => { (e.target as HTMLElement).style.borderColor = 'var(--border)' }} />
+                <select value={inviteRole} onChange={e => onInviteRoleChange(e.target.value as 'member' | 'viewer')} style={{ border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 6px', fontSize: '12px', fontFamily: 'var(--font-sans)', background: 'var(--surface)', color: 'var(--text)' }}>
+                  <option value="member">member</option>
+                  <option value="viewer">viewer</option>
+                </select>
+                <button onClick={onInvite} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '5px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Invite</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
   )
 }
 
