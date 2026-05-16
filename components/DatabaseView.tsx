@@ -721,9 +721,13 @@ function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelation }: 
         }
         setOpen(o => !o); setShowTypes(false)
       }}
-        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 11, padding: '1px 4px', borderRadius: 3, lineHeight: 1 }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '1px 4px', borderRadius: 3, display: 'flex', alignItems: 'center' }}
         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--border)' }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>⌄</button>
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+          <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
       {open && menuPos && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 499 }} onClick={() => setOpen(false)} />
