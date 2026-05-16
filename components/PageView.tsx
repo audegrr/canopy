@@ -37,6 +37,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   const [isUploadingCover, setIsUploadingCover] = useState(false)
   const saveTimer = useRef<any>(null)
   const [editorInstance, setEditorInstance] = useState<any>(null)
+  const [remoteConflict, setRemoteConflict] = useState<{ content: any; title: string } | null>(null)
+  const [presenceUsers, setPresenceUsers] = useState<{ userId: string; name: string; color: string }[]>([])
+  const savedRef = useRef(true)
+  const lastSaveTimestamp = useRef<string | null>(null)
+  const editorRef = useRef<any>(null)
   const titleRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
   const router = useRouter()
@@ -89,6 +94,46 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
       window.removeEventListener('canopy:openExport', onExport)
     }
   }, [])
+
+  // Realtime: live sync + presence
+  useEffect(() => {
+    if (!userId) return
+
+    const PRESENCE_COLORS = ['#e07b39','#0b6e99','#0f7b6c','#6940a5','#ad1a72','#d9730d']
+    const myColor = PRESENCE_COLORS[parseInt(userId.slice(-2), 16) % PRESENCE_COLORS.length]
+
+    const channel = supabase.channel(`page:${page.id}`, { config: { presence: { key: userId } } })
+
+    channel
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pages', filter: `id=eq.${page.id}` }, payload => {
+        const remote = payload.new as any
+        // Ignore our own saves (matched by timestamp)
+        if (remote.updated_at === lastSaveTimestamp.current) return
+        if (savedRef.current) {
+          // No unsaved local changes — silently apply remote content
+          if (remote.content) editorRef.current?.commands.setContent(remote.content)
+          setPage(p => ({ ...p, content: remote.content ?? p.content, title: remote.title ?? p.title }))
+          if (remote.title && titleRef.current) titleRef.current.textContent = remote.title
+        } else {
+          // We have unsaved local changes — surface conflict
+          setRemoteConflict({ content: remote.content, title: remote.title })
+        }
+      })
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState<{ name: string; color: string }>()
+        const others = Object.entries(state)
+          .filter(([key]) => key !== userId)
+          .flatMap(([key, presences]) => presences.map(p => ({ userId: key, name: p.name || 'Someone', color: p.color || '#999' })))
+        setPresenceUsers(others)
+      })
+      .subscribe(async status => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ name: 'User', color: myColor })
+        }
+      })
+
+    return () => { supabase.removeChannel(channel) }
+  }, [page.id, userId])
 
   // Listen for subpage picker request from editor
   useEffect(() => {
@@ -189,10 +234,14 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
 
   function scheduleSave(updates: Partial<Page>) {
     setSaved(false)
+    savedRef.current = false
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(async () => {
-      await supabase.from('pages').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', page.id)
+      const ts = new Date().toISOString()
+      await supabase.from('pages').update({ ...updates, updated_at: ts }).eq('id', page.id)
+      lastSaveTimestamp.current = ts
       setSaved(true)
+      savedRef.current = true
     }, 800)
   }
 
@@ -423,6 +472,21 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
           {page.icon && <span style={{ fontSize: '14px' }}>{page.icon}</span>}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{page.title || 'Untitled'}</span>
         </div>
+        {presenceUsers.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+            {presenceUsers.slice(0, 4).map(u => (
+              <div key={u.userId} title={u.name}
+                style={{ width: 24, height: 24, borderRadius: '50%', background: u.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#fff', border: '2px solid var(--surface)', marginLeft: -4, flexShrink: 0 }}>
+                {u.name.charAt(0).toUpperCase()}
+              </div>
+            ))}
+            {presenceUsers.length > 4 && (
+              <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--text-secondary)', border: '2px solid var(--surface)', marginLeft: -4 }}>
+                +{presenceUsers.length - 4}
+              </div>
+            )}
+          </div>
+        )}
         <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0, transition: 'opacity 0.3s', opacity: saved ? 0 : 1 }}>Saving…</span>
 
         <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} isDatabase={!!page.is_database} />
@@ -439,6 +503,29 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
           >🔒 Share</TopBarBtn>
         )}
       </div>
+
+      {/* Conflict banner */}
+      {remoteConflict && (
+        <div style={{ padding: '8px 16px', background: '#fef9c3', borderBottom: '1px solid #fde047', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, color: '#713f12', flex: 1 }}>⚠️ This page was updated by someone else while you were editing.</span>
+          <button onClick={() => setRemoteConflict(null)}
+            style={{ background: '#fff', border: '1px solid #fde047', borderRadius: 5, padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', color: '#713f12', fontWeight: 500 }}>
+            Keep mine
+          </button>
+          <button onClick={() => {
+            if (remoteConflict.content) editorRef.current?.commands.setContent(remoteConflict.content)
+            setPage(p => ({ ...p, content: remoteConflict.content ?? p.content, title: remoteConflict.title ?? p.title }))
+            if (remoteConflict.title && titleRef.current) titleRef.current.textContent = remoteConflict.title
+            if (saveTimer.current) clearTimeout(saveTimer.current)
+            setSaved(true)
+            savedRef.current = true
+            setRemoteConflict(null)
+          }}
+            style={{ background: '#713f12', border: 'none', borderRadius: 5, padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', color: '#fff', fontWeight: 500 }}>
+            Use theirs
+          </button>
+        </div>
+      )}
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         {/* Page content */}
@@ -557,7 +644,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                       content={initialContentRef.current}
                       editable={canEdit}
                       onUpdate={onContentUpdate}
-                      onEditorReady={setEditorInstance}
+                      onEditorReady={e => { setEditorInstance(e); editorRef.current = e }}
                     />
                   </>
               }
