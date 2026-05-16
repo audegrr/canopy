@@ -1,3 +1,18 @@
+export type TiptapMark = {
+  type: string
+  attrs?: Record<string, unknown>
+}
+
+export type TiptapNode = {
+  type: string
+  attrs?: Record<string, unknown>
+  content?: TiptapNode[]
+  marks?: TiptapMark[]
+  text?: string
+}
+
+export type TiptapContent = TiptapNode[] | { type: 'doc'; content: TiptapNode[] }
+
 export type Workspace = {
   id: string
   name: string
@@ -13,7 +28,7 @@ export type Page = {
   title: string
   icon: string
   cover_url: string
-  content: any
+  content: TiptapContent
   position: number
   is_database: boolean
   owner_id: string

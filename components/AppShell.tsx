@@ -606,7 +606,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       return (
         <div key={page.id}>
           <PageRow
-            page={page as any} depth={depth} isActive={isActive} isDragOver={false}
+            page={page} depth={depth} isActive={isActive} isDragOver={false}
             hasChildren={hasChildren} isExpanded={isExpanded}
             isRenaming={false} renameVal='' onRenameChange={() => {}} onRenameSubmit={() => {}} onRenameCancel={() => {}}
             onToggle={() => setExpandedShared(s => { const n = new Set(s); n.has(page.id) ? n.delete(page.id) : n.add(page.id); return n })}
@@ -1323,7 +1323,37 @@ function WsSettingsModal({ workspace, tab, members, owner, inviteEmail, inviteRo
 }
 
 // ── PAGE ROW COMPONENT ───────────────────────────────────────
-function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, isRenaming, renameVal, onRenameChange, onRenameSubmit, onRenameCancel, onToggle, onClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu, onAddSubpage, onMoreMenu, isDragging, badge, onRemove, onHover, dropIndicator, isShared }: any) {
+type PageRowProps = {
+  page: { id: string; icon: string; title: string; is_database?: boolean }
+  depth: number
+  isActive: boolean
+  isDragOver: boolean
+  hasChildren: boolean
+  isExpanded: boolean
+  isRenaming: boolean
+  renameVal: string
+  onRenameChange: (val: string) => void
+  onRenameSubmit: () => void
+  onRenameCancel: () => void
+  onToggle: () => void
+  onClick: () => void
+  onDragStart: (e: React.DragEvent) => void
+  onDragOver: (e: React.DragEvent) => void
+  onDragLeave: () => void
+  onDrop: (e: React.DragEvent) => void
+  onDragEnd: () => void
+  onContextMenu: (e: React.MouseEvent) => void
+  onAddSubpage?: () => void
+  onMoreMenu: (e: React.MouseEvent) => void
+  isDragging: boolean
+  badge?: string
+  onRemove?: () => void
+  onHover?: () => void
+  dropIndicator?: 'above' | 'below' | 'inside' | null
+  isShared?: boolean
+}
+
+function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, isRenaming, renameVal, onRenameChange, onRenameSubmit, onRenameCancel, onToggle, onClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu, onAddSubpage, onMoreMenu, isDragging, badge, onRemove, onHover, dropIndicator, isShared }: PageRowProps) {
   const [hovered, setHovered] = useState(false)
   return (
     <div style={{ position: 'relative' }}>
@@ -1421,9 +1451,9 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
 }
 
 // ── SMALL COMPONENTS ─────────────────────────────────────────
-function SbBtn({ onClick, title, children }: { onClick: (e: React.MouseEvent) => void; title: string; children: React.ReactNode }) {
+function SbBtn({ onClick, title, children }: { onClick?: (e: React.MouseEvent) => void; title: string; children: React.ReactNode }) {
   return (
-    <button onClick={e => { e.stopPropagation(); onClick(e) }} title={title}
+    <button onClick={e => { e.stopPropagation(); onClick?.(e) }} title={title}
       style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '3px 5px', borderRadius: '4px', fontSize: '12px', lineHeight: 1, fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '20px', minWidth: '20px' }}
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--border)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>

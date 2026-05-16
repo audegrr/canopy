@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { TiptapNode } from '@/lib/types'
 
-function renderNodes(nodes: any[]): string {
+function renderNodes(nodes: TiptapNode[]): string {
   if (!nodes) return ''
   return nodes.map(node => {
     switch (node.type) {
@@ -34,8 +35,10 @@ function renderNodes(nodes: any[]): string {
   }).join('')
 }
 
-function extractContent(raw: any): any[] {
-  return Array.isArray(raw) ? raw : (raw?.content || [])
+function extractContent(raw: unknown): TiptapNode[] {
+  if (Array.isArray(raw)) return raw as TiptapNode[]
+  if (raw && typeof raw === 'object' && 'content' in raw) return (raw as { content: TiptapNode[] }).content || []
+  return []
 }
 
 export async function exportPageAsPDF(pageId: string, supabase: SupabaseClient, onDone: () => void) {
