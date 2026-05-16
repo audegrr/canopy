@@ -370,6 +370,29 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     }
   }
 
+  async function exportCSV() {
+    const supabase = createClient()
+    const [{ data: fields }, { data: records }] = await Promise.all([
+      supabase.from('db_fields').select('*').eq('page_id', page.id).order('position'),
+      supabase.from('db_records').select('*').eq('page_id', page.id).order('position'),
+    ])
+    if (!fields) return
+    const header = fields.map((f: any) => `"${f.name.replace(/"/g, '""')}"`).join(',')
+    const rows = (records || []).map((rec: any) =>
+      fields.map((f: any) => `"${String(rec.data?.[f.id] ?? '').replace(/"/g, '""')}"`)
+        .join(',')
+    )
+    const csv = [header, ...rows].join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = (page.title || 'database') + '.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+    showToast('Excel / CSV downloaded!')
+  }
+
   async function exportWord() {
     // Simple HTML to docx via browser download
     const content = document.querySelector('.tiptap')?.innerHTML || ''
@@ -402,7 +425,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         </div>
         <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0, transition: 'opacity 0.3s', opacity: saved ? 0 : 1 }}>Saving…</span>
 
-        <ExportMenu onPDF={exportPDF} onWord={exportWord} isDatabase={!!page.is_database} />
+        <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} isDatabase={!!page.is_database} />
         <TopBarBtn onClick={() => {
           document.body.classList.add('printing-page')
           window.print()
@@ -766,7 +789,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   )
 }
 
-function ExportMenu({ onPDF, onWord, isDatabase }: { onPDF: () => void; onWord: () => void; isDatabase?: boolean }) {
+function ExportMenu({ onPDF, onWord, onCSV, isDatabase }: { onPDF: () => void; onWord: () => void; onCSV?: () => void; isDatabase?: boolean }) {
   const [open, setOpen] = useState(false)
   return (
     <div style={{ position: 'relative' }}>
@@ -783,7 +806,14 @@ function ExportMenu({ onPDF, onWord, isDatabase }: { onPDF: () => void; onWord: 
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
               📄 Export as PDF
             </div>
-            {!isDatabase && (
+            {isDatabase ? (
+              <div onClick={() => { onCSV?.(); setOpen(false) }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                📊 Export as Excel / CSV
+              </div>
+            ) : (
               <div onClick={() => { onWord(); setOpen(false) }}
                 style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}

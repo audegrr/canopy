@@ -348,6 +348,29 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     URL.revokeObjectURL(url)
     setExportMenu(null)
   }
+  async function exportPageAsCSV(pageId: string) {
+    const [{ data: fields }, { data: records }, { data: p }] = await Promise.all([
+      supabase.from('db_fields').select('*').eq('page_id', pageId).order('position'),
+      supabase.from('db_records').select('*').eq('page_id', pageId).order('position'),
+      supabase.from('pages').select('title').eq('id', pageId).single(),
+    ])
+    if (!fields) return
+    const header = fields.map((f: any) => `"${f.name.replace(/"/g, '""')}"`).join(',')
+    const rows = (records || []).map((rec: any) =>
+      fields.map((f: any) => `"${String(rec.data?.[f.id] ?? '').replace(/"/g, '""')}"`)
+        .join(',')
+    )
+    const csv = [header, ...rows].join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = (p?.title || 'database') + '.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+    setExportMenu(null)
+  }
+
   function prefetch(path: string) { router.prefetch(path) }
 
   // Pre-warm page content cache on hover
@@ -1276,13 +1299,19 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       )}
 
       {/* Export submenu from sidebar */}
-      {exportMenu && (
+      {exportMenu && (() => {
+        const isDb = [...pages, ...sharedPages].find(p => p.id === exportMenu.pageId)?.is_database
+        return (
           <div className="context-menu scale-in"
             style={{ position: 'fixed', left: Math.min(exportMenu.x, window.innerWidth - 180), top: Math.min(exportMenu.y, window.innerHeight - 100), zIndex: 2001, minWidth: '170px' }}>
             <MenuItem onClick={() => exportPageAsPDF(exportMenu.pageId)}>📄 Export as PDF</MenuItem>
-            <MenuItem onClick={() => exportPageAsWord(exportMenu.pageId)}>📝 Export as Word</MenuItem>
+            {isDb
+              ? <MenuItem onClick={() => exportPageAsCSV(exportMenu.pageId)}>📊 Export as Excel / CSV</MenuItem>
+              : <MenuItem onClick={() => exportPageAsWord(exportMenu.pageId)}>📝 Export as Word</MenuItem>
+            }
           </div>
-      )}
+        )
+      })()}
 
       {/* Context menu */}
       {contextMenu && (

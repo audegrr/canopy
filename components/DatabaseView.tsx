@@ -436,11 +436,6 @@ export default function DatabaseView({ page, canEdit }: Props) {
             {sort.dir === 'asc' ? '↑' : '↓'}
           </button>
         )}
-        <div style={{ flex: 1 }} />
-        <button onClick={exportCSV}
-          style={{ background: 'none', color: 'var(--text-secondary)', border: 'none', padding: '4px 10px', borderRadius: 5, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-          ⬇ Excel / CSV
-        </button>
       </div>
 
       {/* Filter row */}
@@ -507,7 +502,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                         )}
                       </th>
                     ))}
-                    {canEdit && <th style={{ width: 36, minWidth: 36 }}>
+                    {canEdit && <th data-export-hide style={{ width: 36, minWidth: 36 }}>
                       <button onClick={() => setAddingField(true)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16, padding: '0 4px' }} title="Add field">+</button>
                     </th>}
                   </tr>
