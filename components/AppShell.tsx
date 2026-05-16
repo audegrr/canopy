@@ -1306,7 +1306,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             style={{ position: 'fixed', left: Math.min(exportMenu.x, window.innerWidth - 180), top: Math.min(exportMenu.y, window.innerHeight - 100), zIndex: 2001, minWidth: '170px' }}>
             <MenuItem onClick={() => exportPageAsPDF(exportMenu.pageId)}>📄 Export as PDF</MenuItem>
             {isDb
-              ? <MenuItem onClick={() => exportPageAsCSV(exportMenu.pageId)}>📊 Export as Excel / CSV</MenuItem>
+              ? <MenuItem onClick={() => exportPageAsCSV(exportMenu.pageId)}>📊 Export as CSV</MenuItem>
               : <MenuItem onClick={() => exportPageAsWord(exportMenu.pageId)}>📝 Export as Word</MenuItem>
             }
           </div>

@@ -390,7 +390,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     a.download = (page.title || 'database') + '.csv'
     a.click()
     URL.revokeObjectURL(url)
-    showToast('Excel / CSV downloaded!')
+    showToast('CSV downloaded!')
   }
 
   async function exportWord() {
@@ -811,7 +811,7 @@ function ExportMenu({ onPDF, onWord, onCSV, isDatabase }: { onPDF: () => void; o
                 style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                📊 Export as Excel / CSV
+                📊 Export as CSV
               </div>
             ) : (
               <div onClick={() => { onWord(); setOpen(false) }}
