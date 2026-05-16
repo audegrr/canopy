@@ -51,7 +51,8 @@ export default async function AppLayout({ children }) {
 
   const sharedPages = (sharedResult.data || []).map((p: any) => ({
     id: p.id, title: p.title, icon: p.icon || '',
-    owner_id: p.owner_id, permission: p.permission, parent_id: p.parent_id ?? null
+    owner_id: p.owner_id, permission: p.permission, parent_id: p.parent_id ?? null,
+    is_database: p.is_database ?? false
   }))
 
   return (

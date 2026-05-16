@@ -29,6 +29,7 @@ export type SharedPage = {
   owner_id: string
   permission: 'view' | 'edit'
   parent_id: string | null
+  is_database?: boolean
 }
 
 export type DbField = {
