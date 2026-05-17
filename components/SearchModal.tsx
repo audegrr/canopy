@@ -2,7 +2,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
-type Result = { id: string; title: string; icon: string; is_database: boolean }
+type Result = {
+  id: string
+  title: string
+  icon: string
+  is_database: boolean
+  match_in: 'title' | 'content'
+  snippet: string
+}
 
 type Props = {
   workspaceId: string
@@ -24,16 +31,40 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
     if (!query.trim()) { setResults([]); setLoading(false); return }
     setLoading(true)
     const timer = setTimeout(async () => {
-      const { data } = await supabase
-        .from('pages')
-        .select('id, title, icon, is_database')
-        .eq('workspace_id', workspaceId)
-        .ilike('title', `%${query.trim()}%`)
-        .limit(20)
-      setResults(data || [])
+      const q = query.trim()
+      if (q.length < 2) {
+        // For very short queries, title-only is fine and faster
+        const { data } = await supabase
+          .from('pages')
+          .select('id, title, icon, is_database')
+          .eq('workspace_id', workspaceId)
+          .ilike('title', `%${q}%`)
+          .limit(20)
+        setResults((data || []).map((r: any) => ({ ...r, match_in: 'title', snippet: '' })))
+        setSelected(0)
+        setLoading(false)
+        return
+      }
+      // Full-text search across title + content
+      const { data, error } = await supabase.rpc('search_pages_fts', {
+        ws_id: workspaceId,
+        q,
+      })
+      if (error) {
+        // Graceful fallback to title-only
+        const { data: fallback } = await supabase
+          .from('pages')
+          .select('id, title, icon, is_database')
+          .eq('workspace_id', workspaceId)
+          .ilike('title', `%${q}%`)
+          .limit(20)
+        setResults((fallback || []).map((r: any) => ({ ...r, match_in: 'title', snippet: '' })))
+      } else {
+        setResults(data || [])
+      }
       setSelected(0)
       setLoading(false)
-    }, 180)
+    }, 220)
     return () => clearTimeout(timer)
   }, [query, workspaceId])
 
@@ -44,10 +75,26 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
     else if (e.key === 'Escape') onClose()
   }
 
+  function highlight(text: string, q: string) {
+    if (!q.trim() || !text) return text
+    const idx = text.toLowerCase().indexOf(q.toLowerCase())
+    if (idx === -1) return text
+    return (
+      <>
+        {text.slice(0, idx)}
+        <mark style={{ background: 'var(--accent-light)', color: 'var(--accent)', borderRadius: 2, padding: '0 1px' }}>
+          {text.slice(idx, idx + q.length)}
+        </mark>
+        {text.slice(idx + q.length)}
+      </>
+    )
+  }
+
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,0.35)' }} onClick={onClose} />
-      <div style={{ position: 'fixed', top: '18%', left: '50%', transform: 'translateX(-50%)', width: 'min(90vw, 560px)', background: 'var(--surface)', borderRadius: 12, boxShadow: '0 12px 48px rgba(0,0,0,0.22)', zIndex: 1000, overflow: 'hidden' }}>
+      <div style={{ position: 'fixed', top: '18%', left: '50%', transform: 'translateX(-50%)', width: 'min(90vw, 580px)', background: 'var(--surface)', borderRadius: 12, boxShadow: '0 12px 48px rgba(0,0,0,0.22)', zIndex: 1000, overflow: 'hidden' }}>
+
         {/* Search input */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
           <span style={{ fontSize: 16, color: 'var(--text-tertiary)', flexShrink: 0 }}>🔍</span>
@@ -56,7 +103,7 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Search pages…"
+            placeholder="Search pages and content…"
             style={{ flex: 1, border: 'none', outline: 'none', fontSize: 15, background: 'transparent', color: 'var(--text)', fontFamily: 'var(--font-sans)' }}
           />
           {loading
@@ -66,10 +113,10 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
         </div>
 
         {/* Results */}
-        <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
           {!query.trim() && (
             <div style={{ padding: '28px 16px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
-              Type to search across all pages
+              Type to search across all pages and content
             </div>
           )}
           {query.trim() && !loading && results.length === 0 && (
@@ -81,15 +128,25 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
             <div key={r.id}
               onClick={() => { onNavigate(r.id); onClose() }}
               onMouseEnter={() => setSelected(i)}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 16px', cursor: 'pointer', background: selected === i ? 'var(--accent-light)' : 'transparent', borderLeft: `3px solid ${selected === i ? 'var(--accent)' : 'transparent'}` }}>
-              <span style={{ fontSize: 17, flexShrink: 0 }}>{r.icon || (r.is_database ? '🗄️' : '📄')}</span>
+              style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 16px', cursor: 'pointer', background: selected === i ? 'var(--accent-light)' : 'transparent', borderLeft: `3px solid ${selected === i ? 'var(--accent)' : 'transparent'}` }}>
+              <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{r.icon || (r.is_database ? '🗄️' : '📄')}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: selected === i ? 'var(--accent)' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {r.title || 'Untitled'}
+                  {highlight(r.title || 'Untitled', query)}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{r.is_database ? 'Database' : 'Page'}</div>
+                {r.match_in === 'content' && r.snippet && (
+                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    …{highlight(r.snippet, query)}…
+                  </div>
+                )}
+                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>{r.is_database ? 'Database' : 'Page'}</span>
+                  {r.match_in === 'content' && (
+                    <span style={{ background: 'var(--sidebar-active)', borderRadius: 3, padding: '1px 5px', fontWeight: 500, fontSize: 10 }}>content match</span>
+                  )}
+                </div>
               </div>
-              <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0 }}>↵</span>
+              <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0, marginTop: 4 }}>↵</span>
             </div>
           ))}
         </div>

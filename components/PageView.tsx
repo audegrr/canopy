@@ -46,6 +46,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   const [historyOpen, setHistoryOpen] = useState(false)
   const [snapshots, setSnapshots] = useState<{ id: string; title: string; content: any; created_at: string }[]>([])
   const [snapshotLoading, setSnapshotLoading] = useState(false)
+  const [backlinksOpen, setBacklinksOpen] = useState(false)
+  const [backlinks, setBacklinks] = useState<{ id: string; title: string; icon: string }[]>([])
+  const [backlinksLoaded, setBacklinksLoaded] = useState(false)
   const [tocOpen, setTocOpen] = useState(false)
   const [headings, setHeadings] = useState<{ level: number; text: string; idx: number }[]>([])
   const [wordCount, setWordCount] = useState(0)
@@ -494,6 +497,19 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     showToast('CSV downloaded!')
   }
 
+  function exportMarkdown() {
+    const nodes: any[] = Array.isArray(page.content) ? page.content : ((page.content as any)?.content || [])
+    const md = `# ${page.icon ? page.icon + ' ' : ''}${page.title || 'Untitled'}\n\n` + nodesToMd(nodes)
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = (page.title || 'page').replace(/[/\\:*?"<>|]/g, '-') + '.md'
+    a.click()
+    URL.revokeObjectURL(url)
+    showToast('Markdown downloaded!')
+  }
+
   async function exportWord() {
     // Simple HTML to docx via browser download
     const content = document.querySelector('.tiptap')?.innerHTML || ''
@@ -521,6 +537,13 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     const { data } = await supabase.from('page_snapshots').select('id, title, content, created_at').eq('page_id', page.id).order('created_at', { ascending: false }).limit(50)
     setSnapshots(data || [])
     setSnapshotLoading(false)
+  }
+
+  async function loadBacklinks() {
+    if (backlinksLoaded) return
+    const { data } = await supabase.rpc('get_backlinks', { target_page_id: page.id })
+    setBacklinks(data || [])
+    setBacklinksLoaded(true)
   }
 
   function restoreSnapshot(snap: { content: any; title: string }) {
@@ -558,7 +581,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         )}
         <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0, transition: 'opacity 0.3s', opacity: saved ? 0 : 1 }}>Saving…</span>
 
-        <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} isDatabase={!!page.is_database} />
+        <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onMarkdown={exportMarkdown} isDatabase={!!page.is_database} />
         <TopBarBtn onClick={() => {
           document.body.classList.add('printing-page')
           window.print()
@@ -572,6 +595,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         )}
         {canEdit && (
           <TopBarBtn onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots() }} active={historyOpen}>🕓 History</TopBarBtn>
+        )}
+        {!page.is_database && (
+          <TopBarBtn onClick={() => { setBacklinksOpen(o => !o); loadBacklinks() }} active={backlinksOpen} title="Backlinks — pages that reference this one">
+            ↩ Backlinks{backlinksLoaded && backlinks.length > 0 ? ` (${backlinks.length})` : ''}
+          </TopBarBtn>
         )}
         <TopBarBtn onClick={() => {
           setFocusMode(f => {
@@ -793,6 +821,35 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}>
                     Restore this version
                   </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Backlinks panel */}
+        {backlinksOpen && !page.is_database && (
+          <div style={{ width: '260px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>Backlinks</span>
+              <button onClick={() => setBacklinksOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16 }}>✕</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+              {!backlinksLoaded && <div style={{ padding: '16px', fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</div>}
+              {backlinksLoaded && backlinks.length === 0 && (
+                <div style={{ padding: '20px 16px', fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
+                  No pages link here yet.<br />
+                  <span style={{ fontSize: 11 }}>Embed this page in another page using the <kbd style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: 3, padding: '1px 4px' }}>/</kbd> menu to create a backlink.</span>
+                </div>
+              )}
+              {backlinks.map(b => (
+                <div key={b.id}
+                  onClick={() => { window.location.href = `/app/page/${b.id}` }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', cursor: 'pointer' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                  <span style={{ fontSize: 16, flexShrink: 0 }}>{b.icon || '📄'}</span>
+                  <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>{b.title || 'Untitled'}</span>
                 </div>
               ))}
             </div>
@@ -1032,6 +1089,83 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   )
 }
 
+// ── TIPTAP → MARKDOWN ────────────────────────────────────────
+function inlineToMd(node: any): string {
+  if (node.type === 'text') {
+    let t = node.text || ''
+    const marks: string[] = (node.marks || []).map((m: any) => m.type)
+    if (marks.includes('bold')) t = `**${t}**`
+    if (marks.includes('italic')) t = `_${t}_`
+    if (marks.includes('code')) t = `\`${t}\``
+    if (marks.includes('strike')) t = `~~${t}~~`
+    const link = (node.marks || []).find((m: any) => m.type === 'link')
+    if (link) t = `[${t}](${link.attrs?.href || ''})`
+    return t
+  }
+  return (node.content || []).map(inlineToMd).join('')
+}
+
+function nodeToMd(node: any, listDepth = 0): string {
+  const indent = '  '.repeat(listDepth)
+  switch (node.type) {
+    case 'heading': {
+      const level = '#'.repeat(node.attrs?.level || 1)
+      return `${level} ${(node.content || []).map(inlineToMd).join('')}\n\n`
+    }
+    case 'paragraph': {
+      const text = (node.content || []).map(inlineToMd).join('')
+      return text ? `${text}\n\n` : '\n'
+    }
+    case 'bulletList':
+      return (node.content || []).map((li: any) => {
+        const body = (li.content || []).map((c: any) => nodeToMd(c, listDepth + 1)).join('').trimEnd()
+        return `${indent}- ${body}\n`
+      }).join('') + '\n'
+    case 'orderedList':
+      return (node.content || []).map((li: any, i: number) => {
+        const body = (li.content || []).map((c: any) => nodeToMd(c, listDepth + 1)).join('').trimEnd()
+        return `${indent}${i + 1}. ${body}\n`
+      }).join('') + '\n'
+    case 'taskList':
+      return (node.content || []).map((li: any) => {
+        const checked = li.attrs?.checked ? 'x' : ' '
+        const body = (li.content || []).map((c: any) => nodeToMd(c, listDepth + 1)).join('').trimEnd()
+        return `${indent}- [${checked}] ${body}\n`
+      }).join('') + '\n'
+    case 'blockquote':
+      return (node.content || []).map((c: any) => `> ${nodeToMd(c, listDepth).trimEnd()}`).join('\n') + '\n\n'
+    case 'codeBlock': {
+      const lang = node.attrs?.language || ''
+      const code = (node.content || []).map((c: any) => c.text || '').join('')
+      return `\`\`\`${lang}\n${code}\n\`\`\`\n\n`
+    }
+    case 'horizontalRule': return '---\n\n'
+    case 'image': return `![${node.attrs?.alt || ''}](${node.attrs?.src || ''})\n\n`
+    case 'table':
+      return tableToMd(node) + '\n'
+    default:
+      return (node.content || []).map((c: any) => nodeToMd(c, listDepth)).join('')
+  }
+}
+
+function tableToMd(table: any): string {
+  const rows: any[][] = (table.content || []).map((row: any) =>
+    (row.content || []).map((cell: any) =>
+      (cell.content || []).map((c: any) => nodeToMd(c)).join('').trim().replace(/\n+/g, ' ')
+    )
+  )
+  if (rows.length === 0) return ''
+  const cols = Math.max(...rows.map(r => r.length))
+  const header = `| ${rows[0].join(' | ')} |`
+  const sep = `| ${Array(cols).fill('---').join(' | ')} |`
+  const body = rows.slice(1).map(r => `| ${r.join(' | ')} |`).join('\n')
+  return [header, sep, body].filter(Boolean).join('\n')
+}
+
+function nodesToMd(nodes: any[]): string {
+  return nodes.map(n => nodeToMd(n)).join('')
+}
+
 const COVER_GRADIENTS = [
   'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
   'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
@@ -1128,8 +1262,16 @@ function CoverGallery({ onSelect, onUpload, onClose }: { onSelect: (v: string) =
   )
 }
 
-function ExportMenu({ onPDF, onWord, onCSV, isDatabase }: { onPDF: () => void; onWord: () => void; onCSV?: () => void; isDatabase?: boolean }) {
+function ExportMenu({ onPDF, onWord, onCSV, onMarkdown, isDatabase }: { onPDF: () => void; onWord: () => void; onCSV?: () => void; onMarkdown?: () => void; isDatabase?: boolean }) {
   const [open, setOpen] = useState(false)
+  const item = (label: string, fn: () => void) => (
+    <div onClick={() => { fn(); setOpen(false) }}
+      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+      {label}
+    </div>
+  )
   return (
     <div style={{ position: 'relative' }}>
       <TopBarBtn onClick={() => setOpen(o => !o)} active={open} data-export-btn>
@@ -1138,28 +1280,13 @@ function ExportMenu({ onPDF, onWord, onCSV, isDatabase }: { onPDF: () => void; o
       {open && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpen(false)} />
-          <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 100, minWidth: '170px' }} className="scale-in">
-            <div onClick={() => { onPDF(); setOpen(false) }}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-              📄 Export as PDF
-            </div>
-            {isDatabase ? (
-              <div onClick={() => { onCSV?.(); setOpen(false) }}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                📊 Export as CSV
-              </div>
-            ) : (
-              <div onClick={() => { onWord(); setOpen(false) }}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                📝 Export as Word
-              </div>
-            )}
+          <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 100, minWidth: '180px' }} className="scale-in">
+            {item('📄 Export as PDF', onPDF)}
+            {isDatabase
+              ? item('📊 Export as CSV', onCSV || (() => {}))
+              : item('📝 Export as Word', onWord)
+            }
+            {!isDatabase && item('⬇️ Export as Markdown', onMarkdown || (() => {}))}
           </div>
         </>
       )}
