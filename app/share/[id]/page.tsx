@@ -3,6 +3,17 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import PageView from '@/components/PageView'
 
+export async function generateMetadata({ params }: { params: any }) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: page } = await supabase.from('pages').select('title, icon').eq('id', id).single()
+  if (!page) return {}
+  return {
+    title: [page.icon, page.title || 'Untitled'].filter(Boolean).join(' '),
+    description: 'View this page on Canopy',
+  }
+}
+
 export default async function SharePage({ params }: { params: any }) {
   const { id } = await params
   const supabase = await createClient()
@@ -22,5 +33,12 @@ export default async function SharePage({ params }: { params: any }) {
     redirect(`/app/page/${id}`)
   }
 
-  return <PageView page={page} canEdit={page.link_permission === 'edit'} isOwner={false} />
+  return (
+    <PageView
+      page={page}
+      canEdit={page.link_permission === 'edit'}
+      isOwner={false}
+      isPublicShare={!user}
+    />
+  )
 }

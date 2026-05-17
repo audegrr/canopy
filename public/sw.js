@@ -16,6 +16,34 @@ self.addEventListener('activate', e => {
   )
 })
 
+self.addEventListener('push', e => {
+  const data = e.data?.json() ?? {}
+  e.waitUntil(
+    self.registration.showNotification(data.title || 'Canopy', {
+      body: data.body || '',
+      icon: '/icon-192.png',
+      badge: '/icon-192.png',
+      data: { url: data.url || '/app' },
+    })
+  )
+})
+
+self.addEventListener('notificationclick', e => {
+  e.notification.close()
+  e.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
+      const target = e.notification.data?.url || '/app'
+      for (const c of list) {
+        if (c.url.includes(self.location.origin) && 'focus' in c) {
+          c.navigate(target)
+          return c.focus()
+        }
+      }
+      return clients.openWindow(target)
+    })
+  )
+})
+
 // Network-first strategy: try network, fall back to cache
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return

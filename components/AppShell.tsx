@@ -86,7 +86,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
-  const { notifications, notifOpen, setNotifOpen, unreadCount, markAllRead, clearAll: clearAllNotifications, browserPermission, requestBrowserPermission } = useNotifications(user.id, supabase)
+  const { notifications, notifOpen, setNotifOpen, unreadCount, markAllRead, clearAll: clearAllNotifications, browserPermission, requestBrowserPermission, pushEnabled, togglePush } = useNotifications(user.id, supabase)
   const currentPageId = pathname.match(/\/app\/page\/([^/]+)/)?.[1] || null
 
   useEffect(() => {
@@ -1142,10 +1142,16 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                       </button>
                     )}
                   </div>
-                  {browserPermission === 'default' && (
+                  {browserPermission !== 'denied' && (
                     <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Get notified when you're away</span>
-                      <button onClick={requestBrowserPermission} style={{ flexShrink: 0, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 5, padding: '4px 10px', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Enable</button>
+                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        {pushEnabled ? 'Push notifications on' : 'Get notified when you\'re away'}
+                      </span>
+                      <button
+                        onClick={browserPermission === 'granted' ? togglePush : requestBrowserPermission}
+                        style={{ flexShrink: 0, background: pushEnabled ? 'var(--sidebar-hover)' : 'var(--accent)', color: pushEnabled ? 'var(--text)' : '#fff', border: pushEnabled ? '1px solid var(--border)' : 'none', borderRadius: 5, padding: '4px 10px', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+                        {pushEnabled ? 'Turn off' : 'Enable'}
+                      </button>
                     </div>
                   )}
                   {notifications.length === 0 ? (

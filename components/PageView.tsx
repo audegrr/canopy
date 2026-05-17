@@ -13,10 +13,11 @@ type Props = {
   page: Page
   canEdit: boolean
   isOwner: boolean
-  userId: string
+  userId?: string
+  isPublicShare?: boolean
 }
 
-export default function PageView({ page: initialPage, canEdit, isOwner, userId }: Props) {
+export default function PageView({ page: initialPage, canEdit, isOwner, userId = '', isPublicShare = false }: Props) {
   const [page, setPage] = useState(initialPage)
   const initialContentRef = useRef(initialPage.content)
   const [saved, setSaved] = useState(true)
@@ -767,22 +768,40 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
       {/* Top bar */}
       <div style={{ height: focusMode ? 0 : '48px', padding: focusMode ? 0 : '0 12px', borderBottom: focusMode ? 'none' : '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, overflow: 'hidden', transition: 'height 0.2s, padding 0.2s' }}>
 
-        {/* Hamburger — opens sidebar on mobile */}
-        {isMobile && (
-          <button onClick={() => window.dispatchEvent(new CustomEvent('canopy:openSidebar'))}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 18, padding: '4px 6px', borderRadius: 5, flexShrink: 0, lineHeight: 1 }}>
-            ☰
-          </button>
+        {isPublicShare ? (
+          /* Public share: Canopy branding left, sign-in CTA right */
+          <>
+            <a href="/" style={{ display: 'flex', alignItems: 'center', gap: '7px', textDecoration: 'none', color: 'var(--text)', flexShrink: 0 }}>
+              <img src="/icon.svg" alt="Canopy" style={{ width: 22, height: 22, borderRadius: 5 }} />
+              <span style={{ fontWeight: 700, fontSize: '14px', letterSpacing: '-0.01em' }}>Canopy</span>
+            </a>
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-tertiary)', overflow: 'hidden', minWidth: 0, paddingLeft: 8, borderLeft: '1px solid var(--border)', marginLeft: 2 }}>
+              {page.icon && <span style={{ fontSize: '14px', flexShrink: 0 }}>{page.icon}</span>}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{page.title || 'Untitled'}</span>
+            </div>
+            <a href="/login" style={{ flexShrink: 0, background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 12px', fontSize: '13px', fontWeight: 500, color: 'var(--text)', textDecoration: 'none', fontFamily: 'var(--font-sans)' }}>Sign in</a>
+            <a href="/login" style={{ flexShrink: 0, background: 'var(--accent)', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: '13px', fontWeight: 600, color: '#fff', textDecoration: 'none', fontFamily: 'var(--font-sans)' }}>Get started free</a>
+          </>
+        ) : (
+          <>
+            {/* Hamburger — opens sidebar on mobile */}
+            {isMobile && (
+              <button onClick={() => window.dispatchEvent(new CustomEvent('canopy:openSidebar'))}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 18, padding: '4px 6px', borderRadius: 5, flexShrink: 0, lineHeight: 1 }}>
+                ☰
+              </button>
+            )}
+
+            {/* Breadcrumb title */}
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-tertiary)', overflow: 'hidden', minWidth: 0 }}>
+              {page.icon && <span style={{ fontSize: '14px', flexShrink: 0 }}>{page.icon}</span>}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{page.title || 'Untitled'}</span>
+            </div>
+          </>
         )}
 
-        {/* Breadcrumb title */}
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-tertiary)', overflow: 'hidden', minWidth: 0 }}>
-          {page.icon && <span style={{ fontSize: '14px', flexShrink: 0 }}>{page.icon}</span>}
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{page.title || 'Untitled'}</span>
-        </div>
-
-        {/* Presence avatars */}
-        {presenceUsers.length > 0 && (
+        {/* Presence avatars, saving indicator, action buttons — hidden for public share */}
+        {!isPublicShare && presenceUsers.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
             {presenceUsers.slice(0, isMobile ? 2 : 4).map(u => (
               <div key={u.userId} title={u.section ? `${u.name} — ${u.section}` : u.name}
@@ -803,10 +822,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
           </div>
         )}
 
-        <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0, transition: 'opacity 0.3s', opacity: saved ? 0 : 1 }}>Saving…</span>
+        {!isPublicShare && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0, transition: 'opacity 0.3s', opacity: saved ? 0 : 1 }}>Saving…</span>}
 
         {/* Desktop buttons */}
-        {!isMobile && <>
+        {!isPublicShare && !isMobile && <>
           {/* Separator */}
           {wordCount > 0 && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{wordCount}w</span>}
           {(page.view_count ?? 0) > 1 && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }} title="Total views"><TbIcon d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z" size={12}/> {page.view_count}</span>}
@@ -839,7 +858,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         </>}
 
         {/* Mobile: compact action row */}
-        {isMobile && <>
+        {!isPublicShare && isMobile && <>
           <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen} iconOnly>
             <TbIcon d={TB_ICONS.chat} />{comments.length > 0 ? comments.length : ''}
           </TopBarBtn>
@@ -1047,6 +1066,17 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {/* Public share footer */}
+            {isPublicShare && (
+              <div style={{ marginTop: 60, paddingTop: 20, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <img src="/icon.svg" alt="Canopy" style={{ width: 18, height: 18, borderRadius: 4, opacity: 0.7 }} />
+                <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Made with </span>
+                <a href="/" style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none' }}>Canopy</a>
+                <span style={{ fontSize: 12, color: 'var(--text-tertiary)', marginLeft: 6 }}>·</span>
+                <a href="/login" style={{ fontSize: 12, color: 'var(--text-tertiary)', textDecoration: 'none' }}>Start for free →</a>
               </div>
             )}
           </div>

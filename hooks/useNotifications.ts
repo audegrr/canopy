@@ -3,14 +3,61 @@ import { useState, useEffect } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Notification } from '@/lib/types'
 
+const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
+
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = atob(base64)
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)))
+}
+
+async function subscribeToPush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
+  const reg = await navigator.serviceWorker.ready
+  const existing = await reg.pushManager.getSubscription()
+  if (existing) {
+    await syncSubscription(existing)
+    return
+  }
+  if (!VAPID_PUBLIC_KEY) return
+  const sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+  })
+  await syncSubscription(sub)
+}
+
+async function syncSubscription(sub: PushSubscription) {
+  await fetch('/api/push/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subscription: sub.toJSON() }),
+  })
+}
+
+async function unsubscribeFromPush() {
+  if (!('serviceWorker' in navigator)) return
+  const reg = await navigator.serviceWorker.ready
+  const sub = await reg.pushManager.getSubscription()
+  if (sub) await sub.unsubscribe()
+  await fetch('/api/push/subscribe', { method: 'DELETE' })
+}
+
 export function useNotifications(userId: string, supabase: SupabaseClient) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [notifOpen, setNotifOpen] = useState(false)
   const [browserPermission, setBrowserPermission] = useState<NotificationPermission>('default')
+  const [pushEnabled, setPushEnabled] = useState(false)
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setBrowserPermission(Notification.permission)
+    if (typeof window === 'undefined' || !('Notification' in window)) return
+    setBrowserPermission(Notification.permission)
+    // Check if already subscribed
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg =>
+        reg.pushManager.getSubscription().then(sub => setPushEnabled(!!sub))
+      )
     }
   }, [])
 
@@ -36,7 +83,7 @@ export function useNotifications(userId: string, supabase: SupabaseClient) {
               Notification.permission === 'granted' &&
               !document.hasFocus()
             ) {
-              new Notification(notif.title, { body: notif.body ?? undefined, icon: '/icon.png' })
+              new Notification(notif.title, { body: notif.body ?? undefined, icon: '/icon-192.png' })
             }
           })
           .subscribe()
@@ -50,6 +97,25 @@ export function useNotifications(userId: string, supabase: SupabaseClient) {
     if (!('Notification' in window)) return
     const result = await Notification.requestPermission()
     setBrowserPermission(result)
+    if (result === 'granted') {
+      await subscribeToPush()
+      setPushEnabled(true)
+    }
+  }
+
+  async function togglePush() {
+    if (pushEnabled) {
+      await unsubscribeFromPush()
+      setPushEnabled(false)
+    } else {
+      if (browserPermission !== 'granted') {
+        const result = await Notification.requestPermission()
+        setBrowserPermission(result)
+        if (result !== 'granted') return
+      }
+      await subscribeToPush()
+      setPushEnabled(true)
+    }
   }
 
   const unreadCount = notifications.filter(n => !n.read).length
@@ -68,5 +134,5 @@ export function useNotifications(userId: string, supabase: SupabaseClient) {
     } catch {}
   }
 
-  return { notifications, notifOpen, setNotifOpen, unreadCount, markAllRead, clearAll, browserPermission, requestBrowserPermission }
+  return { notifications, notifOpen, setNotifOpen, unreadCount, markAllRead, clearAll, browserPermission, requestBrowserPermission, pushEnabled, togglePush }
 }
