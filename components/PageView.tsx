@@ -828,8 +828,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         {!isPublicShare && !isMobile && <>
           {/* Separator */}
           {wordCount > 0 && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{wordCount}w</span>}
-          {(page.view_count ?? 0) > 1 && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }} title="Total views"><TbIcon d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z" size={12}/> {page.view_count}</span>}
-          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
+<div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onXLSX={page.is_database ? exportXLSX : undefined} onMarkdown={exportMarkdown} onImportMarkdown={canEdit && !page.is_database ? triggerMarkdownImport : undefined} isDatabase={!!page.is_database} onSaveTemplate={!page.is_database && canEdit ? saveAsTemplate : undefined} />
           <TopBarBtn onClick={exportPDF} iconOnly title="Print / Save as PDF">🖨️</TopBarBtn>
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
