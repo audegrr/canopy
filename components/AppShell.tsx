@@ -81,6 +81,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [trashLoading, setTrashLoading] = useState(false)
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
   const [favoritesCollapsed, setFavoritesCollapsed] = useState(false)
+  const [keyFocusId, setKeyFocusId] = useState<string | null>(null)
+  const sidebarTreeRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -678,6 +680,53 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }
 
   // ── RENDER PAGE TREE ─────────────────────────────────────────
+  // Build ordered flat list of visible pages for keyboard nav
+  function getFlatVisiblePages(): Page[] {
+    const result: Page[] = []
+    function walk(parentId: string | null) {
+      pages
+        .filter(p => p.parent_id === parentId && p.workspace_id === currentWs.id)
+        .sort((a, b) => a.position - b.position)
+        .forEach(p => { result.push(p); if (expandedPages.has(p.id)) walk(p.id) })
+    }
+    walk(null)
+    return result
+  }
+
+  function handleSidebarKeyDown(e: React.KeyboardEvent) {
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) return
+    e.preventDefault()
+    const flat = getFlatVisiblePages()
+    if (flat.length === 0) return
+    const curIdx = keyFocusId ? flat.findIndex(p => p.id === keyFocusId) : -1
+
+    if (e.key === 'ArrowDown') {
+      const next = flat[Math.min(curIdx + 1, flat.length - 1)]
+      setKeyFocusId(next.id)
+      setTimeout(() => sidebarTreeRef.current?.querySelector(`[data-page-id="${next.id}"]`)?.scrollIntoView({ block: 'nearest' }), 0)
+    } else if (e.key === 'ArrowUp') {
+      if (curIdx <= 0) return
+      const prev = flat[curIdx - 1]
+      setKeyFocusId(prev.id)
+      setTimeout(() => sidebarTreeRef.current?.querySelector(`[data-page-id="${prev.id}"]`)?.scrollIntoView({ block: 'nearest' }), 0)
+    } else if (e.key === 'Enter' && keyFocusId) {
+      navigate(`/app/page/${keyFocusId}`)
+    } else if (e.key === 'ArrowRight' && keyFocusId) {
+      const hasChildren = pages.some(p => p.parent_id === keyFocusId)
+      if (hasChildren && !expandedPages.has(keyFocusId))
+        setExpandedPages(s => { const n = new Set(s); n.add(keyFocusId); return n })
+      else if (!hasChildren)
+        navigate(`/app/page/${keyFocusId}`)
+    } else if (e.key === 'ArrowLeft' && keyFocusId) {
+      if (expandedPages.has(keyFocusId)) {
+        setExpandedPages(s => { const n = new Set(s); n.delete(keyFocusId); return n })
+      } else {
+        const p = pages.find(x => x.id === keyFocusId)
+        if (p?.parent_id) setKeyFocusId(p.parent_id)
+      }
+    }
+  }
+
   function renderPageTree(parentId: string | null, depth = 0): React.ReactNode {
     const children = pages
       .filter(p => p.parent_id === parentId && p.workspace_id === currentWs.id)
@@ -695,11 +744,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             page={page} depth={depth} isActive={isActive} isDragOver={isDragOver}
             hasChildren={hasChildren} isExpanded={isExpanded}
             isRenaming={renamingPageId === page.id} renameVal={renameVal}
+            isKeyFocused={keyFocusId === page.id}
             onRenameChange={setRenameVal}
             onRenameSubmit={() => renamePage(page.id, renameVal)}
             onRenameCancel={() => setRenamingPageId(null)}
             onToggle={() => setExpandedPages(s => { const n = new Set(s); n.has(page.id) ? n.delete(page.id) : n.add(page.id); return n })}
-            onClick={() => navigate(`/app/page/${page.id}`)}
+            onClick={() => { navigate(`/app/page/${page.id}`); setKeyFocusId(page.id) }}
             onHover={() => { prefetch(`/app/page/${page.id}`); prewarmPage(page.id) }}
             onDragStart={(e: React.DragEvent) => handleDragStart(e, page.id)}
             onDragOver={(e: React.DragEvent) => handleDragOverPage(e, page.id)}
@@ -878,7 +928,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         </div>
 
         {/* Pages tree */}
-        <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '8px' }}>
+        <div ref={sidebarTreeRef} tabIndex={0} onKeyDown={handleSidebarKeyDown}
+          style={{ flex: 1, overflowY: 'auto', paddingBottom: '8px', outline: 'none' }}>
           {/* Favorites */}
           {favoriteIds.size > 0 && (() => {
             const favPages = [...pages, ...sharedPages].filter(p => favoriteIds.has(p.id))
@@ -1780,12 +1831,13 @@ type PageRowProps = {
   onHover?: () => void
   dropIndicator?: 'above' | 'below' | 'inside' | null
   isShared?: boolean
+  isKeyFocused?: boolean
 }
 
-function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, isRenaming, renameVal, onRenameChange, onRenameSubmit, onRenameCancel, onToggle, onClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu, onAddSubpage, onMoreMenu, isDragging, badge, onRemove, onHover, dropIndicator, isShared }: PageRowProps) {
+function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, isRenaming, renameVal, onRenameChange, onRenameSubmit, onRenameCancel, onToggle, onClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu, onAddSubpage, onMoreMenu, isDragging, badge, onRemove, onHover, dropIndicator, isShared, isKeyFocused }: PageRowProps) {
   const [hovered, setHovered] = useState(false)
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative' }} data-page-id={page.id}>
     {dropIndicator === 'above' && (
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'var(--accent)', borderRadius: 1, zIndex: 5, pointerEvents: 'none' }} />
     )}
@@ -1801,7 +1853,9 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
         paddingLeft: `${6 + depth * 16}px`, paddingRight: '6px',
         paddingTop: '6px', paddingBottom: '6px',
         borderRadius: '5px', cursor: 'pointer',
-        background: isActive ? 'var(--sidebar-active)' : isDragOver ? 'var(--accent-light)' : hovered ? 'var(--sidebar-hover)' : 'transparent',
+        background: isActive ? 'var(--sidebar-active)' : isDragOver ? 'var(--accent-light)' : isKeyFocused ? 'var(--sidebar-hover)' : hovered ? 'var(--sidebar-hover)' : 'transparent',
+        outline: isKeyFocused ? '2px solid var(--accent)' : 'none',
+        outlineOffset: '-2px',
         opacity: isDragging ? 0.4 : 1,
         margin: '0 4px',
         userSelect: 'none',
