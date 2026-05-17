@@ -591,6 +591,31 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     showToast('CSV downloaded!')
   }
 
+  async function exportXLSX() {
+    const { default: XLSX } = await import('xlsx')
+    const supabase = createClient()
+    const [{ data: fields }, { data: records }] = await Promise.all([
+      supabase.from('db_fields').select('*').eq('page_id', page.id).order('position'),
+      supabase.from('db_records').select('*').eq('page_id', page.id).order('position'),
+    ])
+    if (!fields) return
+    const header = fields.map((f: any) => f.name)
+    const rows = (records || []).map((rec: any) => fields.map((f: any) => {
+      const v = rec.data?.[f.id]
+      if (f.type === 'checkbox') return v ? 'Yes' : 'No'
+      if (f.type === 'number') return v !== undefined && v !== '' ? Number(v) : ''
+      return String(v ?? '')
+    }))
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows])
+    ws['!cols'] = header.map((h: string, i: number) => ({
+      wch: Math.max(h.length, ...rows.map((r: any) => String(r[i] ?? '').length), 8)
+    }))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, (page.title || 'Database').slice(0, 31))
+    XLSX.writeFile(wb, (page.title || 'database') + '.xlsx')
+    showToast('Excel downloaded!')
+  }
+
   function exportMarkdown() {
     const nodes: any[] = Array.isArray(page.content) ? page.content : ((page.content as any)?.content || [])
     const md = `# ${page.icon ? page.icon + ' ' : ''}${page.title || 'Untitled'}\n\n` + nodesToMd(nodes)
@@ -786,7 +811,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
           {wordCount > 0 && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{wordCount}w</span>}
           {(page.view_count ?? 0) > 1 && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }} title="Total views"><TbIcon d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z" size={12}/> {page.view_count}</span>}
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
-          <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onMarkdown={exportMarkdown} onImportMarkdown={canEdit && !page.is_database ? triggerMarkdownImport : undefined} isDatabase={!!page.is_database} onSaveTemplate={!page.is_database && canEdit ? saveAsTemplate : undefined} />
+          <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onXLSX={page.is_database ? exportXLSX : undefined} onMarkdown={exportMarkdown} onImportMarkdown={canEdit && !page.is_database ? triggerMarkdownImport : undefined} isDatabase={!!page.is_database} onSaveTemplate={!page.is_database && canEdit ? saveAsTemplate : undefined} />
           <TopBarBtn onClick={exportPDF} iconOnly title="Print / Save as PDF"><TbIcon d={TB_ICONS.print} /></TopBarBtn>
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           {!page.is_database && headings.length > 0 && (
@@ -1576,7 +1601,7 @@ function CoverGallery({ onSelect, onUpload, onClose }: { onSelect: (v: string) =
   )
 }
 
-function ExportMenu({ onPDF, onWord, onCSV, onMarkdown, onImportMarkdown, onSaveTemplate, isDatabase }: { onPDF: () => void; onWord: () => void; onCSV?: () => void; onMarkdown?: () => void; onImportMarkdown?: () => void; onSaveTemplate?: () => void; isDatabase?: boolean }) {
+function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, onImportMarkdown, onSaveTemplate, isDatabase }: { onPDF: () => void; onWord: () => void; onCSV?: () => void; onXLSX?: () => void; onMarkdown?: () => void; onImportMarkdown?: () => void; onSaveTemplate?: () => void; isDatabase?: boolean }) {
   const [open, setOpen] = useState(false)
   const item = (label: string, fn: () => void) => (
     <div onClick={() => { fn(); setOpen(false) }}
@@ -1596,10 +1621,12 @@ function ExportMenu({ onPDF, onWord, onCSV, onMarkdown, onImportMarkdown, onSave
           <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpen(false)} />
           <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 100, minWidth: '190px' }} className="scale-in">
             {item('📄 Export as PDF', onPDF)}
-            {isDatabase
-              ? item('📊 Export as CSV', onCSV || (() => {}))
-              : item('📝 Export as Word', onWord)
-            }
+            {isDatabase ? (
+              <>
+                {item('📊 Export as CSV', onCSV || (() => {}))}
+                {item('📗 Export as Excel', onXLSX || (() => {}))}
+              </>
+            ) : item('📝 Export as Word', onWord)}
             {!isDatabase && item('⬇️ Export as Markdown', onMarkdown || (() => {}))}
             {(onImportMarkdown || onSaveTemplate) && (
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />

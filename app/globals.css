@@ -412,6 +412,12 @@ tr:hover .delete-row-btn { opacity: 1; color: var(--red) !important; }
   .db-toolbar-import { margin-left: 0 !important; }
 }
 
+/* ── DB ROW HOVER — show checkbox and open/delete buttons ───── */
+.db-table tbody tr:hover .row-checkbox,
+.db-table tbody tr:hover .open-row-btn {
+  opacity: 1 !important;
+}
+
 /* ── LOADING ANIMATIONS ─────────────────────────────────────── */
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes loadingBar { from { transform: scaleX(0); transform-origin: left; } to { transform: scaleX(1); transform-origin: left; } }

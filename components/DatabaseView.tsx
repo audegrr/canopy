@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Page, DbField, DbRecord } from '@/lib/types'
+import * as XLSX from 'xlsx'
 
 type View = 'table' | 'board' | 'gallery' | 'calendar'
 
@@ -49,6 +50,8 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const [dragOverGroup, setDragOverGroup] = useState<string | null>(null)
   const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() } })
   const [showImport, setShowImport] = useState(false)
+  const [dbSearch, setDbSearch] = useState('')
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [page.id])
@@ -191,9 +194,14 @@ export default function DatabaseView({ page, canEdit }: Props) {
 
   function showToastMsg(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2000) }
 
+  function getExportRecords() {
+    return selectedRows.size > 0 ? records.filter(r => selectedRows.has(r.id)) : displayRecords
+  }
+
   function exportCSV() {
+    const exportRecs = getExportRecords()
     const header = fields.map(f => `"${f.name.replace(/"/g, '""')}"`).join(',')
-    const rows = records.map(rec =>
+    const rows = exportRecs.map(rec =>
       fields.map(f => `"${String(rec.data?.[f.id] ?? '').replace(/"/g, '""')}"`)
         .join(',')
     )
@@ -207,8 +215,45 @@ export default function DatabaseView({ page, canEdit }: Props) {
     URL.revokeObjectURL(url)
   }
 
+  function exportXLSX() {
+    const exportRecs = getExportRecords()
+    const header = fields.map(f => f.name)
+    const rows = exportRecs.map(rec => fields.map(f => {
+      const v = rec.data?.[f.id]
+      if (f.type === 'checkbox') return v ? 'Yes' : 'No'
+      if (f.type === 'number') return v !== undefined && v !== '' ? Number(v) : ''
+      return String(v ?? '')
+    }))
+    const ws = XLSX.utils.aoa_to_sheet([header, ...rows])
+    // Auto column widths
+    ws['!cols'] = header.map((h, i) => ({
+      wch: Math.max(h.length, ...rows.map(r => String(r[i] ?? '').length), 8)
+    }))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, page.title?.slice(0, 31) || 'Database')
+    XLSX.writeFile(wb, (page.title || 'database') + '.xlsx')
+  }
+
+  async function deleteSelectedRows() {
+    if (selectedRows.size === 0) return
+    const ids = [...selectedRows]
+    await supabase.from('db_records').delete().in('id', ids)
+    setRecords(r => r.filter(x => !selectedRows.has(x.id)))
+    setSelectedRows(new Set())
+    showToastMsg(`Deleted ${ids.length} record${ids.length !== 1 ? 's' : ''}`)
+  }
+
   // Filter & sort
   let displayRecords = [...records]
+
+  // Free-text search across all field values
+  if (dbSearch.trim()) {
+    const q = dbSearch.trim().toLowerCase()
+    displayRecords = displayRecords.filter(r =>
+      fields.some(f => String(r.data?.[f.id] ?? '').toLowerCase().includes(q))
+    )
+  }
+
   const activeFilters = filters.filter(f => f.field && (f.op === 'not_empty' || f.value))
   if (activeFilters.length > 0) {
     displayRecords = displayRecords.filter(r =>
@@ -490,6 +535,20 @@ export default function DatabaseView({ page, canEdit }: Props) {
             {sort.dir === 'asc' ? '↑' : '↓'}
           </button>
         )}
+        {/* Search bar */}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <input
+            value={dbSearch}
+            onChange={e => setDbSearch(e.target.value)}
+            placeholder="Search…"
+            style={{ padding: '4px 28px 4px 8px', border: '1px solid var(--border)', borderRadius: 5, fontSize: 12, fontFamily: 'var(--font-sans)', background: dbSearch ? 'var(--accent-light)' : 'var(--sidebar-bg)', color: 'var(--text)', outline: 'none', width: dbSearch ? 140 : 80, transition: 'width 0.2s, background 0.15s' }}
+            onFocus={e => { (e.target as HTMLInputElement).style.width = '140px'; (e.target as HTMLInputElement).style.borderColor = 'var(--accent)' }}
+            onBlur={e => { if (!dbSearch) (e.target as HTMLInputElement).style.width = '80px'; (e.target as HTMLInputElement).style.borderColor = 'var(--border)' }}
+          />
+          {dbSearch && (
+            <button onClick={() => setDbSearch('')} style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: '0 2px', lineHeight: 1 }}>✕</button>
+          )}
+        </div>
         {canEdit && (
           <button onClick={() => setShowImport(true)} className="db-toolbar-import"
             style={{ marginLeft: 'auto', background: 'none', color: 'var(--text-secondary)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 5, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
@@ -549,7 +608,14 @@ export default function DatabaseView({ page, canEdit }: Props) {
               <table className="db-table" style={{ minWidth: '100%' }}>
                 <thead>
                   <tr>
-                    <th data-export-hide style={{ width: 28, minWidth: 28, position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 1 }} />
+                    <th data-export-hide style={{ width: 48, minWidth: 48, position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 1, textAlign: 'center' }}>
+                      {canEdit && displayRecords.length > 0 && (
+                        <input type="checkbox"
+                          checked={selectedRows.size === displayRecords.length && displayRecords.length > 0}
+                          onChange={e => setSelectedRows(e.target.checked ? new Set(displayRecords.map(r => r.id)) : new Set())}
+                          style={{ accentColor: 'var(--accent)', cursor: 'pointer' }} />
+                      )}
+                    </th>
                     {visibleFields.map((f, colIdx) => (
                       <th key={f.id} style={{ minWidth: 140, position: 'relative' }}
                         draggable={canEdit && colIdx > 0}
@@ -600,11 +666,19 @@ export default function DatabaseView({ page, canEdit }: Props) {
                 </thead>
                 <tbody>
                   {displayRecords.map((rec, i) => (
-                    <tr key={rec.id}>
-                      <td data-export-hide style={{ width: 28, minWidth: 28, padding: 0, position: 'sticky', left: 0, background: 'var(--surface)', borderRight: '1px solid var(--border)', textAlign: 'center' }}>
-                        <button onClick={() => setDetailRecId(rec.id)} title="Open record"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: '2px 4px', borderRadius: 3, opacity: 0, transition: 'opacity 0.1s' }}
-                          className="open-row-btn">⤢</button>
+                    <tr key={rec.id} style={{ background: selectedRows.has(rec.id) ? 'var(--accent-light)' : undefined }}>
+                      <td data-export-hide style={{ width: 48, minWidth: 48, padding: 0, position: 'sticky', left: 0, background: selectedRows.has(rec.id) ? 'var(--accent-light)' : 'var(--surface)', borderRight: '1px solid var(--border)', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                          {canEdit && (
+                            <input type="checkbox" checked={selectedRows.has(rec.id)}
+                              onChange={e => setSelectedRows(s => { const n = new Set(s); e.target.checked ? n.add(rec.id) : n.delete(rec.id); return n })}
+                              style={{ accentColor: 'var(--accent)', cursor: 'pointer', opacity: selectedRows.has(rec.id) ? 1 : 0, transition: 'opacity 0.1s' }}
+                              className="row-checkbox" />
+                          )}
+                          <button onClick={() => setDetailRecId(rec.id)} title="Open record"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: '2px 3px', borderRadius: 3, opacity: 0, transition: 'opacity 0.1s', flexShrink: 0 }}
+                            className="open-row-btn">⤢</button>
+                        </div>
                       </td>
                       {visibleFields.map(f => (
                         <td key={f.id} data-cell={`${rec.id}-${f.id}`} style={{ position: 'relative' }}
@@ -821,6 +895,37 @@ export default function DatabaseView({ page, canEdit }: Props) {
           </div>
         )}
       </div>
+
+      {/* Bulk action bar */}
+      {selectedRows.size > 0 && (
+        <div style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', background: '#37352f', color: '#fff', borderRadius: 10, padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.25)', zIndex: 50, whiteSpace: 'nowrap', animation: 'scaleIn 0.15s ease' }}>
+          <span style={{ fontSize: 12, fontWeight: 500 }}>{selectedRows.size} selected</span>
+          <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.2)' }} />
+          <button onClick={() => { exportCSV(); setSelectedRows(new Set()) }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fff', fontSize: 12, padding: '2px 6px', borderRadius: 4, fontFamily: 'var(--font-sans)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.15)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+            Export CSV
+          </button>
+          <button onClick={() => { exportXLSX(); setSelectedRows(new Set()) }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fff', fontSize: 12, padding: '2px 6px', borderRadius: 4, fontFamily: 'var(--font-sans)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.15)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+            Export Excel
+          </button>
+          {canEdit && <>
+            <div style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.2)' }} />
+            <button onClick={deleteSelectedRows}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff6b6b', fontSize: 12, padding: '2px 6px', borderRadius: 4, fontFamily: 'var(--font-sans)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.15)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+              Delete
+            </button>
+          </>}
+          <button onClick={() => setSelectedRows(new Set())}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.6)', fontSize: 14, padding: '2px 4px', borderRadius: 4, lineHeight: 1 }}>✕</button>
+        </div>
+      )}
 
       {detailRecId && <RecordDetail recId={detailRecId} onClose={() => setDetailRecId(null)} />}
       {crossDbDetail && <CrossDbRecordDetail rec={crossDbDetail.rec} fields={crossDbDetail.fields} pageTitle={crossDbDetail.pageTitle} onClose={() => setCrossDbDetail(null)} />}
