@@ -341,7 +341,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     if (data) {
       setPages(p => [...p, data as Page])
       if (parentId) setExpandedPages(e => new Set([...e, parentId]))
-      navigate(`/app/page/${data.id}`)
+      const instantData = { page: data as Page, canEdit: true, isOwner: true, userId: user.id }
+      if (!(window as any).__pageCache) (window as any).__pageCache = new Map()
+      ;(window as any).__pageCache.set(data.id, instantData)
+      setInstantPage(instantData)
+      window.history.pushState({}, '', `/app/page/${data.id}`)
+      setNavigating(false)
     }
   }
 
@@ -2178,8 +2183,8 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
                   <span style={{ color: isFavorite ? '#f59e0b' : undefined }}>{isFavorite ? '★' : '☆'}</span>
                 </SbBtn>
               )}
-              <SbBtn onClick={onAddSubpage} title="New sub-page">+</SbBtn>
-              <SbBtn onClick={onMoreMenu} title="More options">•••</SbBtn>
+              {hovered && <SbBtn onClick={onAddSubpage} title="New sub-page">+</SbBtn>}
+              {hovered && <SbBtn onClick={onMoreMenu} title="More options">•••</SbBtn>}
             </>
           )}
         </div>

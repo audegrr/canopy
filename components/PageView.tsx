@@ -45,6 +45,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   const savedRef = useRef(true)
   const lastSaveTimestamp = useRef<string | null>(null)
   const editorRef = useRef<any>(null)
+  const editorReadyRef = useRef(false)
   const saveCountRef = useRef(0)
   const importFileRef = useRef<HTMLInputElement>(null)
   const presenceChannelRef = useRef<any>(null)
@@ -328,6 +329,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   }
 
   function scheduleSave(updates: Partial<Page>) {
+    if (!editorReadyRef.current) return  // suppress TipTap init-time onUpdate calls
     setSaved(false)
     savedRef.current = false
     if (saveTimer.current) clearTimeout(saveTimer.current)
@@ -908,7 +910,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         <button
           onClick={() => { setFocusMode(false); window.dispatchEvent(new CustomEvent('canopy:exitFocus')) }}
           title="Exit focus mode (Esc)"
-          style={{ position: 'fixed', top: 64, right: 12, zIndex: 500, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)', boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: 5 }}>
+          style={{ position: 'fixed', top: remoteConflict ? 112 : 64, right: 12, zIndex: 500, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)', boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: 5 }}>
           <TbIcon d={TB_ICONS.focusOut} size={13} /> Exit focus
         </button>
       )}
@@ -1048,7 +1050,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                       content={initialContentRef.current}
                       editable={canEdit && !page.is_locked}
                       onUpdate={onContentUpdate}
-                      onEditorReady={e => { setEditorInstance(e); editorRef.current = e }}
+                      onEditorReady={e => { setEditorInstance(e); editorRef.current = e; setTimeout(() => { editorReadyRef.current = true }, 200) }}
                       workspaceId={page.workspace_id}
                     />
                   </>
