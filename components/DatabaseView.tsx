@@ -48,6 +48,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null)
   const [dragOverGroup, setDragOverGroup] = useState<string | null>(null)
   const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() } })
+  const [showImport, setShowImport] = useState(false)
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [page.id])
@@ -229,7 +230,10 @@ export default function DatabaseView({ page, canEdit }: Props) {
     })
   }
 
-  const selectField = fields.find(f => f.type === 'select')
+  // Viewers can't see fields marked hidden_from_viewers
+  const visibleFields = canEdit ? fields : fields.filter(f => !f.hidden_from_viewers)
+
+  const selectField = visibleFields.find(f => f.type === 'select')
   const boardGroups = selectField
     ? [...(selectField.options || []).map((o: any) => o.label || o), 'No status'].map(group => ({
         label: group, color: (selectField.options || []).find((o: any) => (o.label || o) === group)?.color,
@@ -438,7 +442,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
             </button>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-            {fields.map(f => (
+            {visibleFields.map(f => (
               <div key={f.id} style={{ marginBottom: 14, display: 'grid', gridTemplateColumns: '130px 1fr', gap: 8, alignItems: 'start' }}>
                 <div style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 5, paddingTop: 6 }}>
                   <span style={{ opacity: 0.7, fontSize: 11 }}>{FIELD_ICONS[f.type]}</span>
@@ -484,6 +488,14 @@ export default function DatabaseView({ page, canEdit }: Props) {
           <button onClick={() => setSort(s => ({ ...s, dir: s.dir === 'asc' ? 'desc' : 'asc' }))}
             style={{ background: 'var(--accent-light)', color: 'var(--accent)', border: 'none', padding: '4px 10px', borderRadius: 5, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
             {sort.dir === 'asc' ? '↑' : '↓'}
+          </button>
+        )}
+        {canEdit && (
+          <button onClick={() => setShowImport(true)}
+            style={{ marginLeft: 'auto', background: 'none', color: 'var(--text-secondary)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 5, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
+            ↑ Import CSV
           </button>
         )}
       </div>
@@ -538,7 +550,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                 <thead>
                   <tr>
                     <th data-export-hide style={{ width: 28, minWidth: 28, position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 1 }} />
-                    {fields.map((f, colIdx) => (
+                    {visibleFields.map((f, colIdx) => (
                       <th key={f.id} style={{ minWidth: 140, position: 'relative' }}
                         draggable={canEdit && colIdx > 0}
                         onDragStart={() => colIdx > 0 && handleColDragStart(colIdx)}
@@ -555,15 +567,19 @@ export default function DatabaseView({ page, canEdit }: Props) {
                         )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', fontWeight: 500, minWidth: '16px', textAlign: 'center', flexShrink: 0 }}>{FIELD_ICONS[f.type]}</span>
-                          <span style={{ flex: 1, cursor: canEdit ? 'pointer' : 'default', fontSize: 13, fontWeight: 500 }}
+                          <span style={{ flex: 1, cursor: canEdit ? 'pointer' : 'default', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}
                             onClick={e => { e.stopPropagation(); if (canEdit) setRenamingFieldId(f.id) }}>
                             {f.name}
+                            {canEdit && f.hidden_from_viewers && (
+                              <span title="Hidden from viewers" style={{ fontSize: 10, color: 'var(--text-tertiary)', opacity: 0.6 }}>🚫</span>
+                            )}
                           </span>
                           {canEdit && <FieldMenu field={f}
                             onRename={() => setRenamingFieldId(f.id)}
                             onChangeType={type => updateField(f.id, { type })}
                             onDelete={() => deleteField(f.id)}
-                            onLinkRelation={(pageId) => updateField(f.id, { relation_page_id: pageId })} />}
+                            onLinkRelation={(pageId) => updateField(f.id, { relation_page_id: pageId })}
+                            onToggleHidden={() => updateField(f.id, { hidden_from_viewers: !f.hidden_from_viewers })} />}
                         </div>
                         {/* Inline rename input */}
                         {renamingFieldId === f.id && (
@@ -590,7 +606,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: '2px 4px', borderRadius: 3, opacity: 0, transition: 'opacity 0.1s' }}
                           className="open-row-btn">⤢</button>
                       </td>
-                      {fields.map(f => (
+                      {visibleFields.map(f => (
                         <td key={f.id} data-cell={`${rec.id}-${f.id}`} style={{ position: 'relative' }}
                           onClick={e => {
                             if (!canEdit) return
@@ -657,7 +673,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                     onDragEnd={() => { setDraggingCardId(null); setDragOverGroup(null) }}
                     onClick={() => setDetailRecId(rec.id)}
                     style={{ cursor: 'pointer', opacity: draggingCardId === rec.id ? 0.4 : 1, transition: 'opacity 0.15s' }}>
-                    {fields.filter(f => f.id !== selectField.id).slice(0, 4).map(f => (
+                    {visibleFields.filter(f => f.id !== selectField.id).slice(0, 4).map(f => (
                       <div key={f.id} style={{ marginBottom: 4 }}>
                         <div style={{ fontSize: 10, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 1 }}>{f.name}</div>
                         <CellValue rec={rec} field={f} />
@@ -685,7 +701,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
               {displayRecords.map(rec => (
                 <div key={rec.id} className="db-board-card" onClick={() => setDetailRecId(rec.id)} style={{ cursor: 'pointer' }}>
-                  {fields.slice(0, 3).map(f => (
+                  {visibleFields.slice(0, 3).map(f => (
                     <div key={f.id} style={{ marginBottom: 4, fontSize: 13 }}>
                       <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 1 }}>{f.name}</div>
                       <CellValue rec={rec} field={f} />
@@ -808,6 +824,43 @@ export default function DatabaseView({ page, canEdit }: Props) {
 
       {detailRecId && <RecordDetail recId={detailRecId} onClose={() => setDetailRecId(null)} />}
       {crossDbDetail && <CrossDbRecordDetail rec={crossDbDetail.rec} fields={crossDbDetail.fields} pageTitle={crossDbDetail.pageTitle} onClose={() => setCrossDbDetail(null)} />}
+      {showImport && (
+        <ImportModal
+          pageId={page.id}
+          existingFields={fields}
+          onImport={async (newFieldDefs, rows) => {
+            // Create any fields that don't exist yet
+            const createdFields: DbField[] = []
+            for (const def of newFieldDefs) {
+              if (def.existingId) continue
+              const maxPos = [...fields, ...createdFields].reduce((m, f) => Math.max(m, f.position), 0)
+              const { data } = await supabase.from('db_fields').insert({
+                page_id: page.id, name: def.header, type: 'text', options: [], position: maxPos + 1
+              }).select().single()
+              if (data) createdFields.push(data as DbField)
+            }
+            const allFields = [...fields, ...createdFields]
+            setFields(allFields)
+            // Insert records
+            const maxRecPos = records.reduce((m, r) => Math.max(m, r.position), 0)
+            const inserts = rows.map((row, i) => {
+              const data: Record<string, string> = {}
+              newFieldDefs.forEach((def, col) => {
+                const fid = def.existingId || createdFields.find(f => f.name === def.header)?.id
+                if (fid) data[fid] = row[col] ?? ''
+              })
+              return { page_id: page.id, data, position: maxRecPos + i + 1 }
+            })
+            if (inserts.length > 0) {
+              const { data: inserted } = await supabase.from('db_records').insert(inserts).select()
+              if (inserted) setRecords(r => [...r, ...(inserted as DbRecord[])])
+            }
+            showToastMsg(`Imported ${rows.length} record${rows.length !== 1 ? 's' : ''}`)
+            setShowImport(false)
+          }}
+          onClose={() => setShowImport(false)}
+        />
+      )}
 
       {toast && (
         <div style={{ position: 'fixed', bottom: 24, right: 24, background: '#37352f', color: '#fff', padding: '10px 16px', borderRadius: 8, fontSize: 13, zIndex: 300 }} className="fade-in">{toast}</div>
@@ -914,7 +967,7 @@ function SelectEditor({ field, currentValue, onSelect, onAddOption, onDeleteOpti
   )
 }
 
-function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelation }: { field: DbField; onRename: () => void; onChangeType: (t: DbField['type']) => void; onDelete: () => void; onLinkRelation: (pageId: string, colId?: string) => void }) {
+function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelation, onToggleHidden }: { field: DbField; onRename: () => void; onChangeType: (t: DbField['type']) => void; onDelete: () => void; onLinkRelation: (pageId: string, colId?: string) => void; onToggleHidden: () => void }) {
   const [open, setOpen] = useState(false)
   const [showTypes, setShowTypes] = useState(false)
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
@@ -962,6 +1015,9 @@ function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelation }: 
                   onChange={(pageId) => { if (pageId) onLinkRelation(pageId) }} />
               </div>
             )}
+            <MItem onClick={() => { onToggleHidden(); setOpen(false) }}>
+              {field.hidden_from_viewers ? '👁️ Show to viewers' : '🚫 Hide from viewers'}
+            </MItem>
             <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
             <MItem onClick={() => { onDelete(); setOpen(false) }} danger>🗑️ Delete field</MItem>
           </div>
@@ -1078,6 +1134,164 @@ function RelationPicker({ field, rec, relPage, recs, activeRelIds, firstTextFiel
         <div style={{ borderTop: '1px solid var(--border)', padding: '4px 6px' }}>
           <button onClick={onClose} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '2px 0' }}>Done</button>
         </div>
+      </div>
+    </>
+  )
+}
+
+type ImportFieldDef = { header: string; existingId: string | null }
+
+function ImportModal({ pageId, existingFields, onImport, onClose }: {
+  pageId: string
+  existingFields: DbField[]
+  onImport: (fieldDefs: ImportFieldDef[], rows: string[][]) => Promise<void>
+  onClose: () => void
+}) {
+  const [step, setStep] = useState<'pick' | 'preview'>('pick')
+  const [headers, setHeaders] = useState<string[]>([])
+  const [rows, setRows] = useState<string[][]>([])
+  const [fieldDefs, setFieldDefs] = useState<ImportFieldDef[]>([])
+  const [loading, setLoading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  function parseCSV(text: string): { headers: string[]; rows: string[][] } {
+    const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
+    if (lines.length === 0) return { headers: [], rows: [] }
+    function parseLine(line: string): string[] {
+      const result: string[] = []
+      let cur = '', inQ = false
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i]
+        if (ch === '"') {
+          if (inQ && line[i + 1] === '"') { cur += '"'; i++ }
+          else inQ = !inQ
+        } else if (ch === ',' && !inQ) { result.push(cur); cur = '' }
+        else cur += ch
+      }
+      result.push(cur)
+      return result
+    }
+    const headers = parseLine(lines[0])
+    const rows = lines.slice(1).map(parseLine)
+    return { headers, rows }
+  }
+
+  function handleFile(file: File) {
+    const reader = new FileReader()
+    reader.onload = e => {
+      const text = e.target?.result as string
+      const parsed = parseCSV(text)
+      if (parsed.headers.length === 0) return
+      setHeaders(parsed.headers)
+      setRows(parsed.rows)
+      const defs: ImportFieldDef[] = parsed.headers.map(h => {
+        const match = existingFields.find(f => f.name.toLowerCase() === h.toLowerCase())
+        return { header: h, existingId: match?.id ?? null }
+      })
+      setFieldDefs(defs)
+      setStep('preview')
+    }
+    reader.readAsText(file, 'utf-8')
+  }
+
+  async function doImport() {
+    setLoading(true)
+    await onImport(fieldDefs, rows)
+    setLoading(false)
+  }
+
+  return (
+    <>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 499, background: 'rgba(15,10,5,0.35)' }} onClick={onClose} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, zIndex: 500, boxShadow: 'var(--shadow-lg)', width: 580, maxWidth: '95vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Import CSV</div>
+            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>
+              {step === 'pick' ? 'Upload a CSV file to import records' : `${rows.length} rows · ${headers.length} columns`}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 18, lineHeight: 1, padding: '4px 6px', borderRadius: 4 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>✕</button>
+        </div>
+
+        {step === 'pick' && (
+          <div style={{ padding: 32, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+            <div
+              style={{ width: '100%', border: '2px dashed var(--border)', borderRadius: 10, padding: '32px 20px', textAlign: 'center', cursor: 'pointer', transition: 'border-color 0.15s, background 0.15s' }}
+              onClick={() => fileRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)'; (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
+              onDragLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              onDrop={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>📄</div>
+              <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', marginBottom: 4 }}>Drop a CSV file here</div>
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>or click to browse · First row must be column headers</div>
+            </div>
+            <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
+            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.6 }}>
+              Notion exports (CSV format) are fully supported.
+              Columns matching existing fields will be mapped automatically.
+            </div>
+          </div>
+        )}
+
+        {step === 'preview' && (
+          <>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px' }}>
+              {/* Column mapping */}
+              <div style={{ padding: '14px 0 10px', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Column mapping</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {fieldDefs.map((def, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500, minWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{def.header}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>→</span>
+                      <span style={{ fontSize: 12, color: def.existingId ? 'var(--accent)' : 'var(--text-secondary)', background: def.existingId ? 'var(--accent-light)' : 'var(--sidebar-bg)', padding: '2px 8px', borderRadius: 4 }}>
+                        {def.existingId
+                          ? existingFields.find(f => f.id === def.existingId)?.name ?? def.header
+                          : '+ New field'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Data preview */}
+              <div style={{ padding: '14px 0' }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Preview ({Math.min(rows.length, 5)} of {rows.length} rows)
+                </div>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ borderCollapse: 'collapse', fontSize: 12, width: '100%' }}>
+                    <thead>
+                      <tr>
+                        {headers.map((h, i) => (
+                          <th key={i} style={{ padding: '4px 8px', background: 'var(--sidebar-bg)', borderBottom: '1px solid var(--border)', textAlign: 'left', fontWeight: 600, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>{h}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.slice(0, 5).map((row, ri) => (
+                        <tr key={ri}>
+                          {row.map((cell, ci) => (
+                            <td key={ci} style={{ padding: '4px 8px', borderBottom: '1px solid var(--border)', color: 'var(--text)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cell}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+              <button onClick={() => setStep('pick')} style={{ background: 'none', border: '1px solid var(--border)', padding: '6px 14px', borderRadius: 6, fontSize: 13, cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)' }}>← Back</button>
+              <button onClick={doImport} disabled={loading}
+                style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '6px 18px', borderRadius: 6, fontSize: 13, cursor: loading ? 'wait' : 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500, opacity: loading ? 0.7 : 1 }}>
+                {loading ? 'Importing…' : `Import ${rows.length} records`}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </>
   )

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#2383e2"/>
+  <!-- Trunk -->
+  <rect x="236" y="320" width="40" height="96" rx="8" fill="white" opacity="0.9"/>
+  <!-- Canopy layers -->
+  <ellipse cx="256" cy="280" rx="130" ry="70" fill="white" opacity="0.95"/>
+  <ellipse cx="256" cy="220" rx="105" ry="62" fill="white"/>
+  <ellipse cx="256" cy="166" rx="78" ry="52" fill="white" opacity="0.92"/>
+</svg>

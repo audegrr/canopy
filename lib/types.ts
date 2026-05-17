@@ -64,6 +64,7 @@ export type DbField = {
   rollup_fn: string | null
   relation_column_id: string | null
   position: number
+  hidden_from_viewers?: boolean
 }
 
 export type DbRecord = {

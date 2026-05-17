@@ -63,6 +63,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   const [showCoverGallery, setShowCoverGallery] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [subPages, setSubPages] = useState<{ id: string; title: string; icon: string; is_database: boolean }[]>([])
   const titleRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
   const router = useRouter()
@@ -146,6 +147,28 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   useEffect(() => {
     supabase.rpc('increment_page_views', { page_id: page.id }).then(() => {})
   }, [page.id])
+
+  // Load sub-pages
+  useEffect(() => {
+    if (page.is_database) return
+    supabase.from('pages')
+      .select('id, title, icon, is_database')
+      .eq('parent_id', page.id)
+      .is('deleted_at', null)
+      .order('position')
+      .then(({ data }) => setSubPages(data || []))
+  }, [page.id])
+
+  // Sync sub-page title/icon updates from sidebar events
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { id, title, icon } = (e as CustomEvent).detail || {}
+      if (!id) return
+      setSubPages(sp => sp.map(p => p.id === id ? { ...p, ...(title !== undefined ? { title } : {}), ...(icon !== undefined ? { icon } : {}) } : p))
+    }
+    window.addEventListener('canopy:pageUpdate', handler)
+    return () => window.removeEventListener('canopy:pageUpdate', handler)
+  }, [])
 
   // Realtime: live sync + presence
   useEffect(() => {
@@ -464,6 +487,24 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     await supabase.from('pages').update({ is_locked: newVal }).eq('id', page.id)
     setPage(p => ({ ...p, is_locked: newVal }))
     showToast(newVal ? 'Page locked — editing disabled' : 'Page unlocked')
+  }
+
+  async function createSubPage() {
+    const maxPos = subPages.reduce((m, p) => Math.max(m, 0), 0)
+    const { data } = await supabase.from('pages').insert({
+      workspace_id: page.workspace_id,
+      parent_id: page.id,
+      title: '',
+      icon: '',
+      content: { type: 'doc', content: [] },
+      position: maxPos + 1,
+      is_database: false,
+      link_permission: 'none',
+    }).select('id, title, icon, is_database').single()
+    if (data) {
+      setSubPages(sp => [...sp, data as any])
+      router.push(`/app/page/${data.id}`)
+    }
   }
 
   async function saveAsTemplate() {
@@ -942,6 +983,38 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                   </>
               }
             </div>
+
+            {/* Inline sub-pages */}
+            {!page.is_database && (subPages.length > 0 || canEdit) && (
+              <div style={{ marginTop: 40, paddingTop: 24, borderTop: '1px solid var(--border)' }} data-export-hide>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {subPages.length} sub-page{subPages.length !== 1 ? 's' : ''}
+                  </span>
+                  {canEdit && (
+                    <button onClick={createSubPage}
+                      style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: 5, transition: 'background 0.12s, border-color 0.12s' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
+                      + New page
+                    </button>
+                  )}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 10 }}>
+                  {subPages.map(sp => (
+                    <div key={sp.id} onClick={() => router.push(`/app/page/${sp.id}`)}
+                      style={{ padding: '12px 14px', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10, transition: 'background 0.1s, box-shadow 0.1s, transform 0.1s' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-sm)'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.boxShadow = 'none'; (e.currentTarget as HTMLElement).style.transform = 'none' }}>
+                      <span style={{ fontSize: 20, flexShrink: 0, lineHeight: 1 }}>{sp.icon || (sp.is_database ? '🗄️' : '📄')}</span>
+                      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+                        {sp.title || 'Untitled'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

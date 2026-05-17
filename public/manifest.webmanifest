@@ -1,0 +1,39 @@
+{
+  "name": "Canopy",
+  "short_name": "Canopy",
+  "description": "Beautiful documents, shared effortlessly.",
+  "start_url": "/app",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2383e2",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New page",
+      "url": "/app",
+      "description": "Open Canopy"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "lang": "en"
+}
