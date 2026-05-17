@@ -15,9 +15,11 @@ type Props = {
   isOwner: boolean
   userId?: string
   isPublicShare?: boolean
+  isFavorite?: boolean
+  onToggleFavorite?: () => void
 }
 
-export default function PageView({ page: initialPage, canEdit, isOwner, userId = '', isPublicShare = false }: Props) {
+export default function PageView({ page: initialPage, canEdit, isOwner, userId = '', isPublicShare = false, isFavorite, onToggleFavorite }: Props) {
   const [page, setPage] = useState(initialPage)
   const initialContentRef = useRef(initialPage.content)
   const [saved, setSaved] = useState(true)
@@ -838,7 +840,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
 <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onXLSX={page.is_database ? exportXLSX : undefined} onMarkdown={exportMarkdown} isDatabase={!!page.is_database} />
           <TopBarBtn onClick={exportPDF} iconOnly title="Print / Save as PDF">🖨️</TopBarBtn>
-          {canEdit && !page.is_database && <TopBarBtn onClick={triggerMarkdownImport} iconOnly title="Import from Markdown">📥</TopBarBtn>}
+          {canEdit && !page.is_database && <TopBarBtn onClick={triggerMarkdownImport} iconOnly title="Import from Markdown">⬆️</TopBarBtn>}
           {canEdit && !page.is_database && <TopBarBtn onClick={saveAsTemplate} iconOnly title="Save as template">📋</TopBarBtn>}
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           {!page.is_database && headings.length > 0 && (
@@ -857,6 +859,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
             <TbIcon d={focusMode ? TB_ICONS.focusOut : TB_ICONS.focusIn} />
           </TopBarBtn>
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
+          {onToggleFavorite && (
+            <TopBarBtn onClick={onToggleFavorite} iconOnly title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
+              <span style={{ color: isFavorite ? '#f59e0b' : undefined }}>{isFavorite ? '⭐' : '☆'}</span>
+            </TopBarBtn>
+          )}
           {isOwner && (
             <TopBarBtn onClick={toggleLock} iconOnly title={page.is_locked ? 'Unlock page' : 'Lock page'} active={!!page.is_locked}>
               {page.is_locked ? '🔒' : '🔓'}

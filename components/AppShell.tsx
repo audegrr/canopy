@@ -22,7 +22,7 @@ type Props = {
   children: React.ReactNode
 }
 
-function InstantPageView({ data, onNavigate }: { data: any; onNavigate: (path: string) => void }) {
+function InstantPageView({ data, onNavigate, isFavorite, onToggleFavorite }: { data: any; onNavigate: (path: string) => void; isFavorite?: boolean; onToggleFavorite?: () => void }) {
   return (
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden', animation: 'fadeIn 0.12s ease' }}>
       <PageView
@@ -30,6 +30,8 @@ function InstantPageView({ data, onNavigate }: { data: any; onNavigate: (path: s
         canEdit={data.canEdit}
         isOwner={data.isOwner}
         userId={data.userId}
+        isFavorite={isFavorite}
+        onToggleFavorite={onToggleFavorite}
       />
     </div>
   )
@@ -1219,7 +1221,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
           {instantPage
-            ? <InstantPageView key={instantPage.page.id} data={instantPage} onNavigate={navigate} />
+            ? <InstantPageView key={instantPage.page.id} data={instantPage} onNavigate={navigate} isFavorite={favoriteIds.has(instantPage.page.id)} onToggleFavorite={() => toggleFavorite(instantPage.page.id)} />
             : children}
         </div>
       </main>
@@ -1352,7 +1354,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               <MenuItem onClick={() => createDatabase(contextMenu.pageId)}>🗄️ Add database</MenuItem>
             </>}
             <MenuItem onClick={() => { toggleFavorite(contextMenu.pageId); setContextMenu(null) }}>
-              {favoriteIds.has(contextMenu.pageId) ? '★ Remove from favorites' : '☆ Add to favorites'}
+              {favoriteIds.has(contextMenu.pageId) ? '⭐ Remove from favorites' : '⭐ Add to favorites'}
             </MenuItem>
             <MenuItem onClick={() => copyPageUrl(contextMenu.pageId)}>🔗 Copy URL</MenuItem>
             <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
