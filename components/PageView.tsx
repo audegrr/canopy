@@ -1009,6 +1009,15 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
               }
             </div>
 
+            {/* Page info bar */}
+            {!page.is_database && wordCount > 0 && (
+              <div data-export-hide style={{ marginTop: 48, paddingTop: 12, borderTop: '1px solid var(--border)', display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, color: 'var(--text-tertiary)' }}>
+                <span>{wordCount.toLocaleString()} word{wordCount !== 1 ? 's' : ''}</span>
+                <span>{Math.max(1, Math.ceil(wordCount / 200))} min read</span>
+                {page.updated_at && <span>Edited {formatRelativeTime(page.updated_at)}</span>}
+              </div>
+            )}
+
             {/* Inline sub-pages */}
             {!page.is_database && (subPages.length > 0 || canEdit) && (
               <div style={{ marginTop: 40, paddingTop: 24, borderTop: '1px solid var(--border)' }} data-export-hide>
@@ -1419,6 +1428,19 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
       )}
     </div>
   )
+}
+
+// ── RELATIVE TIME ─────────────────────────────────────────────
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const d = Math.floor(h / 24)
+  if (d < 30) return `${d}d ago`
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 // ── TIPTAP → MARKDOWN ────────────────────────────────────────
