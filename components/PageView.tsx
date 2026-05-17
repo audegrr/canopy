@@ -766,7 +766,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       <input ref={importFileRef} type="file" accept=".md,text/markdown,text/plain" style={{ display: 'none' }} onChange={handleMarkdownImport} />
 
       {/* Top bar */}
-      <div style={{ height: focusMode ? 0 : '48px', padding: focusMode ? 0 : '0 12px', borderBottom: focusMode ? 'none' : '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, overflow: 'hidden', transition: 'height 0.2s, padding 0.2s' }}>
+      <div style={{ height: focusMode ? 0 : '48px', padding: focusMode ? 0 : '0 12px', borderBottom: focusMode ? 'none' : '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, overflow: focusMode ? 'hidden' : 'visible', transition: 'height 0.2s, padding 0.2s' }}>
 
         {isPublicShare ? (
           /* Public share: Canopy branding left, sign-in CTA right */
@@ -831,19 +831,19 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           {(page.view_count ?? 0) > 1 && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }} title="Total views"><TbIcon d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z" size={12}/> {page.view_count}</span>}
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onXLSX={page.is_database ? exportXLSX : undefined} onMarkdown={exportMarkdown} onImportMarkdown={canEdit && !page.is_database ? triggerMarkdownImport : undefined} isDatabase={!!page.is_database} onSaveTemplate={!page.is_database && canEdit ? saveAsTemplate : undefined} />
-          <TopBarBtn onClick={exportPDF} iconOnly title="Print / Save as PDF"><TbIcon d={TB_ICONS.print} /></TopBarBtn>
+          <TopBarBtn onClick={exportPDF} iconOnly title="Print / Save as PDF">🖨️</TopBarBtn>
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           {!page.is_database && headings.length > 0 && (
-            <TopBarBtn onClick={() => setTocOpen(o => !o)} active={tocOpen} title="Table of contents"><TbIcon d={TB_ICONS.toc} />ToC</TopBarBtn>
+            <TopBarBtn onClick={() => setTocOpen(o => !o)} active={tocOpen} iconOnly title="Table of contents">📑</TopBarBtn>
           )}
-          {canEdit && <TopBarBtn onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots() }} active={historyOpen} title="Version history"><TbIcon d={TB_ICONS.history} />History</TopBarBtn>}
+          {canEdit && <TopBarBtn onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots() }} active={historyOpen} iconOnly title="Version history">🕐</TopBarBtn>}
           {!page.is_database && (
-            <TopBarBtn onClick={() => { setBacklinksOpen(o => !o); loadBacklinks() }} active={backlinksOpen} title="Backlinks">
-              <TbIcon d={TB_ICONS.backlink} />{backlinksLoaded && backlinks.length > 0 ? backlinks.length : ''}
+            <TopBarBtn onClick={() => { setBacklinksOpen(o => !o); loadBacklinks() }} active={backlinksOpen} iconOnly title="Backlinks">
+              📎{backlinksLoaded && backlinks.length > 0 ? backlinks.length : ''}
             </TopBarBtn>
           )}
-          <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen} title="Comments">
-            <TbIcon d={TB_ICONS.chat} />{comments.length > 0 ? comments.length : ''}
+          <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen} iconOnly title="Comments">
+            💬{comments.length > 0 ? comments.length : ''}
           </TopBarBtn>
           <TopBarBtn onClick={() => { setFocusMode(f => { window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus')); return !f }) }} iconOnly active={focusMode} title="Focus mode (⌘⇧F)">
             <TbIcon d={focusMode ? TB_ICONS.focusOut : TB_ICONS.focusIn} />
@@ -851,10 +851,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           {isOwner && (
             <TopBarBtn onClick={toggleLock} iconOnly title={page.is_locked ? 'Unlock page' : 'Lock page'} active={!!page.is_locked}>
-              <TbIcon d={page.is_locked ? TB_ICONS.lock : TB_ICONS.unlock} />
+              {page.is_locked ? '🔒' : '🔓'}
             </TopBarBtn>
           )}
-          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn><TbIcon d={TB_ICONS.share} />Share</TopBarBtn>}
+          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn iconOnly title="Share">🔗</TopBarBtn>}
         </>}
 
         {/* Mobile: compact action row */}
@@ -885,6 +885,16 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           </div>
         </>}
       </div>
+
+      {/* Focus mode exit button */}
+      {focusMode && (
+        <button
+          onClick={() => { setFocusMode(false); window.dispatchEvent(new CustomEvent('canopy:exitFocus')) }}
+          title="Exit focus mode (Esc)"
+          style={{ position: 'fixed', top: 12, right: 12, zIndex: 1000, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)', boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <TbIcon d={TB_ICONS.focusOut} size={13} /> Exit focus
+        </button>
+      )}
 
       {/* Conflict banner */}
       {remoteConflict && (
@@ -1665,8 +1675,8 @@ function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, onImportMarkdown
   )
   return (
     <div style={{ position: 'relative' }}>
-      <TopBarBtn onClick={() => setOpen(o => !o)} active={open} data-export-btn>
-        <TbIcon d={TB_ICONS.export} />Export
+      <TopBarBtn onClick={() => setOpen(o => !o)} active={open} data-export-btn iconOnly title="Export">
+        📤
       </TopBarBtn>
       {open && (
         <>
@@ -1727,7 +1737,7 @@ function TopBarBtn({ onClick, active, iconOnly, children, ...props }: { onClick:
         background: active ? 'var(--accent)' : hovered ? 'var(--sidebar-hover)' : 'transparent',
         color: active ? '#fff' : hovered ? 'var(--text)' : 'var(--text-secondary)',
         border: active ? '1px solid transparent' : `1px solid ${hovered ? 'var(--border)' : 'transparent'}`,
-        padding: iconOnly ? '0' : '0 9px',
+        padding: iconOnly ? '0 5px' : '0 9px',
         height: '28px',
         minWidth: '28px',
         borderRadius: '6px',
