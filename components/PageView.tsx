@@ -46,6 +46,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   const [historyOpen, setHistoryOpen] = useState(false)
   const [snapshots, setSnapshots] = useState<{ id: string; title: string; content: any; created_at: string }[]>([])
   const [snapshotLoading, setSnapshotLoading] = useState(false)
+  const [tocOpen, setTocOpen] = useState(false)
+  const [headings, setHeadings] = useState<{ level: number; text: string; idx: number }[]>([])
+  const [wordCount, setWordCount] = useState(0)
+  const [focusMode, setFocusMode] = useState(false)
+  const [showCoverGallery, setShowCoverGallery] = useState(false)
   const titleRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
   const router = useRouter()
@@ -98,6 +103,25 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
       window.removeEventListener('canopy:openExport', onExport)
     }
   }, [])
+
+  // Focus mode shortcut + sidebar hide
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'f') {
+        e.preventDefault()
+        setFocusMode(f => {
+          window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus'))
+          return !f
+        })
+      }
+      if (e.key === 'Escape' && focusMode) {
+        setFocusMode(false)
+        window.dispatchEvent(new CustomEvent('canopy:exitFocus'))
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [focusMode])
 
   // Realtime: live sync + presence
   useEffect(() => {
@@ -269,6 +293,22 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   function onContentUpdate(content: any) {
     setPage(p => ({ ...p, content }) as Page)
     scheduleSave({ content })
+    // Update TOC headings
+    const nodes: any[] = Array.isArray(content) ? content : (content?.content || [])
+    const hs = nodes.filter(n => n.type === 'heading').map((n, idx) => ({
+      level: n.attrs?.level || 1,
+      text: (n.content || []).map((c: any) => c.text || '').join(''),
+      idx,
+    })).filter(h => h.text)
+    setHeadings(hs)
+    // Word count
+    const text = nodes.map((n: any) => extractText(n)).join(' ')
+    setWordCount(text.trim() ? text.trim().split(/\s+/).length : 0)
+  }
+
+  function extractText(node: any): string {
+    if (node.text) return node.text
+    return (node.content || []).map((c: any) => extractText(c)).join(' ')
   }
 
   function setIcon(icon: string) {
@@ -474,6 +514,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   }
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2500) }
+  function isCssBackground(v: string) { return v.startsWith('linear-gradient') || v.startsWith('radial-gradient') || (v.startsWith('#') && v.length <= 9) }
 
   async function loadSnapshots() {
     setSnapshotLoading(true)
@@ -495,7 +536,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
 
       {/* Top bar */}
-      <div style={{ height: '48px', padding: '0 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+      <div style={{ height: focusMode ? 0 : '48px', padding: focusMode ? 0 : '0 16px', borderBottom: focusMode ? 'none' : '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, overflow: 'hidden', transition: 'height 0.2s, padding 0.2s' }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-tertiary)', overflow: 'hidden' }}>
           {page.icon && <span style={{ fontSize: '14px' }}>{page.icon}</span>}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{page.title || 'Untitled'}</span>
@@ -523,9 +564,23 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
           window.print()
           setTimeout(() => document.body.classList.remove('printing-page'), 1000)
         }}>🖨️ Print</TopBarBtn>
+        {wordCount > 0 && (
+          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{wordCount} words</span>
+        )}
+        {!page.is_database && headings.length > 0 && (
+          <TopBarBtn onClick={() => setTocOpen(o => !o)} active={tocOpen} title="Table of contents">☰ ToC</TopBarBtn>
+        )}
         {canEdit && (
           <TopBarBtn onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots() }} active={historyOpen}>🕓 History</TopBarBtn>
         )}
+        <TopBarBtn onClick={() => {
+          setFocusMode(f => {
+            window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus'))
+            return !f
+          })
+        }} active={focusMode} title="Focus mode (⌘⇧F)">
+          {focusMode ? '⊡ Exit focus' : '⊠ Focus'}
+        </TopBarBtn>
         {isOwner && (
           <TopBarBtn
             active={shareOpen}
@@ -565,13 +620,16 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
           {/* Cover */}
           {page.cover_url && (
             <div style={{ position: 'relative', height: '240px', overflow: 'hidden', background: '#f0ede8' }}>
-              <img src={page.cover_url} alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              {isCssBackground(page.cover_url)
+                ? <div style={{ width: '100%', height: '100%', background: page.cover_url }} />
+                : <img src={page.cover_url} alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              }
               {canEdit && (
                 <div style={{ position: 'absolute', bottom: '12px', right: '16px', display: 'flex', gap: '6px' }}>
-                  <label style={{ background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(4px)', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
+                  <button onClick={() => setShowCoverGallery(true)}
+                    style={{ background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(4px)', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
                     Change cover
-                    <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadCover(f) }} />
-                  </label>
+                  </button>
                   <button onClick={removeCover} style={{ background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(4px)', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Remove</button>
                 </div>
               )}
@@ -604,13 +662,12 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                     </button>
                   )}
                   {!page.cover_url && (
-                    <label
+                    <button onClick={() => setShowCoverGallery(true)}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
                       🖼 Add cover
-                      <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) uploadCover(f) }} />
-                    </label>
+                    </button>
                   )}
                 </div>
               )}
@@ -682,6 +739,35 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
             </div>
           </div>
         </div>
+
+        {/* Table of contents panel */}
+        {tocOpen && !page.is_database && (
+          <div style={{ width: '220px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>Contents</span>
+              <button onClick={() => setTocOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16 }}>✕</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+              {headings.length === 0
+                ? <div style={{ padding: '16px', fontSize: 12, color: 'var(--text-tertiary)' }}>No headings yet.</div>
+                : headings.map((h, i) => (
+                  <div key={i}
+                    onClick={() => {
+                      const els = document.querySelectorAll('.tiptap h1,.tiptap h2,.tiptap h3')
+                      const matching = Array.from(els).filter(el => el.textContent?.trim() === h.text)
+                      const el = matching[0] || els[h.idx]
+                      el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    }}
+                    style={{ padding: `5px 16px 5px ${8 + (h.level - 1) * 12}px`, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderLeft: '2px solid transparent' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)'; (e.currentTarget as HTMLElement).style.borderLeftColor = 'var(--accent)'; (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; (e.currentTarget as HTMLElement).style.borderLeftColor = 'transparent'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+                    {h.text}
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        )}
 
         {/* History panel */}
         {historyOpen && canEdit && (
@@ -927,6 +1013,15 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         </>
       )}
 
+      {/* Cover gallery */}
+      {showCoverGallery && (
+        <CoverGallery
+          onSelect={v => { setPage(p => ({ ...p, cover_url: v }) as Page); scheduleSave({ cover_url: v }); setShowCoverGallery(false) }}
+          onUpload={uploadCover}
+          onClose={() => setShowCoverGallery(false)}
+        />
+      )}
+
       {/* Toast */}
       {toast && (
         <div style={{ position: 'fixed', bottom: '24px', right: '24px', background: '#37352f', color: '#fff', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', zIndex: 300, boxShadow: 'var(--shadow-lg)' }} className="fade-in">
@@ -934,6 +1029,102 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         </div>
       )}
     </div>
+  )
+}
+
+const COVER_GRADIENTS = [
+  'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+  'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+  'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+  'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+  'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
+  'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
+  'linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%)',
+  'linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)',
+  'linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%)',
+  'linear-gradient(135deg, #fddb92 0%, #d1fdff 100%)',
+  'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
+  'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)',
+  'linear-gradient(135deg, #f77062 0%, #fe5196 100%)',
+  'linear-gradient(135deg, #c3cfe2 0%, #f5f7fa 100%)',
+  'linear-gradient(160deg, #0093E9 0%, #80D0C7 100%)',
+]
+const COVER_COLORS = [
+  '#f0ede8','#e8e4f0','#e4f0e8','#f0e8e4','#e4eaf0',
+  '#2d3748','#1a202c','#744210','#276749','#1a365d',
+  '#c05621','#822727','#553c9a','#2c7a7b','#2b6cb0',
+]
+
+function CoverGallery({ onSelect, onUpload, onClose }: { onSelect: (v: string) => void; onUpload: (f: File) => void; onClose: () => void }) {
+  const [tab, setTab] = useState<'gallery'|'upload'|'url'>('gallery')
+  const [urlVal, setUrlVal] = useState('')
+  return (
+    <>
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200 }} onClick={onClose} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: '480px', boxShadow: 'var(--shadow-lg)', zIndex: 201, overflow: 'hidden' }} className="scale-in">
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontWeight: 600, fontSize: 14 }}>Cover</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16 }}>✕</button>
+        </div>
+        <div style={{ display: 'flex', gap: 0, padding: '12px 20px 0', borderBottom: '1px solid var(--border)' }}>
+          {(['gallery','upload','url'] as const).map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: tab === t ? 600 : 400, color: tab === t ? 'var(--text)' : 'var(--text-tertiary)', padding: '6px 12px 10px', borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent', transition: 'all 0.1s' }}>
+              {t === 'gallery' ? 'Gallery' : t === 'upload' ? 'Upload' : 'URL'}
+            </button>
+          ))}
+        </div>
+        <div style={{ padding: '16px 20px 20px', maxHeight: '340px', overflowY: 'auto' }}>
+          {tab === 'gallery' && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>Gradients</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 16 }}>
+                {COVER_GRADIENTS.map(g => (
+                  <div key={g} onClick={() => onSelect(g)}
+                    style={{ height: 52, borderRadius: 6, background: g, cursor: 'pointer', border: '2px solid transparent', transition: 'all 0.1s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.border = '2px solid var(--accent)'; (e.currentTarget as HTMLElement).style.transform = 'scale(1.04)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.border = '2px solid transparent'; (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }} />
+                ))}
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>Colors</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+                {COVER_COLORS.map(c => (
+                  <div key={c} onClick={() => onSelect(c)}
+                    style={{ height: 36, borderRadius: 6, background: c, cursor: 'pointer', border: '2px solid transparent', transition: 'all 0.1s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.border = '2px solid var(--accent)'; (e.currentTarget as HTMLElement).style.transform = 'scale(1.06)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.border = '2px solid transparent'; (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }} />
+                ))}
+              </div>
+            </>
+          )}
+          {tab === 'upload' && (
+            <label style={{ display: 'block', border: '2px dashed var(--border)', borderRadius: '8px', padding: '32px 20px', textAlign: 'center', cursor: 'pointer' }}
+              onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
+              onDragLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
+              onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { onUpload(f); onClose() } }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>🖼️</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>Click to upload or drag & drop</div>
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>PNG, JPG, WEBP — max 10 MB</div>
+              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) { onUpload(f); onClose() } }} />
+            </label>
+          )}
+          {tab === 'url' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <input value={urlVal} onChange={e => setUrlVal(e.target.value)} placeholder="https://example.com/image.jpg"
+                autoFocus
+                onKeyDown={e => { if (e.key === 'Enter' && urlVal.trim()) { onSelect(urlVal.trim()); } if (e.key === 'Escape') onClose() }}
+                style={{ padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'var(--font-sans)', fontSize: 13, outline: 'none' }} />
+              <button onClick={() => { if (urlVal.trim()) onSelect(urlVal.trim()) }}
+                disabled={!urlVal.trim()}
+                style={{ background: urlVal.trim() ? 'var(--accent)' : 'var(--text-tertiary)', color: '#fff', border: 'none', borderRadius: 6, padding: '8px', fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, cursor: urlVal.trim() ? 'pointer' : 'not-allowed' }}>
+                Apply
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
   )
 }
 

@@ -74,6 +74,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [newWsName, setNewWsName] = useState('')
   const [newWsIcon, setNewWsIcon] = useState('🌿')
   const [instantPage, setInstantPage] = useState<{ page: any; canEdit: boolean; isOwner: boolean; userId: string } | null>(null)
+  const [templatePicker, setTemplatePicker] = useState<{ parentId: string | null } | null>(null)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -85,6 +86,17 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     check()
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
+  }, [])
+
+  useEffect(() => {
+    const onEnter = () => setSidebarOpen(false)
+    const onExit = () => setSidebarOpen(true)
+    window.addEventListener('canopy:enterFocus', onEnter)
+    window.addEventListener('canopy:exitFocus', onExit)
+    return () => {
+      window.removeEventListener('canopy:enterFocus', onEnter)
+      window.removeEventListener('canopy:exitFocus', onExit)
+    }
   }, [])
 
   useEffect(() => {
@@ -285,18 +297,22 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
   // ── PAGE ACTIONS ────────────────────────────────────────────
   async function createPage(parentId: string | null = null) {
+    setContextMenu(null)
+    setTemplatePicker({ parentId })
+  }
+
+  async function createPageWithTemplate(parentId: string | null, template: PageTemplate) {
     const maxPos = pages.filter(p => p.parent_id === parentId).reduce((m, p) => Math.max(m, p.position), 0)
     const { data, error } = await supabase.from('pages').insert({
-      workspace_id: currentWs.id, parent_id: parentId, title: 'Untitled',
-      icon: '', content: [], position: maxPos + 1, is_database: false, link_permission: 'none'
+      workspace_id: currentWs.id, parent_id: parentId, title: template.title,
+      icon: template.icon, content: template.content, position: maxPos + 1, is_database: false, link_permission: 'none'
     }).select().single()
-    if (error) { showError('Failed to create page'); setContextMenu(null); return }
+    if (error) { showError('Failed to create page'); return }
     if (data) {
       setPages(p => [...p, data as Page])
       if (parentId) setExpandedPages(e => new Set([...e, parentId]))
       navigate(`/app/page/${data.id}`)
     }
-    setContextMenu(null)
   }
 
   async function createDatabase(parentId: string | null = null) {
@@ -1187,6 +1203,13 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
       {shortcutsOpen && <ShortcutsModal onClose={() => setShortcutsOpen(false)} />}
 
+      {templatePicker && (
+        <TemplatePicker
+          onSelect={t => { setTemplatePicker(null); createPageWithTemplate(templatePicker.parentId, t) }}
+          onClose={() => setTemplatePicker(null)}
+        />
+      )}
+
       {toast && (
         <div style={{ position: 'fixed', bottom: '24px', right: '24px', background: toast.type === 'error' ? '#eb5757' : '#37352f', color: '#fff', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', zIndex: 300, boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: '8px' }} className="fade-in">
           {toast.type === 'error' && <span style={{ fontSize: '15px' }}>⚠️</span>}
@@ -1194,6 +1217,115 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         </div>
       )}
     </div>
+  )
+}
+
+// ── PAGE TEMPLATES ───────────────────────────────────────────
+export type PageTemplate = { title: string; icon: string; description: string; content: any }
+
+const PAGE_TEMPLATES: PageTemplate[] = [
+  {
+    title: 'Untitled', icon: '', description: 'Start with a blank page',
+    content: { type: 'doc', content: [] },
+  },
+  {
+    title: 'Meeting notes', icon: '📝', description: 'Agenda, attendees, action items',
+    content: { type: 'doc', content: [
+      { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Meeting notes' }] },
+      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Date:' }, { type: 'text', text: ' ' }] },
+      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Attendees:' }, { type: 'text', text: ' ' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Agenda' }] },
+      { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Notes' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: '' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Action items' }] },
+      { type: 'taskList', content: [{ type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] }] },
+    ]},
+  },
+  {
+    title: 'Project brief', icon: '🎯', description: 'Goals, scope, timeline, stakeholders',
+    content: { type: 'doc', content: [
+      { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Project brief' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Overview' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: 'Describe the project in one paragraph.' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Goals' }] },
+      { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Scope' }] },
+      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'In scope:' }, { type: 'text', text: ' ' }] },
+      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Out of scope:' }, { type: 'text', text: ' ' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Timeline' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: '' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Stakeholders' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: '' }] },
+    ]},
+  },
+  {
+    title: 'To-do list', icon: '✅', description: 'Simple checklist to track tasks',
+    content: { type: 'doc', content: [
+      { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'To-do list' }] },
+      { type: 'taskList', content: [
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+    ]},
+  },
+  {
+    title: 'Weekly review', icon: '📅', description: 'Reflect on wins, lessons, priorities',
+    content: { type: 'doc', content: [
+      { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Weekly review' }] },
+      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Week of:' }, { type: 'text', text: ' ' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Wins this week' }] },
+      { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Lessons learned' }] },
+      { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Priorities for next week' }] },
+      { type: 'taskList', content: [{ type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] }] },
+    ]},
+  },
+  {
+    title: 'Design doc', icon: '🔬', description: 'Problem, proposed solution, trade-offs',
+    content: { type: 'doc', content: [
+      { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Design doc' }] },
+      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Author:' }, { type: 'text', text: '  |  ' }, { type: 'text', marks: [{ type: 'bold' }], text: 'Status:' }, { type: 'text', text: ' Draft' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Problem statement' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: '' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Proposed solution' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: '' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Alternatives considered' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: '' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Trade-offs' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: '' }] },
+    ]},
+  },
+]
+
+function TemplatePicker({ onSelect, onClose }: { onSelect: (t: PageTemplate) => void; onClose: () => void }) {
+  return (
+    <>
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 2000 }} onClick={onClose} />
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: '520px', boxShadow: 'var(--shadow-lg)', zIndex: 2001, overflow: 'hidden' }} className="scale-in">
+        <div style={{ padding: '18px 22px 12px', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>New page</div>
+          <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Choose a template to get started, or start blank.</div>
+        </div>
+        <div style={{ padding: '12px 16px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {PAGE_TEMPLATES.map(t => (
+            <div key={t.title} onClick={() => onSelect(t)}
+              style={{ padding: '12px 14px', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 4, transition: 'all 0.1s' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
+              <div style={{ fontSize: 22, lineHeight: 1, marginBottom: 2 }}>{t.icon || '📄'}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{t.title || 'Blank'}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{t.description}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ padding: '0 16px 14px', display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 14px', fontFamily: 'var(--font-sans)', fontSize: 13, cursor: 'pointer', color: 'var(--text-secondary)' }}>Cancel</button>
+        </div>
+      </div>
+    </>
   )
 }
 
