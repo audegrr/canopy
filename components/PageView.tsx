@@ -653,7 +653,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     const doc = mdToTiptap(text)
     if (editorRef.current && doc.content.length > 0) {
       const pos = editorRef.current.state.selection.to
-      editorRef.current.chain().insertContentAt(pos, doc.content).focus().run()
+      editorRef.current.chain().insertContentAt(pos, doc.content).run()
     }
     showToast('Markdown imported!')
   }

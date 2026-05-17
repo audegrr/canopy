@@ -554,7 +554,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
             style={{ marginLeft: 'auto', background: 'none', color: 'var(--text-secondary)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 5, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
-            ↑ Import CSV
+            ⬇️ Import
           </button>
         )}
       </div>
@@ -1282,21 +1282,45 @@ function ImportModal({ pageId, existingFields, onImport, onClose }: {
   }
 
   function handleFile(file: File) {
-    const reader = new FileReader()
-    reader.onload = e => {
-      const text = e.target?.result as string
-      const parsed = parseCSV(text)
-      if (parsed.headers.length === 0) return
-      setHeaders(parsed.headers)
-      setRows(parsed.rows)
-      const defs: ImportFieldDef[] = parsed.headers.map(h => {
-        const match = existingFields.find(f => f.name.toLowerCase() === h.toLowerCase())
-        return { header: h, existingId: match?.id ?? null }
-      })
-      setFieldDefs(defs)
-      setStep('preview')
+    const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.type.includes('spreadsheetml') || file.type.includes('ms-excel')
+    if (isExcel) {
+      const reader = new FileReader()
+      reader.onload = e => {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer)
+        const wb = XLSX.read(data, { type: 'array' })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const parsed: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as string[][]
+        if (parsed.length < 1) return
+        const hdrs = parsed[0].map(String)
+        const dataRows = parsed.slice(1).map(r => hdrs.map((_, i) => String(r[i] ?? '')))
+        if (hdrs.length === 0) return
+        setHeaders(hdrs)
+        setRows(dataRows)
+        const defs: ImportFieldDef[] = hdrs.map(h => {
+          const match = existingFields.find(f => f.name.toLowerCase() === h.toLowerCase())
+          return { header: h, existingId: match?.id ?? null }
+        })
+        setFieldDefs(defs)
+        setStep('preview')
+      }
+      reader.readAsArrayBuffer(file)
+    } else {
+      const reader = new FileReader()
+      reader.onload = e => {
+        const text = e.target?.result as string
+        const parsed = parseCSV(text)
+        if (parsed.headers.length === 0) return
+        setHeaders(parsed.headers)
+        setRows(parsed.rows)
+        const defs: ImportFieldDef[] = parsed.headers.map(h => {
+          const match = existingFields.find(f => f.name.toLowerCase() === h.toLowerCase())
+          return { header: h, existingId: match?.id ?? null }
+        })
+        setFieldDefs(defs)
+        setStep('preview')
+      }
+      reader.readAsText(file, 'utf-8')
     }
-    reader.readAsText(file, 'utf-8')
   }
 
   async function doImport() {
@@ -1311,9 +1335,9 @@ function ImportModal({ pageId, existingFields, onImport, onClose }: {
       <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, zIndex: 500, boxShadow: 'var(--shadow-lg)', width: 580, maxWidth: '95vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Import CSV</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Import CSV / Excel</div>
             <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>
-              {step === 'pick' ? 'Upload a CSV file to import records' : `${rows.length} rows · ${headers.length} columns`}
+              {step === 'pick' ? 'Upload a CSV or Excel file to import records' : `${rows.length} rows · ${headers.length} columns`}
             </div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 18, lineHeight: 1, padding: '4px 6px', borderRadius: 4 }}
@@ -1329,13 +1353,13 @@ function ImportModal({ pageId, existingFields, onImport, onClose }: {
               onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)'; (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
               onDragLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
               onDrop={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>📄</div>
-              <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', marginBottom: 4 }}>Drop a CSV file here</div>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>📊</div>
+              <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', marginBottom: 4 }}>Drop a CSV or Excel file here</div>
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>or click to browse · First row must be column headers</div>
             </div>
-            <input ref={fileRef} type="file" accept=".csv,text/csv" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
+            <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.6 }}>
-              Notion exports (CSV format) are fully supported.
+              CSV and Excel (.xlsx) files are supported. Notion exports work out of the box.
               Columns matching existing fields will be mapped automatically.
             </div>
           </div>

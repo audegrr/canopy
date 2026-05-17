@@ -786,7 +786,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         const ownerName = ownerPages[0].owner_name ?? 'Someone'
         return (
           <div key={ownerId}>
-            <div style={{ padding: '5px 14px 2px', fontSize: '10px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', userSelect: 'none' }}>From {ownerName}</div>
+            <div style={{ padding: '6px 14px 3px', fontSize: '11px', fontWeight: 500, color: 'var(--text-secondary)', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ fontSize: 12 }}>👤</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ownerName}</span>
+            </div>
             {ownerPages.map(page => renderSharedPage(page, 0))}
           </div>
         )
@@ -1357,31 +1360,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               {favoriteIds.has(contextMenu.pageId) ? '⭐ Remove from favorites' : '⭐ Add to favorites'}
             </MenuItem>
             <MenuItem onClick={() => copyPageUrl(contextMenu.pageId)}>🔗 Copy URL</MenuItem>
-            <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-            <MenuItem onClick={() => {
-              const pid = contextMenu.pageId
-              setContextMenu(null)
-              // Navigate to page with share panel
-              navigate(`/app/page/${pid}?panel=share`)
-              // Dispatch event after delay to handle both cached and uncached pages
-              setTimeout(() => {
-                window.dispatchEvent(new CustomEvent('canopy:openShare'))
-              }, 300)
-            }}>🔒 Share…</MenuItem>
-            <MenuItem onClick={() => {
-              if (exportMenu?.pageId === contextMenu.pageId) {
-                // Toggle off
-                setExportMenu(null)
-              } else {
-                const ctxEl = document.querySelector('.context-menu') as HTMLElement
-                const rect = ctxEl?.getBoundingClientRect()
-                setExportMenu({
-                  x: rect ? rect.right + 4 : contextMenu.x + 220,
-                  y: rect ? rect.top : contextMenu.y,
-                  pageId: contextMenu.pageId
-                })
-              }
-            }}>⬇️ Export…</MenuItem>
             {isOwnPage(contextMenu.pageId) && workspaces.length > 1 && (
               <MenuItem onClick={() => { setMoveToWsMenu(contextMenu.pageId); setContextMenu(null) }}>📦 Move to workspace…</MenuItem>
             )}
