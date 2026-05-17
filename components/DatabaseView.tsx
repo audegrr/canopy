@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Page, DbField, DbRecord } from '@/lib/types'
 
-type View = 'table' | 'board' | 'gallery'
+type View = 'table' | 'board' | 'gallery' | 'calendar'
 
 type Props = { page: Page; canEdit: boolean }
 
@@ -44,8 +44,10 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null)
   const [renamingFieldId, setRenamingFieldId] = useState<string | null>(null)
   const [detailRecId, setDetailRecId] = useState<string | null>(null)
+  const [crossDbDetail, setCrossDbDetail] = useState<{ rec: DbRecord; fields: DbField[]; pageTitle: string } | null>(null)
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null)
   const [dragOverGroup, setDragOverGroup] = useState<string | null>(null)
+  const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return { year: d.getFullYear(), month: d.getMonth() } })
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [page.id])
@@ -149,6 +151,24 @@ export default function DatabaseView({ page, canEdit }: Props) {
       const { data } = await supabase.from('db_relations').insert({ field_id: fieldId, from_record_id: recId, to_record_id: relatedRecId }).select().single()
       if (data) setRelations(r => [...r, data])
     }
+  }
+
+  async function createLinkedRecord(field: DbField, fromRecId: string, name: string) {
+    const targetPageId = field.relation_page_id
+    if (!targetPageId) return
+    const isSelf = targetPageId === page.id
+    const targetFields: DbField[] = isSelf ? fields : ((window as any).__relatedFields?.[targetPageId] || [])
+    const firstField = targetFields[0]
+    const newData = firstField ? { [firstField.id]: name } : {}
+    const allTargetRecs = isSelf ? records : (relatedRecords[targetPageId] || [])
+    const maxPos = allTargetRecs.reduce((m, r) => Math.max(m, r.position), 0)
+    const { data: newRec } = await supabase.from('db_records').insert({
+      page_id: targetPageId, data: newData, position: maxPos + 1
+    }).select().single()
+    if (!newRec) return
+    if (isSelf) setRecords(r => [...r, newRec as DbRecord])
+    else setRelatedRecords(r => ({ ...r, [targetPageId]: [...(r[targetPageId] || []), newRec as DbRecord] }))
+    await toggleRelation(field.id, fromRecId, newRec.id)
   }
 
   // Column drag & drop
@@ -265,53 +285,22 @@ export default function DatabaseView({ page, canEdit }: Props) {
       }
       if (field.type === 'relation') {
         const isSelf = field.relation_page_id === page.id
-        const relPage = isSelf ? { ...page, id: page.id } : relatedPages.find(p => p.id === field.relation_page_id)
+        const relPage = isSelf ? page : (relatedPages.find(p => p.id === field.relation_page_id) ?? null)
         const recs = isSelf ? records : (relatedRecords[field.relation_page_id || ''] || [])
         const activeRelIds = relations.filter(r => r.field_id === field.id && r.from_record_id === rec.id).map(r => r.to_record_id)
-        // Get first field: for self use current fields, else use stored related fields
         const relFieldsList: DbField[] = isSelf ? fields : ((window as any).__relatedFields?.[field.relation_page_id || ''] || [])
         const firstTextField = relFieldsList.length > 0 ? relFieldsList[0].id : null
         const cellEl5 = document.querySelector(`[data-cell="${rec.id}-${field.id}"]`) as HTMLElement
-        const cellRect5 = cellEl5?.getBoundingClientRect()
+        const cellRect5 = cellEl5?.getBoundingClientRect() ?? null
         return (
-          <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={() => setEditingCell(null)} />
-          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: 6, minWidth: 220,
-            position: 'fixed',
-            left: cellRect5 ? Math.min(cellRect5.left, window.innerWidth - 240) : 0,
-            top: cellRect5 ? Math.min(cellRect5.bottom + 2, window.innerHeight - 300) : 0,
-            zIndex: 300, boxShadow: 'var(--shadow-lg)', maxHeight: 250, overflowY: 'auto' }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: 4, padding: '0 4px' }}>
-              {relPage?.icon} {relPage?.title || 'Related database'}
-            </div>
-            {recs
-              .filter(rr => firstTextField && rr.data?.[firstTextField] && String(rr.data[firstTextField]).trim() !== '')
-              .sort((a, b) => {
-                const av = firstTextField ? String(a.data?.[firstTextField] || '') : ''
-                const bv = firstTextField ? String(b.data?.[firstTextField] || '') : ''
-                return av.localeCompare(bv)
-              })
-              .map(rr => {
-              const isLinked = activeRelIds.includes(rr.id)
-              const displayVal = firstTextField ? String(rr.data?.[firstTextField] || '') : ''
-              return (
-                <div key={rr.id} onClick={() => toggleRelation(field.id, rec.id, rr.id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 6px', borderRadius: 4, cursor: 'pointer', background: isLinked ? 'var(--accent-light)' : 'transparent' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = isLinked ? 'var(--accent-light)' : 'var(--sidebar-hover)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = isLinked ? 'var(--accent-light)' : 'transparent' }}>
-                  <span style={{ fontSize: 12, color: isLinked ? 'var(--accent)' : 'var(--text-tertiary)', width: 14 }}>{isLinked ? '✓' : '○'}</span>
-                  <span style={{ fontSize: 13 }}>{displayVal}</span>
-                </div>
-              )
-            })}
-            {recs.filter(rr => firstTextField && rr.data?.[firstTextField] && String(rr.data[firstTextField]).trim() !== '').length === 0 && (
-              <div style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '4px 6px' }}>No named records found</div>
-            )}
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 4, marginTop: 4 }}>
-              <button onClick={() => setEditingCell(null)} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '2px 0' }}>Done</button>
-            </div>
-          </div>
-          </>
+          <RelationPicker
+            field={field} rec={rec} relPage={relPage} recs={recs}
+            activeRelIds={activeRelIds} firstTextField={firstTextField}
+            cellRect={cellRect5}
+            onToggle={relatedRecId => toggleRelation(field.id, rec.id, relatedRecId)}
+            onClose={() => setEditingCell(null)}
+            onCreateRecord={name => createLinkedRecord(field, rec.id, name)}
+          />
         )
       }
       if (field.type === 'rollup') {
@@ -377,10 +366,16 @@ export default function DatabaseView({ page, canEdit }: Props) {
       const linkedRecs = allRelRecs.filter(r => activeRelIds.includes(r.id))
       const relFieldsList2: DbField[] = isSelf2 ? fields : ((window as any).__relatedFields?.[field.relation_page_id || ''] || [])
       const firstField = relFieldsList2.length > 0 ? relFieldsList2[0].id : null
+      const relPage2 = isSelf2 ? page : (relatedPages.find(p => p.id === field.relation_page_id))
       return (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
           {linkedRecs.map(r => (
-            <span key={r.id} style={{ background: 'var(--accent-light)', color: 'var(--accent)', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500 }}>
+            <span key={r.id}
+              onClick={e => { e.stopPropagation(); if (isSelf2) setDetailRecId(r.id); else setCrossDbDetail({ rec: r, fields: relFieldsList2, pageTitle: relPage2?.title || '' }) }}
+              title={isSelf2 ? 'Open record' : `Open in ${relPage2?.title || 'database'}`}
+              style={{ background: 'var(--accent-light)', color: 'var(--accent)', padding: '1px 8px', borderRadius: 10, fontSize: 11, fontWeight: 500, cursor: 'pointer' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.75' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}>
               {firstField ? String(r.data[firstField] || 'Untitled') : 'Untitled'}
             </span>
           ))}
@@ -469,10 +464,10 @@ export default function DatabaseView({ page, canEdit }: Props) {
       {/* DB Header */}
       <div data-export-hide style={{ padding: '8px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, flexWrap: 'wrap', background: 'var(--surface)' }}>
         <div style={{ display: 'flex', background: 'var(--sidebar-bg)', borderRadius: 6, padding: 2, gap: 2 }}>
-          {(['table', 'board', 'gallery'] as View[]).map(v => (
+          {(['table', 'board', 'gallery', 'calendar'] as View[]).map(v => (
             <button key={v} onClick={() => setView(v)}
               style={{ background: view === v ? 'var(--surface)' : 'none', border: 'none', padding: '4px 10px', borderRadius: 4, fontSize: 12, cursor: 'pointer', color: view === v ? 'var(--text)' : 'var(--text-secondary)', fontFamily: 'var(--font-sans)', fontWeight: view === v ? 500 : 400, boxShadow: view === v ? 'var(--shadow-sm)' : 'none' }}>
-              {v === 'table' ? '☰ Table' : v === 'board' ? '⊞ Board' : '⊟ Gallery'}
+              {v === 'table' ? '☰ Table' : v === 'board' ? '⊞ Board' : v === 'gallery' ? '⊟ Gallery' : '📅 Calendar'}
             </button>
           ))}
         </div>
@@ -710,6 +705,91 @@ export default function DatabaseView({ page, canEdit }: Props) {
           </div>
         )}
 
+        {view === 'calendar' && (() => {
+          const dateField = fields.find(f => f.type === 'date')
+          if (!dateField) return (
+            <div style={{ padding: 24, color: 'var(--text-secondary)', fontSize: 14, textAlign: 'center' }}>
+              Add a <strong>Date</strong> field to enable calendar view.
+            </div>
+          )
+
+          const { year, month } = calMonth
+          const firstDay = new Date(year, month, 1).getDay()
+          const daysInMonth = new Date(year, month + 1, 0).getDate()
+          const today = new Date()
+          const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+          const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+          const byDay: Record<string, DbRecord[]> = {}
+          for (const rec of records) {
+            const val = rec.data[dateField.id]
+            if (!val) continue
+            const key = val.slice(0, 10)
+            if (!byDay[key]) byDay[key] = []
+            byDay[key].push(rec)
+          }
+
+          const titleField = fields.find(f => f.type === 'text') || fields[0]
+
+          return (
+            <div style={{ padding: 16, flex: 1, overflowY: 'auto' }}>
+              {/* Month nav */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <button onClick={() => setCalMonth(m => { const d = new Date(m.year, m.month - 1); return { year: d.getFullYear(), month: d.getMonth() } })}
+                  style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer', fontSize: 14, color: 'var(--text)' }}>‹</button>
+                <span style={{ fontWeight: 600, fontSize: 15, flex: 1, textAlign: 'center', color: 'var(--text)' }}>{MONTHS[month]} {year}</span>
+                <button onClick={() => setCalMonth(m => { const d = new Date(m.year, m.month + 1); return { year: d.getFullYear(), month: d.getMonth() } })}
+                  style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 10px', cursor: 'pointer', fontSize: 14, color: 'var(--text)' }}>›</button>
+                <button onClick={() => { const d = new Date(); setCalMonth({ year: d.getFullYear(), month: d.getMonth() }) }}
+                  style={{ background: 'var(--accent-light)', color: 'var(--accent)', border: 'none', borderRadius: 5, padding: '4px 10px', cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Today</button>
+              </div>
+
+              {/* Day headers */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1, marginBottom: 1 }}>
+                {DAYS.map(d => (
+                  <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', padding: '4px 0', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{d}</div>
+                ))}
+              </div>
+
+              {/* Calendar grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 1 }}>
+                {Array.from({ length: firstDay }).map((_, i) => (
+                  <div key={`empty-${i}`} style={{ minHeight: 80, background: 'var(--sidebar-bg)', borderRadius: 4 }} />
+                ))}
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                  const day = i + 1
+                  const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                  const dayRecs = byDay[dateStr] || []
+                  const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day
+                  return (
+                    <div key={day}
+                      style={{ minHeight: 80, background: 'var(--surface)', border: isToday ? '1.5px solid var(--accent)' : '1px solid var(--border)', borderRadius: 4, padding: '4px', position: 'relative', cursor: canEdit ? 'pointer' : 'default' }}
+                      onClick={async () => {
+                        if (!canEdit) return
+                        const { data } = await supabase.from('db_records').insert({ page_id: page.id, data: { [dateField.id]: dateStr }, position: Date.now() }).select().single()
+                        if (data) setRecords(r => [...r, data])
+                      }}
+                      onMouseEnter={e => { if (canEdit) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--surface)' }}>
+                      <div style={{ fontSize: 11, fontWeight: isToday ? 700 : 400, color: isToday ? 'var(--accent)' : 'var(--text-tertiary)', marginBottom: 3 }}>{day}</div>
+                      {dayRecs.slice(0, 3).map(rec => (
+                        <div key={rec.id}
+                          onClick={e => { e.stopPropagation(); setDetailRecId(rec.id) }}
+                          style={{ fontSize: 11, background: 'var(--accent-light)', color: 'var(--accent)', borderRadius: 3, padding: '1px 5px', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer', fontWeight: 500 }}>
+                          {titleField ? (rec.data[titleField.id] || 'Untitled') : 'Record'}
+                        </div>
+                      ))}
+                      {dayRecs.length > 3 && (
+                        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', paddingLeft: 2 }}>+{dayRecs.length - 3} more</div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Add field form */}
         {addingField && canEdit && (
           <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', background: 'var(--sidebar-bg)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -727,6 +807,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
       </div>
 
       {detailRecId && <RecordDetail recId={detailRecId} onClose={() => setDetailRecId(null)} />}
+      {crossDbDetail && <CrossDbRecordDetail rec={crossDbDetail.rec} fields={crossDbDetail.fields} pageTitle={crossDbDetail.pageTitle} onClose={() => setCrossDbDetail(null)} />}
 
       {toast && (
         <div style={{ position: 'fixed', bottom: 24, right: 24, background: '#37352f', color: '#fff', padding: '10px 16px', borderRadius: 8, fontSize: 13, zIndex: 300 }} className="fade-in">{toast}</div>
@@ -922,3 +1003,124 @@ function RelationPagePicker({ value, onChange }: { value: string; onChange: (pag
 }
 
 const ctrlSt: React.CSSProperties = { padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'var(--font-sans)', fontSize: 12, background: 'var(--sidebar-bg)', color: 'var(--text)', outline: 'none', cursor: 'pointer' }
+
+function RelationPicker({ field, rec, relPage, recs, activeRelIds, firstTextField, cellRect, onToggle, onClose, onCreateRecord }: {
+  field: DbField; rec: DbRecord
+  relPage: { id: string; title?: string; icon?: string } | null
+  recs: DbRecord[]; activeRelIds: string[]; firstTextField: string | null
+  cellRect: DOMRect | null
+  onToggle: (relatedRecId: string) => void
+  onClose: () => void
+  onCreateRecord: (name: string) => Promise<void>
+}) {
+  const [search, setSearch] = useState('')
+  const [creating, setCreating] = useState(false)
+
+  const filtered = recs
+    .filter(rr => firstTextField && rr.data?.[firstTextField] && String(rr.data[firstTextField]).trim() !== '')
+    .filter(rr => !search || (firstTextField ? String(rr.data[firstTextField!] || '').toLowerCase().includes(search.toLowerCase()) : false))
+    .sort((a, b) => {
+      const av = firstTextField ? String(a.data?.[firstTextField] || '') : ''
+      const bv = firstTextField ? String(b.data?.[firstTextField] || '') : ''
+      return av.localeCompare(bv)
+    })
+
+  const showCreate = !!search.trim() && !filtered.some(rr =>
+    firstTextField && String(rr.data[firstTextField!] || '').toLowerCase() === search.toLowerCase()
+  )
+
+  const left = cellRect ? Math.min(cellRect.left, window.innerWidth - 248) : 0
+  const top = cellRect ? Math.min(cellRect.bottom + 2, window.innerHeight - 320) : 0
+
+  return (
+    <>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={onClose} />
+      <div style={{ position: 'fixed', left, top, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, zIndex: 300, boxShadow: 'var(--shadow-lg)', minWidth: 230, overflow: 'hidden' }}>
+        <div style={{ padding: '8px 8px 6px' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: 6, padding: '0 2px' }}>
+            {(relPage as any)?.icon} {relPage?.title || 'Related database'}
+          </div>
+          <input
+            autoFocus
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search records…"
+            style={{ width: '100%', boxSizing: 'border-box', padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'var(--font-sans)', fontSize: 12, background: 'var(--sidebar-bg)', color: 'var(--text)', outline: 'none' }}
+          />
+        </div>
+        <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+          {filtered.map(rr => {
+            const isLinked = activeRelIds.includes(rr.id)
+            const displayVal = firstTextField ? String(rr.data?.[firstTextField] || '') : ''
+            return (
+              <div key={rr.id} onClick={() => onToggle(rr.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', cursor: 'pointer', background: isLinked ? 'var(--accent-light)' : 'transparent' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = isLinked ? 'var(--accent-light)' : 'var(--sidebar-hover)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = isLinked ? 'var(--accent-light)' : 'transparent' }}>
+                <span style={{ fontSize: 12, color: isLinked ? 'var(--accent)' : 'var(--text-tertiary)', width: 14, flexShrink: 0 }}>{isLinked ? '✓' : '○'}</span>
+                <span style={{ fontSize: 13 }}>{displayVal}</span>
+              </div>
+            )
+          })}
+          {filtered.length === 0 && !showCreate && (
+            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '8px 10px' }}>No records found</div>
+          )}
+          {showCreate && (
+            <div
+              onClick={async () => { setCreating(true); await onCreateRecord(search.trim()); setCreating(false); setSearch('') }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', cursor: creating ? 'wait' : 'pointer', borderTop: filtered.length > 0 ? '1px solid var(--border)' : 'none', color: 'var(--accent)', fontSize: 12 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+              {creating ? '…' : `+ Create "${search.trim()}"`}
+            </div>
+          )}
+        </div>
+        <div style={{ borderTop: '1px solid var(--border)', padding: '4px 6px' }}>
+          <button onClick={onClose} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '2px 0' }}>Done</button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function CrossDbRecordDetail({ rec, fields, pageTitle, onClose }: { rec: DbRecord; fields: DbField[]; pageTitle: string; onClose: () => void }) {
+  const titleVal = fields[0] ? String(rec.data?.[fields[0].id] ?? '') : ''
+  return (
+    <>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 499, background: 'rgba(15,10,5,0.2)' }} onClick={onClose} />
+      <div style={{ position: 'fixed', right: 0, top: 0, bottom: 0, width: 420, background: 'var(--surface)', zIndex: 500, boxShadow: '-4px 0 24px rgba(0,0,0,0.14)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 2 }}>From {pageTitle}</div>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>{titleVal || 'Untitled'}</div>
+          </div>
+          <button onClick={onClose}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 18, padding: '2px 6px', borderRadius: 4, lineHeight: 1 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>✕</button>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+          {fields.map(f => {
+            const val = rec.data?.[f.id]
+            return (
+              <div key={f.id} style={{ marginBottom: 14, display: 'grid', gridTemplateColumns: '130px 1fr', gap: 8, alignItems: 'start' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-tertiary)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: 5, paddingTop: 6 }}>
+                  <span style={{ opacity: 0.7, fontSize: 11 }}>{FIELD_ICONS[f.type]}</span>
+                  <span>{f.name}</span>
+                </div>
+                <div style={{ minHeight: 30, padding: '4px 6px', borderRadius: 5, fontSize: 13, color: val ? 'var(--text)' : 'var(--text-tertiary)' }}>
+                  {f.type === 'checkbox'
+                    ? <input type="checkbox" checked={!!val} readOnly style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
+                    : f.type === 'select' && val
+                      ? <span style={{ background: '#e9e9e750', padding: '1px 8px', borderRadius: 10, fontSize: 12 }}>{val}</span>
+                      : val ? String(val) : '—'
+                  }
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </>
+  )
+}

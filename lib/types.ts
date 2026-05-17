@@ -36,6 +36,9 @@ export type Page = {
   link_permission: 'none' | 'view' | 'edit'
   created_at: string
   updated_at: string
+  deleted_at?: string | null
+  is_locked?: boolean
+  view_count?: number
 }
 
 export type SharedPage = {

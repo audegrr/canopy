@@ -7,6 +7,7 @@ const SYSTEM_PROMPTS: Record<string, string> = {
   formal:    'Rewrite the following text in a formal, professional tone. Keep the same language and meaning. Return only the rewritten text, no explanation.',
   casual:    'Rewrite the following text in a friendly, casual conversational tone. Keep the same language and meaning. Return only the rewritten text, no explanation.',
   translate: 'Translate the following text into English (or, if it is already in English, translate it into French). Return only the translated text, no explanation.',
+  write:     'You are a writing assistant. Write content based on the following prompt. Be clear, well-structured, and use markdown formatting (headings, lists, bold) where appropriate. Return only the written content, no preamble or explanation.',
 }
 
 export async function POST(req: NextRequest) {

@@ -6,6 +6,13 @@ import type { Notification } from '@/lib/types'
 export function useNotifications(userId: string, supabase: SupabaseClient) {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [notifOpen, setNotifOpen] = useState(false)
+  const [browserPermission, setBrowserPermission] = useState<NotificationPermission>('default')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setBrowserPermission(Notification.permission)
+    }
+  }, [])
 
   useEffect(() => {
     let channel: any
@@ -21,7 +28,16 @@ export function useNotifications(userId: string, supabase: SupabaseClient) {
         channel = supabase
           .channel('notifs_' + userId)
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${userId}` }, (payload: any) => {
-            setNotifications(prev => [payload.new, ...prev])
+            const notif: Notification = payload.new
+            setNotifications(prev => [notif, ...prev])
+            if (
+              typeof window !== 'undefined' &&
+              'Notification' in window &&
+              Notification.permission === 'granted' &&
+              !document.hasFocus()
+            ) {
+              new Notification(notif.title, { body: notif.body ?? undefined, icon: '/icon.png' })
+            }
           })
           .subscribe()
       } catch {}
@@ -29,6 +45,12 @@ export function useNotifications(userId: string, supabase: SupabaseClient) {
     load()
     return () => { channel?.unsubscribe() }
   }, [userId])
+
+  async function requestBrowserPermission() {
+    if (!('Notification' in window)) return
+    const result = await Notification.requestPermission()
+    setBrowserPermission(result)
+  }
 
   const unreadCount = notifications.filter(n => !n.read).length
 
@@ -46,5 +68,5 @@ export function useNotifications(userId: string, supabase: SupabaseClient) {
     } catch {}
   }
 
-  return { notifications, notifOpen, setNotifOpen, unreadCount, markAllRead, clearAll }
+  return { notifications, notifOpen, setNotifOpen, unreadCount, markAllRead, clearAll, browserPermission, requestBrowserPermission }
 }

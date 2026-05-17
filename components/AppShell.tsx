@@ -10,6 +10,7 @@ import ShortcutsModal from './ShortcutsModal'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useTheme } from '@/hooks/useTheme'
 import { exportPageAsPDF, exportPageAsWord, exportPageAsCSV } from '@/lib/export'
+import EmojiPicker from './EmojiPicker'
 
 type Props = {
   user: User
@@ -75,10 +76,15 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [newWsIcon, setNewWsIcon] = useState('🌿')
   const [instantPage, setInstantPage] = useState<{ page: any; canEdit: boolean; isOwner: boolean; userId: string } | null>(null)
   const [templatePicker, setTemplatePicker] = useState<{ parentId: string | null } | null>(null)
+  const [trashOpen, setTrashOpen] = useState(false)
+  const [trashedPages, setTrashedPages] = useState<Page[]>([])
+  const [trashLoading, setTrashLoading] = useState(false)
+  const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set())
+  const [favoritesCollapsed, setFavoritesCollapsed] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
-  const { notifications, notifOpen, setNotifOpen, unreadCount, markAllRead, clearAll: clearAllNotifications } = useNotifications(user.id, supabase)
+  const { notifications, notifOpen, setNotifOpen, unreadCount, markAllRead, clearAll: clearAllNotifications, browserPermission, requestBrowserPermission } = useNotifications(user.id, supabase)
   const currentPageId = pathname.match(/\/app\/page\/([^/]+)/)?.[1] || null
 
   useEffect(() => {
@@ -166,6 +172,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         supabase.from('pages')
           .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
           .eq('workspace_id', found.id)
+          .is('deleted_at', null)
           .order('position')
           .then(({ data }) => {
           if (data) {
@@ -245,6 +252,22 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     return () => window.removeEventListener('canopy:pageUpdate', onPageUpdate)
   }, [])
 
+
+  useEffect(() => {
+    supabase.from('page_favorites').select('page_id').eq('user_id', user.id).then(({ data }) => {
+      if (data) setFavoriteIds(new Set(data.map((f: any) => f.page_id)))
+    })
+  }, [])
+
+  async function toggleFavorite(pageId: string) {
+    if (favoriteIds.has(pageId)) {
+      await supabase.from('page_favorites').delete().eq('user_id', user.id).eq('page_id', pageId)
+      setFavoriteIds(s => { const n = new Set(s); n.delete(pageId); return n })
+    } else {
+      await supabase.from('page_favorites').insert({ user_id: user.id, page_id: pageId })
+      setFavoriteIds(s => new Set([...s, pageId]))
+    }
+  }
 
   function navigate(path: string) {
     // Persist last page for refresh restore
@@ -330,11 +353,46 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }
 
   async function deletePage(pageId: string) {
-    const { error } = await supabase.from('pages').delete().eq('id', pageId)
+    const { error } = await supabase.from('pages').update({ deleted_at: new Date().toISOString() }).eq('id', pageId)
     if (error) { showError('Failed to delete page'); setContextMenu(null); return }
     setPages(p => p.filter(x => x.id !== pageId))
     if (currentPageId === pageId) navigate('/app')
     setContextMenu(null)
+    showToastMsg('Page moved to trash')
+  }
+
+  async function loadTrash() {
+    setTrashLoading(true)
+    const { data } = await supabase
+      .from('pages')
+      .select('id, title, icon, deleted_at, workspace_id, parent_id, is_database, owner_id, position, cover_url, link_permission, created_at, updated_at')
+      .eq('workspace_id', currentWs.id)
+      .not('deleted_at', 'is', null)
+      .order('deleted_at', { ascending: false })
+    setTrashedPages((data || []).map(p => ({ ...p, content: [] })) as Page[])
+    setTrashLoading(false)
+  }
+
+  async function restorePage(pageId: string) {
+    const { error } = await supabase.from('pages').update({ deleted_at: null }).eq('id', pageId)
+    if (error) { showError('Failed to restore page'); return }
+    const restored = trashedPages.find(p => p.id === pageId)
+    if (restored) setPages(prev => [...prev, { ...restored, deleted_at: null }])
+    setTrashedPages(p => p.filter(x => x.id !== pageId))
+    showToastMsg('Page restored')
+  }
+
+  async function permanentlyDeletePage(pageId: string) {
+    const { error } = await supabase.from('pages').delete().eq('id', pageId)
+    if (error) { showError('Failed to permanently delete page'); return }
+    setTrashedPages(p => p.filter(x => x.id !== pageId))
+  }
+
+  async function emptyTrash() {
+    const { error } = await supabase.from('pages').delete().eq('workspace_id', currentWs.id).not('deleted_at', 'is', null)
+    if (error) { showError('Failed to empty trash'); return }
+    setTrashedPages([])
+    showToastMsg('Trash emptied')
   }
 
   async function duplicatePage(pageId: string) {
@@ -448,6 +506,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       .from('pages')
       .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
       .eq('workspace_id', ws.id)
+      .is('deleted_at', null)
       .order('position')
     setPages((wsPages || []).map(p => ({
       ...p,
@@ -732,31 +791,20 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               title="Change icon"
             >{currentWs.icon}</span>
             {showWsIconPicker && (
-              <>
-                <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={e => { e.stopPropagation(); setShowWsIconPicker(false) }} />
-                <div style={{ position: 'absolute', top: '90px', left: '8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 300, display: 'flex', flexWrap: 'wrap', gap: '3px', width: '210px' }}
-                  onClick={e => e.stopPropagation()}>
-                {['🌿','🌲','🌳','🌴','🌵','🍀','🌱','🌾','🍁','🌸','🏔','🏠','💼','🚀','⭐','💡','🎯','📚','🎨','🔮','🦋','🧠','💎','🔑','🌍'].map(em => (
-                  <button key={em} onClick={async () => {
+              <EmojiPicker
+                onSelect={async em => {
+                  if (em) {
                     await supabase.from('workspaces').update({ icon: em }).eq('id', currentWs.id)
                     const updated = workspaces.map(w => w.id === currentWs.id ? { ...w, icon: em } : w)
                     setWorkspaces(updated)
-                    // Force re-render of current workspace
                     const updatedWs = updated.find(w => w.id === currentWs.id)
                     if (updatedWs) switchWorkspace(updatedWs)
-                    setShowWsIconPicker(false)
-                  }}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', padding: '4px', borderRadius: '4px', lineHeight: 1 }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                    {em}
-                  </button>
-                ))}
-                <div style={{ width: '100%', borderTop: '1px solid var(--border)', paddingTop: '4px', marginTop: '2px' }}>
-                  <button onClick={() => setShowWsIconPicker(false)} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)' }}>Close</button>
-                </div>
-              </div>
-              </>
+                  }
+                  setShowWsIconPicker(false)
+                }}
+                onClose={() => setShowWsIconPicker(false)}
+                style={{ top: '90px', left: '8px' }}
+              />
             )}
             {renamingWs ? (
               <input autoFocus value={wsNameInput} onChange={e => setWsNameInput(e.target.value)}
@@ -831,6 +879,38 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
         {/* Pages tree */}
         <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '8px' }}>
+          {/* Favorites */}
+          {favoriteIds.size > 0 && (() => {
+            const favPages = [...pages, ...sharedPages].filter(p => favoriteIds.has(p.id))
+            if (favPages.length === 0) return null
+            return (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px 14px 3px', gap: '4px' }}
+                  onClick={() => setFavoritesCollapsed(o => !o)}>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1, userSelect: 'none', fontFamily: 'var(--font-sans)' }}>Favorites</div>
+                  <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, transition: 'transform 0.15s', transform: favoritesCollapsed ? 'rotate(-90deg)' : 'none', marginRight: '2px' }}>
+                    <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </div>
+                {!favoritesCollapsed && favPages.map(p => (
+                  <div key={p.id}
+                    onClick={() => navigate(`/app/page/${p.id}`)}
+                    onContextMenu={e => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, pageId: p.id }) }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 14px 5px 16px', cursor: 'pointer', borderRadius: '5px', margin: '0 6px', background: currentPageId === p.id ? 'var(--sidebar-active)' : 'transparent', fontSize: '13px' }}
+                    onMouseEnter={e => { if (currentPageId !== p.id) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = currentPageId === p.id ? 'var(--sidebar-active)' : 'transparent' }}>
+                    <span style={{ flexShrink: 0, fontSize: '14px' }}>{p.icon || '📄'}</span>
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || 'Untitled'}</span>
+                    <span onClick={e => { e.stopPropagation(); toggleFavorite(p.id) }} title="Remove from favorites"
+                      style={{ flexShrink: 0, color: 'var(--accent)', fontSize: '13px', lineHeight: 1, opacity: 0.7 }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '0.7' }}>★</span>
+                  </div>
+                ))}
+                <div style={{ margin: '6px 12px 0', borderTop: '1px solid var(--border)' }} />
+              </>
+            )
+          })()}
           <SectionLabel>Pages</SectionLabel>
           <div onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, null)} style={{ minHeight: '4px' }} />
           {renderPageTree(null)}
@@ -846,6 +926,59 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               </div>
               {!sharedCollapsed && renderSharedTree(null)}
             </>
+          )}
+        </div>
+
+        {/* Trash */}
+        <div style={{ borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+          <div onClick={() => { setTrashOpen(o => !o); if (!trashOpen) loadTrash() }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+            <span>🗑️</span>
+            <span style={{ flex: 1 }}>Trash</span>
+            {trashedPages.length > 0 && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{trashedPages.length}</span>}
+            <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', transition: 'transform 0.15s', transform: trashOpen ? 'rotate(90deg)' : 'none' }}>▶</span>
+          </div>
+          {trashOpen && (
+            <div style={{ background: 'var(--sidebar-bg)', borderBottom: '1px solid var(--border)', maxHeight: '280px', overflowY: 'auto' }}>
+              {trashLoading ? (
+                <div style={{ padding: '12px 14px', fontSize: '12px', color: 'var(--text-tertiary)' }}>Loading…</div>
+              ) : trashedPages.length === 0 ? (
+                <div style={{ padding: '16px 14px', fontSize: '12px', color: 'var(--text-tertiary)', textAlign: 'center' }}>Trash is empty</div>
+              ) : (
+                <>
+                  <div style={{ padding: '6px 14px', display: 'flex', justifyContent: 'flex-end' }}>
+                    <span onClick={() => { if (confirm('Permanently delete all trashed pages? This cannot be undone.')) emptyTrash() }}
+                      style={{ fontSize: '11px', color: 'var(--text-tertiary)', cursor: 'pointer', padding: '2px 6px', borderRadius: 4 }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#eb5757' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>
+                      Empty trash
+                    </span>
+                  </div>
+                  {trashedPages.map(p => (
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 14px', fontSize: '12px', color: 'var(--text-secondary)' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                      <span style={{ flexShrink: 0 }}>{p.icon || '📄'}</span>
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>{p.title || 'Untitled'}</span>
+                      <span title="Restore" onClick={() => restorePage(p.id)}
+                        style={{ flexShrink: 0, cursor: 'pointer', padding: '2px 5px', borderRadius: 4, fontSize: '11px' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'inherit' }}>
+                        ↩ Restore
+                      </span>
+                      <span title="Delete permanently" onClick={() => { if (confirm('Permanently delete this page?')) permanentlyDeletePage(p.id) }}
+                        style={{ flexShrink: 0, cursor: 'pointer', padding: '2px 5px', borderRadius: 4, fontSize: '11px', color: 'var(--text-tertiary)' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#eb575718'; (e.currentTarget as HTMLElement).style.color = '#eb5757' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>
+                        ✕
+                      </span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
           )}
         </div>
 
@@ -958,6 +1091,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                       </button>
                     )}
                   </div>
+                  {browserPermission === 'default' && (
+                    <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Get notified when you're away</span>
+                      <button onClick={requestBrowserPermission} style={{ flexShrink: 0, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 5, padding: '4px 10px', fontSize: '11px', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Enable</button>
+                    </div>
+                  )}
                   {notifications.length === 0 ? (
                     <div style={{ padding: '28px 14px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: '13px' }}>No notifications</div>
                   ) : notifications.map(n => {
@@ -974,7 +1113,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                       }}
                       onMouseEnter={e => { if (isClickable) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = n.read ? 'transparent' : 'var(--accent-light)' }}>
-                      <div style={{ fontSize: '13px', fontWeight: n.read ? 400 : 600, color: 'var(--text)', marginBottom: '2px' }}>{n.title}</div>
+                      <div style={{ fontSize: '13px', fontWeight: n.read ? 400 : 600, color: 'var(--text)', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 15, flexShrink: 0 }}>{n.type === 'mention' ? '💬' : n.type === 'comment' ? '🗨️' : n.type === 'invite' ? '📨' : '🔔'}</span>
+                        {n.title}
+                      </div>
                       {n.body && <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{n.body}</div>}
                       <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '3px' }}>
                         {new Date(n.created_at).toLocaleDateString('en-US', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
@@ -1130,6 +1272,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               <MenuItem onClick={() => createPage(contextMenu.pageId)}>📄 Add sub-page</MenuItem>
               <MenuItem onClick={() => createDatabase(contextMenu.pageId)}>🗄️ Add database</MenuItem>
             </>}
+            <MenuItem onClick={() => { toggleFavorite(contextMenu.pageId); setContextMenu(null) }}>
+              {favoriteIds.has(contextMenu.pageId) ? '★ Remove from favorites' : '☆ Add to favorites'}
+            </MenuItem>
             <MenuItem onClick={() => copyPageUrl(contextMenu.pageId)}>🔗 Copy URL</MenuItem>
             <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
             <MenuItem onClick={() => {
@@ -1208,6 +1353,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
       {templatePicker && (
         <TemplatePicker
+          workspaceId={currentWs.id}
+          userId={user.id}
           onSelect={t => { setTemplatePicker(null); createPageWithTemplate(templatePicker.parentId, t) }}
           onClose={() => setTemplatePicker(null)}
         />
@@ -1303,28 +1450,68 @@ const PAGE_TEMPLATES: PageTemplate[] = [
   },
 ]
 
-function TemplatePicker({ onSelect, onClose }: { onSelect: (t: PageTemplate) => void; onClose: () => void }) {
+function TemplatePicker({ workspaceId, userId, onSelect, onClose }: { workspaceId: string; userId: string; onSelect: (t: PageTemplate) => void; onClose: () => void }) {
+  const supabase = createClient()
+  const [customTemplates, setCustomTemplates] = useState<(PageTemplate & { id: string })[]>([])
+
+  useEffect(() => {
+    supabase.from('page_templates')
+      .select('id, title, icon, description, content')
+      .eq('workspace_id', workspaceId)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (data) setCustomTemplates(data as any)
+      })
+  }, [workspaceId])
+
+  async function deleteCustomTemplate(id: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    await supabase.from('page_templates').delete().eq('id', id).eq('user_id', userId)
+    setCustomTemplates(ts => ts.filter(t => t.id !== id))
+  }
+
+  const card = (t: PageTemplate, onDelete?: (e: React.MouseEvent) => void) => (
+    <div key={(t as any).id ?? t.title} onClick={() => onSelect(t)}
+      style={{ padding: '12px 14px', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 4, transition: 'all 0.1s', position: 'relative' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
+      <div style={{ fontSize: 22, lineHeight: 1, marginBottom: 2 }}>{t.icon || '📄'}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{t.title || 'Blank'}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{t.description}</div>
+      {onDelete && (
+        <button onClick={onDelete}
+          style={{ position: 'absolute', top: 6, right: 6, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 11, color: 'var(--text-tertiary)', lineHeight: 1 }}
+          title="Delete template">
+          ✕
+        </button>
+      )}
+    </div>
+  )
+
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 2000 }} onClick={onClose} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: '520px', boxShadow: 'var(--shadow-lg)', zIndex: 2001, overflow: 'hidden' }} className="scale-in">
-        <div style={{ padding: '18px 22px 12px', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: '540px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)', zIndex: 2001, overflow: 'hidden' }} className="scale-in">
+        <div style={{ padding: '18px 22px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>New page</div>
           <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Choose a template to get started, or start blank.</div>
         </div>
-        <div style={{ padding: '12px 16px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {PAGE_TEMPLATES.map(t => (
-            <div key={t.title} onClick={() => onSelect(t)}
-              style={{ padding: '12px 14px', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 4, transition: 'all 0.1s' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
-              <div style={{ fontSize: 22, lineHeight: 1, marginBottom: 2 }}>{t.icon || '📄'}</div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{t.title || 'Blank'}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>{t.description}</div>
-            </div>
-          ))}
+        <div style={{ overflowY: 'auto', padding: '12px 16px 4px' }}>
+          {customTemplates.length > 0 && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>My templates</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 16 }}>
+                {customTemplates.map(t => card(t, (e) => deleteCustomTemplate(t.id, e)))}
+              </div>
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 0 12px' }} />
+            </>
+          )}
+          <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Built-in</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 12 }}>
+            {PAGE_TEMPLATES.map(t => card(t))}
+          </div>
         </div>
-        <div style={{ padding: '0 16px 14px', display: 'flex', justifyContent: 'flex-end' }}>
+        <div style={{ padding: '8px 16px 14px', display: 'flex', justifyContent: 'flex-end', flexShrink: 0, borderTop: '1px solid var(--border)' }}>
           <button onClick={onClose} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 14px', fontFamily: 'var(--font-sans)', fontSize: 13, cursor: 'pointer', color: 'var(--text-secondary)' }}>Cancel</button>
         </div>
       </div>

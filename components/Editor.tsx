@@ -109,6 +109,7 @@ import Youtube from '@tiptap/extension-youtube'
 import HorizontalRule from '@tiptap/extension-horizontal-rule'
 import TextAlign from '@tiptap/extension-text-align'
 import Underline from '@tiptap/extension-underline'
+import EmojiPicker from './EmojiPicker'
 
 // ── RESIZABLE IMAGE EXTENSION ──────────────────────────────────────────
 function ResizableImageView({ node, updateAttributes, selected }: any) {
@@ -174,7 +175,6 @@ const ResizableImage = Image.extend({
 
 // ── CALLOUT EXTENSION ──────────────────────────────────────────────────
 function CalloutView({ node, updateAttributes }: any) {
-  const CALLOUT_ICONS = ['💡', '⚠️', '✅', '❌', '📌', '🔥', '💬', '📝']
   const [showPicker, setShowPicker] = useState(false)
   return (
     <NodeViewWrapper>
@@ -184,19 +184,11 @@ function CalloutView({ node, updateAttributes }: any) {
             {node.attrs.emoji || '💡'}
           </span>
           {showPicker && (
-            <>
-              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowPicker(false)} />
-              <div style={{ position: 'absolute', top: '28px', left: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 100, display: 'flex', gap: '4px', flexWrap: 'wrap', width: '140px' }}>
-                {CALLOUT_ICONS.map(ic => (
-                  <span key={ic} onClick={() => { updateAttributes({ emoji: ic }); setShowPicker(false) }}
-                    style={{ fontSize: '18px', cursor: 'pointer', padding: '3px', borderRadius: '4px' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                    {ic}
-                  </span>
-                ))}
-              </div>
-            </>
+            <EmojiPicker
+              onSelect={em => { if (em) updateAttributes({ emoji: em }) }}
+              onClose={() => setShowPicker(false)}
+              style={{ top: '28px', left: 0 }}
+            />
           )}
         </div>
         <NodeViewContent style={{ flex: 1, outline: 'none', minHeight: '1.5em' }} />
@@ -319,6 +311,64 @@ const DatabaseBlockExtension = Node.create({
 })
 
 // ── PAGE MENTION NODE ─────────────────────────────────────────────────
+function PageMentionView({ node }: any) {
+  const [hovered, setHovered] = useState(false)
+  const [preview, setPreview] = useState<{ icon: string; title: string; snippet: string } | null>(null)
+  const [previewPos, setPreviewPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 })
+  const ref = useRef<HTMLAnchorElement>(null)
+
+  async function loadPreview() {
+    if (preview) return
+    try {
+      const supabase = createClient()
+      const { data } = await supabase.from('pages').select('title, icon, content').eq('id', node.attrs.pageId).single()
+      if (!data) return
+      const nodes: any[] = Array.isArray(data.content) ? data.content : (data.content?.content || [])
+      const words: string[] = []
+      function extract(n: any) {
+        if (n.text) words.push(n.text)
+        if (n.content) n.content.forEach(extract)
+      }
+      nodes.forEach(extract)
+      const snippet = words.join(' ').slice(0, 120).trim()
+      setPreview({ icon: data.icon || '📄', title: data.title || 'Untitled', snippet })
+    } catch {}
+  }
+
+  function handleMouseEnter(e: React.MouseEvent) {
+    setHovered(true)
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    setPreviewPos({ top: rect.bottom + 6, left: Math.min(rect.left, window.innerWidth - 240) })
+    loadPreview()
+  }
+
+  return (
+    <NodeViewWrapper as="span" style={{ display: 'inline' }}>
+      <a ref={ref} href={`/app/page/${node.attrs.pageId}`}
+        onClick={e => { e.preventDefault(); window.location.href = `/app/page/${node.attrs.pageId}` }}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={() => setHovered(false)}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', background: hovered ? 'var(--accent)' : 'var(--accent-light)', color: hovered ? '#fff' : 'var(--accent)', borderRadius: '4px', padding: '1px 7px', fontSize: '0.92em', textDecoration: 'none', cursor: 'pointer', fontWeight: 500, transition: 'background 0.12s,color 0.12s' }}>
+        {'@' + (node.attrs.label || 'Page')}
+      </a>
+      {hovered && preview && typeof window !== 'undefined' && (
+        <span style={{ position: 'fixed', top: previewPos.top, left: previewPos.left, zIndex: 9999, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px', boxShadow: 'var(--shadow-lg)', width: '220px', pointerEvents: 'none' }}
+          className="scale-in">
+          <span style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+            <span style={{ fontSize: '16px' }}>{preview.icon}</span>
+            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{preview.title}</span>
+          </span>
+          {preview.snippet && (
+            <span style={{ fontSize: '12px', color: 'var(--text-secondary)', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+              {preview.snippet}
+            </span>
+          )}
+        </span>
+      )}
+    </NodeViewWrapper>
+  )
+}
+
 const PageMentionNode = Node.create({
   name: 'pageMention',
   group: 'inline',
@@ -338,17 +388,7 @@ const PageMentionNode = Node.create({
     }), '@' + (HTMLAttributes.label || '')]
   },
   addNodeView() {
-    return ({ node }: any) => {
-      const dom = document.createElement('a')
-      dom.href = `/app/page/${node.attrs.pageId}`
-      dom.setAttribute('data-page-mention', node.attrs.pageId)
-      dom.style.cssText = 'display:inline-flex;align-items:center;gap:2px;background:var(--accent-light);color:var(--accent);border-radius:4px;padding:1px 7px;font-size:0.92em;text-decoration:none;cursor:pointer;font-weight:500;transition:background 0.12s,color 0.12s;'
-      dom.textContent = '@' + (node.attrs.label || 'Page')
-      dom.addEventListener('click', e => { e.preventDefault(); window.location.href = `/app/page/${node.attrs.pageId}` })
-      dom.addEventListener('mouseover', () => { dom.style.background = 'var(--accent)'; dom.style.color = '#fff' })
-      dom.addEventListener('mouseout', () => { dom.style.background = 'var(--accent-light)'; dom.style.color = 'var(--accent)' })
-      return { dom }
-    }
+    return ReactNodeViewRenderer(PageMentionView)
   },
 })
 
@@ -373,6 +413,124 @@ const ColumnsNode = Node.create({
   },
 })
 
+// ── BOOKMARK NODE ──────────────────────────────────────────────────────
+function BookmarkView({ node }: any) {
+  const { url, title, description, image, favicon, hostname } = node.attrs
+  return (
+    <NodeViewWrapper>
+      <a href={url} target="_blank" rel="noopener noreferrer"
+        style={{ display: 'flex', gap: '12px', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', margin: '4px 0', textDecoration: 'none', background: 'var(--surface)', transition: 'border-color 0.15s' }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
+        <div style={{ flex: 1, padding: '12px 14px', minWidth: 0 }}>
+          <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title || url}</div>
+          {description && <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{description}</div>}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            {favicon && <img src={favicon} width={14} height={14} style={{ borderRadius: '2px', flexShrink: 0 }} alt="" />}
+            <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{hostname || url}</span>
+          </div>
+        </div>
+        {image && (
+          <div style={{ width: '120px', flexShrink: 0, background: 'var(--border)' }}>
+            <img src={image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          </div>
+        )}
+      </a>
+    </NodeViewWrapper>
+  )
+}
+
+const BookmarkNode = Node.create({
+  name: 'bookmark',
+  group: 'block',
+  atom: true,
+  addAttributes() {
+    return {
+      url: { default: '' },
+      title: { default: '' },
+      description: { default: '' },
+      image: { default: '' },
+      favicon: { default: '' },
+      hostname: { default: '' },
+    }
+  },
+  parseHTML() { return [{ tag: 'div[data-bookmark]' }] },
+  renderHTML({ HTMLAttributes }) { return ['div', mergeAttributes(HTMLAttributes, { 'data-bookmark': '' })] },
+  addNodeView() { return ReactNodeViewRenderer(BookmarkView) },
+})
+
+// ── EMBED NODE ─────────────────────────────────────────────────────────
+function EmbedView({ node, updateAttributes }: any) {
+  const [editing, setEditing] = useState(!node.attrs.url)
+  const [input, setInput] = useState(node.attrs.url || '')
+
+  function apply() {
+    const url = input.trim()
+    if (!url) return
+    updateAttributes({ url })
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <NodeViewWrapper>
+        <div style={{ border: '1px dashed var(--border)', borderRadius: '8px', padding: '16px', margin: '4px 0', background: 'var(--sidebar-bg)' }}>
+          <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>🌐 Embed a URL</div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input
+              autoFocus
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') apply(); if (e.key === 'Escape') setEditing(false) }}
+              placeholder="https://…"
+              style={{ flex: 1, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '13px', fontFamily: 'var(--font-sans)', outline: 'none', background: 'var(--surface)', color: 'var(--text)' }}
+            />
+            <button onClick={apply} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 14px', fontSize: '13px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Embed</button>
+          </div>
+        </div>
+      </NodeViewWrapper>
+    )
+  }
+
+  return (
+    <NodeViewWrapper>
+      <div style={{ position: 'relative', margin: '4px 0', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+        <iframe
+          src={node.attrs.url}
+          style={{ width: '100%', height: node.attrs.height || '400px', border: 'none', display: 'block' }}
+          allow="fullscreen"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+        />
+        <div style={{ position: 'absolute', top: 6, right: 6, display: 'flex', gap: '4px' }}>
+          <button onClick={() => { setInput(node.attrs.url); setEditing(true) }}
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)' }}>
+            Edit URL
+          </button>
+          <select
+            value={node.attrs.height || '400px'}
+            onChange={e => updateAttributes({ height: e.target.value })}
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '4px', padding: '2px 4px', fontSize: '11px', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)' }}>
+            <option value="200px">Small</option>
+            <option value="400px">Medium</option>
+            <option value="600px">Large</option>
+            <option value="800px">X-Large</option>
+          </select>
+        </div>
+      </div>
+    </NodeViewWrapper>
+  )
+}
+
+const EmbedNode = Node.create({
+  name: 'embed',
+  group: 'block',
+  atom: true,
+  addAttributes() { return { url: { default: '' }, height: { default: '400px' } } },
+  parseHTML() { return [{ tag: 'div[data-embed]' }] },
+  renderHTML({ HTMLAttributes }) { return ['div', mergeAttributes(HTMLAttributes, { 'data-embed': '' })] },
+  addNodeView() { return ReactNodeViewRenderer(EmbedView) },
+})
+
 // ── SLASH ITEMS ────────────────────────────────────────────────────────
 const SLASH_ITEMS = [
   { id: 'h1', label: 'Heading 1', hint: 'Big section heading', icon: 'H1', section: 'Basic blocks' },
@@ -390,6 +548,9 @@ const SLASH_ITEMS = [
   { id: 'image', label: 'Image', hint: 'Upload or embed an image', icon: '🖼', section: 'Media' },
   { id: 'video', label: 'Video', hint: 'Upload or embed a video', icon: '🎬', section: 'Media' },
   { id: 'file', label: 'File', hint: 'Attach a PDF, Word, Excel…', icon: '📎', section: 'Media' },
+  { id: 'ai-write', label: 'Write with AI', hint: 'Generate content from a prompt', icon: '✨', section: 'AI' },
+  { id: 'bookmark', label: 'Bookmark', hint: 'Save a link as a rich card', icon: '🔖', section: 'Media' },
+  { id: 'embed', label: 'Embed', hint: 'Embed any website or URL', icon: '🌐', section: 'Media' },
   { id: 'subpage', label: 'Sub-page', hint: 'Embed a linked page', icon: '📄', section: 'Advanced' },
   { id: 'database', label: 'Database', hint: 'Embed a database', icon: '🗄️', section: 'Advanced' },
   { id: 'columns2', label: '2 Columns', hint: 'Side-by-side layout', icon: '⫿', section: 'Layout' },
@@ -450,6 +611,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   const [showHighlightPicker, setShowHighlightPicker] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
   const [showAiMenu, setShowAiMenu] = useState(false)
+  const [aiWritePos, setAiWritePos] = useState<{ x: number; y: number; insertAt: number } | null>(null)
+  const [aiWritePrompt, setAiWritePrompt] = useState('')
   const aiBtnRef = useRef<HTMLButtonElement>(null)
   const savedSelection = useRef<{ from: number; to: number } | null>(null)
   const colorBtnRef = useRef<HTMLButtonElement>(null)
@@ -490,6 +653,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       PageMentionNode,
       ColumnNode,
       ColumnsNode,
+      EmbedNode,
+      BookmarkNode,
     ],
     content: content || '',
     editable,
@@ -576,6 +741,21 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
           })
           return true
         },
+      },
+      handlePaste(view, event) {
+        if (!view.editable) return false
+        const text = event.clipboardData?.getData('text/plain')?.trim() || ''
+        if (/^https?:\/\/\S+$/.test(text)) {
+          const { state } = view
+          const { $from } = state.selection
+          const isEmptyParagraph = $from.parent.type.name === 'paragraph' && $from.parent.textContent === ''
+          if (isEmptyParagraph) {
+            event.preventDefault()
+            setTimeout(() => insertBookmark(text), 0)
+            return true
+          }
+        }
+        return false
       },
       handleKeyDown(view, event) {
         if (!view.editable) return false
@@ -783,6 +963,50 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
           ],
         }).run()
         break
+      case 'embed':
+        editor.chain().focus().insertContent({ type: 'embed', attrs: { url: '', height: '400px' } }).run()
+        break
+      case 'ai-write': {
+        const curPos = editor.state.selection.from
+        const coords = editor.view.coordsAtPos(curPos)
+        setAiWritePos({ x: coords.left, y: coords.bottom + 8, insertAt: curPos })
+        setAiWritePrompt('')
+        break
+      }
+      case 'bookmark': {
+        const bookmarkUrl = window.prompt('Paste a URL to create a bookmark:')
+        if (bookmarkUrl?.trim()) insertBookmark(bookmarkUrl.trim())
+        break
+      }
+    }
+  }
+
+  async function runAiWrite() {
+    if (!editor || !aiWritePos || !aiWritePrompt.trim()) return
+    const prompt = aiWritePrompt.trim()
+    setAiWritePos(null)
+    setAiLoading(true)
+    try {
+      const res = await fetch('/api/ai', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ text: prompt, action: 'write' }),
+      })
+      const { result, error } = await res.json()
+      if (error || !result) throw new Error(error || 'No result')
+      editor.chain().focus().insertContentAt(aiWritePos.insertAt, result).run()
+    } catch {}
+    setAiLoading(false)
+  }
+
+  async function insertBookmark(url: string) {
+    if (!editor) return
+    try {
+      const res = await fetch(`/api/bookmark?url=${encodeURIComponent(url)}`)
+      const meta = await res.json()
+      editor.chain().focus().insertContent({ type: 'bookmark', attrs: { url, ...meta } }).run()
+    } catch {
+      editor.chain().focus().insertContent({ type: 'bookmark', attrs: { url, title: url, description: '', image: '', favicon: '', hostname: new URL(url).hostname } }).run()
     }
   }
 
@@ -975,7 +1199,60 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
         </div>
       </BubbleMenu>
 
+      {/* Table toolbar */}
+      <BubbleMenu
+        editor={editor}
+        tippyOptions={{ duration: 100, placement: 'top', interactive: true }}
+        shouldShow={({ editor: ed }) => ed.isActive('tableCell') || ed.isActive('tableHeader')}
+      >
+        {(() => {
+          const btnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px 7px', borderRadius: '4px', fontSize: '12px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }
+          const hoverIn = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }
+          const hoverOut = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'none' }
+          return (
+            <div style={{ display: 'flex', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '3px', boxShadow: 'var(--shadow-lg)', gap: '1px' }}>
+              <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().addRowBefore().run()} title="Add row above">↑ Row</button>
+              <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().addRowAfter().run()} title="Add row below">↓ Row</button>
+              <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().deleteRow().run()} title="Delete row" >✕ Row</button>
+              <div style={{ width: 1, background: 'var(--border)', margin: '2px 2px' }} />
+              <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().addColumnBefore().run()} title="Add column left">← Col</button>
+              <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().addColumnAfter().run()} title="Add column right">→ Col</button>
+              <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().deleteColumn().run()} title="Delete column">✕ Col</button>
+              <div style={{ width: 1, background: 'var(--border)', margin: '2px 2px' }} />
+              <button style={{ ...btnStyle, color: '#eb5757' }} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().deleteTable().run()} title="Delete table">🗑 Table</button>
+            </div>
+          )
+        })()}
+      </BubbleMenu>
+
       <EditorContent editor={editor} />
+
+      {/* AI Write prompt */}
+      {aiWritePos && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setAiWritePos(null)} />
+          <div style={{ position: 'fixed', left: Math.min(aiWritePos.x, window.innerWidth - 340), top: Math.min(aiWritePos.y, window.innerHeight - 100), zIndex: 999, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 10, boxShadow: 'var(--shadow-lg)', width: 320 }} className="scale-in">
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>✨ Write with AI</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                autoFocus
+                value={aiWritePrompt}
+                onChange={e => setAiWritePrompt(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); runAiWrite() }
+                  if (e.key === 'Escape') setAiWritePos(null)
+                }}
+                placeholder="Describe what to write…"
+                style={{ flex: 1, padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13, fontFamily: 'var(--font-sans)', outline: 'none', background: 'var(--sidebar-bg)', color: 'var(--text)' }}
+              />
+              <button onClick={runAiWrite} disabled={!aiWritePrompt.trim()}
+                style={{ background: aiWritePrompt.trim() ? 'var(--accent)' : 'var(--border)', color: aiWritePrompt.trim() ? '#fff' : 'var(--text-tertiary)', border: 'none', borderRadius: 6, padding: '6px 12px', cursor: aiWritePrompt.trim() ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-sans)', fontWeight: 500, fontSize: 13 }}>
+                Generate
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Slash menu */}
       {slashMenu && (

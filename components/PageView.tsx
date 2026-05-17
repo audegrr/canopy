@@ -1,13 +1,13 @@
 'use client'
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, ChangeEvent } from 'react'
+import { mdToTiptap } from '@/lib/mdToTiptap'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import type { Page } from '@/lib/types'
 import Editor from './Editor'
 import DragHandle from './DragHandle'
 import DatabaseView from './DatabaseView'
-
-const EMOJI_LIST = ['📄','📝','📌','⭐','🔥','💡','🎯','📊','🗂','🌿','🚀','💎','🎨','🔑','📦','🌍','💬','🧠','✅','🎉','🏠','🔧','📚','🎵','🌸','⚡','🦋','🌊','🏔','🎭','📐','🔬','🌈','🍀','🦁','🐋','🌙','☀️','🎪','🏆']
+import EmojiPicker from './EmojiPicker'
 
 type Props = {
   page: Page
@@ -38,11 +38,14 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   const saveTimer = useRef<any>(null)
   const [editorInstance, setEditorInstance] = useState<any>(null)
   const [remoteConflict, setRemoteConflict] = useState<{ content: any; title: string } | null>(null)
-  const [presenceUsers, setPresenceUsers] = useState<{ userId: string; name: string; color: string }[]>([])
+  const [presenceUsers, setPresenceUsers] = useState<{ userId: string; name: string; color: string; section?: string }[]>([])
   const savedRef = useRef(true)
   const lastSaveTimestamp = useRef<string | null>(null)
   const editorRef = useRef<any>(null)
   const saveCountRef = useRef(0)
+  const importFileRef = useRef<HTMLInputElement>(null)
+  const presenceChannelRef = useRef<any>(null)
+  const myPresenceRef = useRef<{ name: string; color: string; section: string }>({ name: 'User', color: '#999', section: '' })
   const [historyOpen, setHistoryOpen] = useState(false)
   const [snapshots, setSnapshots] = useState<{ id: string; title: string; content: any; created_at: string }[]>([])
   const [snapshotLoading, setSnapshotLoading] = useState(false)
@@ -139,6 +142,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     return () => window.removeEventListener('keydown', onKey)
   }, [focusMode])
 
+  // Increment view count once per page mount
+  useEffect(() => {
+    supabase.rpc('increment_page_views', { page_id: page.id }).then(() => {})
+  }, [page.id])
+
   // Realtime: live sync + presence
   useEffect(() => {
     if (!userId) return
@@ -146,7 +154,14 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     const PRESENCE_COLORS = ['#e07b39','#0b6e99','#0f7b6c','#6940a5','#ad1a72','#d9730d']
     const myColor = PRESENCE_COLORS[parseInt(userId.slice(-2), 16) % PRESENCE_COLORS.length]
 
+    // Fetch display name for presence
+    supabase.from('profiles').select('full_name, email').eq('id', userId).single().then(({ data }) => {
+      const name = data?.full_name || data?.email?.split('@')[0] || 'User'
+      myPresenceRef.current = { ...myPresenceRef.current, name, color: myColor }
+    })
+
     const channel = supabase.channel(`page:${page.id}`, { config: { presence: { key: userId } } })
+    presenceChannelRef.current = channel
 
     channel
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pages', filter: `id=eq.${page.id}` }, payload => {
@@ -164,19 +179,20 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         }
       })
       .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState<{ name: string; color: string }>()
+        const state = channel.presenceState<{ name: string; color: string; section?: string }>()
         const others = Object.entries(state)
           .filter(([key]) => key !== userId)
-          .flatMap(([key, presences]) => presences.map(p => ({ userId: key, name: p.name || 'Someone', color: p.color || '#999' })))
+          .flatMap(([key, presences]) => presences.map(p => ({ userId: key, name: p.name || 'Someone', color: p.color || '#999', section: p.section || '' })))
         setPresenceUsers(others)
       })
       .subscribe(async status => {
         if (status === 'SUBSCRIBED') {
-          await channel.track({ name: 'User', color: myColor })
+          myPresenceRef.current.color = myColor
+          await channel.track({ ...myPresenceRef.current })
         }
       })
 
-    return () => { supabase.removeChannel(channel) }
+    return () => { presenceChannelRef.current = null; supabase.removeChannel(channel) }
   }, [page.id, userId])
 
   // Listen for subpage picker request from editor
@@ -325,6 +341,12 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     // Word count
     const text = topNodes.map((n: any) => extractText(n)).join(' ')
     setWordCount(text.trim() ? text.trim().split(/\s+/).length : 0)
+    // Broadcast current section via presence
+    const topSection = hs.find(h => h.level <= 2)?.text || ''
+    if (presenceChannelRef.current && topSection !== myPresenceRef.current.section) {
+      myPresenceRef.current.section = topSection
+      presenceChannelRef.current.track({ ...myPresenceRef.current })
+    }
   }
 
   function extractText(node: any): string {
@@ -437,6 +459,27 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     }
   }
 
+  async function toggleLock() {
+    const newVal = !page.is_locked
+    await supabase.from('pages').update({ is_locked: newVal }).eq('id', page.id)
+    setPage(p => ({ ...p, is_locked: newVal }))
+    showToast(newVal ? 'Page locked — editing disabled' : 'Page unlocked')
+  }
+
+  async function saveAsTemplate() {
+    const description = prompt('Template description (optional):') ?? ''
+    const { error } = await supabase.from('page_templates').insert({
+      workspace_id: page.workspace_id,
+      user_id: userId,
+      title: page.title || 'Untitled',
+      icon: page.icon || '',
+      description,
+      content: page.content,
+    })
+    if (error) { showToast('Failed to save template'); return }
+    showToast('Saved as template!')
+  }
+
   async function deletePage() {
     if (!confirm('Delete this page and all its sub-pages?')) return
     await supabase.from('pages').delete().eq('id', page.id)
@@ -461,35 +504,27 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   }
 
   async function exportPDF() {
-    showToast('Generating PDF…')
-    try {
-      const { default: jsPDF } = await import('jspdf')
-      const { default: html2canvas } = await import('html2canvas')
-      const el = document.querySelector('.print-content') as HTMLElement
-      if (!el) { showToast('Nothing to export'); return }
-      // Hide UI elements that shouldn't appear in PDF
-      document.body.classList.add('exporting-pdf')
-      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' })
-      document.body.classList.remove('exporting-pdf')
-      const imgData = canvas.toDataURL('image/png')
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' })
-      const pageW = pdf.internal.pageSize.getWidth()
-      const pageH = pdf.internal.pageSize.getHeight()
-      const imgW = pageW
-      const imgH = (canvas.height * pageW) / canvas.width
-      let y = 0
-      while (y < imgH) {
-        if (y > 0) pdf.addPage()
-        pdf.addImage(imgData, 'PNG', 0, -y, imgW, imgH)
-        y += pageH
-      }
-      pdf.save((page.title || 'page') + '.pdf')
-      showToast('PDF downloaded!')
-    } catch (err) {
-      document.body.classList.remove('exporting-pdf')
-      console.error(err)
-      showToast('PDF export failed')
+    const source = document.querySelector('.print-content') as HTMLElement
+    if (!source) { showToast('Nothing to export'); return }
+    showToast('Opening print dialog — select "Save as PDF"')
+
+    // Clone to a direct body child to bypass overflow:hidden ancestors
+    const clone = source.cloneNode(true) as HTMLElement
+    clone.id = 'print-clone'
+    document.body.appendChild(clone)
+    document.body.classList.add('printing-page')
+
+    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+
+    const cleanup = () => {
+      document.body.classList.remove('printing-page')
+      document.getElementById('print-clone')?.remove()
+      window.removeEventListener('afterprint', cleanup)
     }
+    window.addEventListener('afterprint', cleanup, { once: true })
+    setTimeout(cleanup, 15000) // safety net
+
+    window.print()
   }
 
   async function exportCSV() {
@@ -526,6 +561,22 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     a.click()
     URL.revokeObjectURL(url)
     showToast('Markdown downloaded!')
+  }
+
+  function triggerMarkdownImport() {
+    importFileRef.current?.click()
+  }
+
+  async function handleMarkdownImport(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    const text = await file.text()
+    const doc = mdToTiptap(text)
+    if (editorRef.current) {
+      editorRef.current.commands.setContent(doc)
+    }
+    showToast('Markdown imported!')
   }
 
   async function exportWord() {
@@ -576,14 +627,49 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   async function addComment() {
     if (!newComment.trim() || commentLoading) return
     setCommentLoading(true)
+    const body = newComment.trim()
     const { data, error } = await supabase
       .from('page_comments')
-      .insert({ page_id: page.id, user_id: userId, body: newComment.trim() })
+      .insert({ page_id: page.id, user_id: userId, body })
       .select('id, body, created_at, user_id, profile:profiles(full_name, email)')
       .single()
     if (!error && data) {
       setComments(c => [...c, data as any])
       setNewComment('')
+      const commenterName = myPresenceRef.current.name || 'Someone'
+      // Notify the page owner if they're not the commenter
+      if (page.owner_id && page.owner_id !== userId) {
+        supabase.from('notifications').insert({
+          user_id: page.owner_id,
+          type: 'comment',
+          title: `${commenterName} commented on "${page.title || 'Untitled'}"`,
+          body: body.slice(0, 120),
+          read: false,
+          data: { page_id: page.id, workspace_id: page.workspace_id },
+        }).then(() => {})
+      }
+      // Notify mentioned pages' owners via @PageTitle patterns
+      const mentions = [...body.matchAll(/@([\w\s]{1,40})/g)].map(m => m[1].trim()).filter(Boolean)
+      if (mentions.length > 0) {
+        supabase.from('pages').select('id, title, owner_id').eq('workspace_id', page.workspace_id).is('deleted_at', null).then(({ data: ws_pages }) => {
+          if (!ws_pages) return
+          const notified = new Set<string>()
+          for (const mentionText of mentions) {
+            const matched = ws_pages.find(p => p.title?.toLowerCase() === mentionText.toLowerCase())
+            if (matched && matched.owner_id && matched.owner_id !== userId && !notified.has(matched.owner_id)) {
+              notified.add(matched.owner_id)
+              supabase.from('notifications').insert({
+                user_id: matched.owner_id,
+                type: 'mention',
+                title: `${commenterName} mentioned "${matched.title}" in a comment`,
+                body: body.slice(0, 120),
+                read: false,
+                data: { page_id: matched.id, workspace_id: page.workspace_id },
+              }).then(() => {})
+            }
+          }
+        })
+      }
     }
     setCommentLoading(false)
   }
@@ -610,6 +696,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+      <input ref={importFileRef} type="file" accept=".md,text/markdown,text/plain" style={{ display: 'none' }} onChange={handleMarkdownImport} />
 
       {/* Top bar */}
       <div style={{ height: focusMode ? 0 : '48px', padding: focusMode ? 0 : '0 12px', borderBottom: focusMode ? 'none' : '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, overflow: 'hidden', transition: 'height 0.2s, padding 0.2s' }}>
@@ -632,9 +719,14 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
         {presenceUsers.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
             {presenceUsers.slice(0, isMobile ? 2 : 4).map(u => (
-              <div key={u.userId} title={u.name}
-                style={{ width: 24, height: 24, borderRadius: '50%', background: u.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#fff', border: '2px solid var(--surface)', marginLeft: -4, flexShrink: 0 }}>
+              <div key={u.userId} title={u.section ? `${u.name} — ${u.section}` : u.name}
+                style={{ position: 'relative', width: 24, height: 24, borderRadius: '50%', background: u.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#fff', border: '2px solid var(--surface)', marginLeft: -4, flexShrink: 0, cursor: 'default' }}>
                 {u.name.charAt(0).toUpperCase()}
+                {u.section && (
+                  <span style={{ position: 'absolute', bottom: -18, left: '50%', transform: 'translateX(-50%)', background: u.color, color: '#fff', fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 4, whiteSpace: 'nowrap', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', pointerEvents: 'none', zIndex: 10 }}>
+                    {u.section}
+                  </span>
+                )}
               </div>
             ))}
             {presenceUsers.length > (isMobile ? 2 : 4) && (
@@ -649,33 +741,43 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
 
         {/* Desktop buttons */}
         {!isMobile && <>
-          <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onMarkdown={exportMarkdown} isDatabase={!!page.is_database} />
-          <TopBarBtn onClick={() => { document.body.classList.add('printing-page'); window.print(); setTimeout(() => document.body.classList.remove('printing-page'), 1000) }}>🖨️</TopBarBtn>
-          {wordCount > 0 && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{wordCount} words</span>}
+          {/* Separator */}
+          {wordCount > 0 && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{wordCount}w</span>}
+          {(page.view_count ?? 0) > 1 && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }} title="Total views"><TbIcon d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z" size={12}/> {page.view_count}</span>}
+          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
+          <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onMarkdown={exportMarkdown} onImportMarkdown={canEdit && !page.is_database ? triggerMarkdownImport : undefined} isDatabase={!!page.is_database} onSaveTemplate={!page.is_database && canEdit ? saveAsTemplate : undefined} />
+          <TopBarBtn onClick={exportPDF} iconOnly title="Print / Save as PDF"><TbIcon d={TB_ICONS.print} /></TopBarBtn>
+          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           {!page.is_database && headings.length > 0 && (
-            <TopBarBtn onClick={() => setTocOpen(o => !o)} active={tocOpen} title="Table of contents">☰ ToC</TopBarBtn>
+            <TopBarBtn onClick={() => setTocOpen(o => !o)} active={tocOpen} title="Table of contents"><TbIcon d={TB_ICONS.toc} />ToC</TopBarBtn>
           )}
-          {canEdit && <TopBarBtn onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots() }} active={historyOpen}>🕓 History</TopBarBtn>}
+          {canEdit && <TopBarBtn onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots() }} active={historyOpen} title="Version history"><TbIcon d={TB_ICONS.history} />History</TopBarBtn>}
           {!page.is_database && (
             <TopBarBtn onClick={() => { setBacklinksOpen(o => !o); loadBacklinks() }} active={backlinksOpen} title="Backlinks">
-              ↩{backlinksLoaded && backlinks.length > 0 ? ` ${backlinks.length}` : ''}
+              <TbIcon d={TB_ICONS.backlink} />{backlinksLoaded && backlinks.length > 0 ? backlinks.length : ''}
             </TopBarBtn>
           )}
           <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen} title="Comments">
-            💬{comments.length > 0 ? ` ${comments.length}` : ''}
+            <TbIcon d={TB_ICONS.chat} />{comments.length > 0 ? comments.length : ''}
           </TopBarBtn>
-          <TopBarBtn onClick={() => { setFocusMode(f => { window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus')); return !f }) }} active={focusMode} title="Focus mode (⌘⇧F)">
-            {focusMode ? '⊡' : '⊠'}
+          <TopBarBtn onClick={() => { setFocusMode(f => { window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus')); return !f }) }} iconOnly active={focusMode} title="Focus mode (⌘⇧F)">
+            <TbIcon d={focusMode ? TB_ICONS.focusOut : TB_ICONS.focusIn} />
           </TopBarBtn>
-          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn>🔒 Share</TopBarBtn>}
+          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
+          {isOwner && (
+            <TopBarBtn onClick={toggleLock} iconOnly title={page.is_locked ? 'Unlock page' : 'Lock page'} active={!!page.is_locked}>
+              <TbIcon d={page.is_locked ? TB_ICONS.lock : TB_ICONS.unlock} />
+            </TopBarBtn>
+          )}
+          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn><TbIcon d={TB_ICONS.share} />Share</TopBarBtn>}
         </>}
 
         {/* Mobile: compact action row */}
         {isMobile && <>
-          <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen}>
-            💬{comments.length > 0 ? ` ${comments.length}` : ''}
+          <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen} iconOnly>
+            <TbIcon d={TB_ICONS.chat} />{comments.length > 0 ? comments.length : ''}
           </TopBarBtn>
-          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn>🔒</TopBarBtn>}
+          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn iconOnly><TbIcon d={TB_ICONS.share} /></TopBarBtn>}
           {/* Mobile overflow menu */}
           <div style={{ position: 'relative' }}>
             <TopBarBtn onClick={() => setMobileMenuOpen(o => !o)} active={mobileMenuOpen}>⋯</TopBarBtn>
@@ -685,6 +787,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                 <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 6, boxShadow: 'var(--shadow-lg)', zIndex: 200, minWidth: 180 }} className="scale-in">
                   <MobileMenuItem onClick={() => { exportPDF(); setMobileMenuOpen(false) }}>📄 Export PDF</MobileMenuItem>
                   {!page.is_database && <MobileMenuItem onClick={() => { exportMarkdown(); setMobileMenuOpen(false) }}>⬇️ Export Markdown</MobileMenuItem>}
+                  {canEdit && !page.is_database && <MobileMenuItem onClick={() => { triggerMarkdownImport(); setMobileMenuOpen(false) }}>⬆️ Import Markdown</MobileMenuItem>}
+                  {canEdit && !page.is_database && <MobileMenuItem onClick={() => { saveAsTemplate(); setMobileMenuOpen(false) }}>📋 Save as template</MobileMenuItem>}
                   {page.is_database && <MobileMenuItem onClick={() => { exportCSV(); setMobileMenuOpen(false) }}>📊 Export CSV</MobileMenuItem>}
                   {!page.is_database && headings.length > 0 && <MobileMenuItem onClick={() => { setTocOpen(o => !o); setMobileMenuOpen(false) }}>☰ Table of contents</MobileMenuItem>}
                   {canEdit && <MobileMenuItem onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots(); setMobileMenuOpen(false) }}>🕓 Version history</MobileMenuItem>}
@@ -781,32 +885,16 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
 
               {/* Icon picker */}
               {showIconPicker && (
-                <>
-                  <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowIconPicker(false)} />
-                  <div style={{ position: 'absolute', top: page.icon ? '64px' : '36px', left: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px', boxShadow: 'var(--shadow-lg)', zIndex: 100, width: '280px' }} className="scale-in">
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
-                      {EMOJI_LIST.map(e => (
-                        <button key={e} onClick={() => setIcon(e)}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '22px', padding: '4px 5px', borderRadius: '4px', lineHeight: 1 }}
-                          onMouseEnter={ev => { (ev.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-                          onMouseLeave={ev => { (ev.currentTarget as HTMLElement).style.background = 'none' }}>
-                          {e}
-                        </button>
-                      ))}
-                    </div>
-                    {page.icon && (
-                      <button onClick={() => setIcon('')}
-                        style={{ width: '100%', background: 'none', border: '1px solid var(--border)', cursor: 'pointer', fontSize: '12px', padding: '5px', borderRadius: '5px', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)' }}>
-                        Remove icon
-                      </button>
-                    )}
-                  </div>
-                </>
+                <EmojiPicker
+                  onSelect={e => { setIcon(e); setShowIconPicker(false) }}
+                  onClose={() => setShowIconPicker(false)}
+                  style={{ top: page.icon ? '64px' : '36px', left: 0 }}
+                />
               )}
             </div>
 
             {/* Title */}
-            {canEdit ? (
+            {canEdit && !page.is_locked ? (
               <div
                 ref={titleRef}
                 contentEditable
@@ -828,6 +916,15 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
               </h1>
             )}
 
+            {/* Lock banner */}
+            {page.is_locked && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', padding: '7px 12px', background: 'var(--accent-light)', borderRadius: '6px', fontSize: '12px', color: 'var(--accent)', fontWeight: 500 }}>
+                <span>🔐</span>
+                <span style={{ flex: 1 }}>This page is locked.</span>
+                {isOwner && <span onClick={toggleLock} style={{ cursor: 'pointer', textDecoration: 'underline', opacity: 0.8 }}>Unlock</span>}
+              </div>
+            )}
+
             {/* Editor / Database */}
             <div style={{ marginTop: '20px', position: 'relative' }}>
               {page.is_database
@@ -837,7 +934,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                     <Editor
                       key={page.id}
                       content={initialContentRef.current}
-                      editable={canEdit}
+                      editable={canEdit && !page.is_locked}
                       onUpdate={onContentUpdate}
                       onEditorReady={e => { setEditorInstance(e); editorRef.current = e }}
                       workspaceId={page.workspace_id}
@@ -1406,7 +1503,7 @@ function CoverGallery({ onSelect, onUpload, onClose }: { onSelect: (v: string) =
   )
 }
 
-function ExportMenu({ onPDF, onWord, onCSV, onMarkdown, isDatabase }: { onPDF: () => void; onWord: () => void; onCSV?: () => void; onMarkdown?: () => void; isDatabase?: boolean }) {
+function ExportMenu({ onPDF, onWord, onCSV, onMarkdown, onImportMarkdown, onSaveTemplate, isDatabase }: { onPDF: () => void; onWord: () => void; onCSV?: () => void; onMarkdown?: () => void; onImportMarkdown?: () => void; onSaveTemplate?: () => void; isDatabase?: boolean }) {
   const [open, setOpen] = useState(false)
   const item = (label: string, fn: () => void) => (
     <div onClick={() => { fn(); setOpen(false) }}
@@ -1419,18 +1516,23 @@ function ExportMenu({ onPDF, onWord, onCSV, onMarkdown, isDatabase }: { onPDF: (
   return (
     <div style={{ position: 'relative' }}>
       <TopBarBtn onClick={() => setOpen(o => !o)} active={open} data-export-btn>
-        ⬇️ Export
+        <TbIcon d={TB_ICONS.export} />Export
       </TopBarBtn>
       {open && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpen(false)} />
-          <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 100, minWidth: '180px' }} className="scale-in">
+          <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 100, minWidth: '190px' }} className="scale-in">
             {item('📄 Export as PDF', onPDF)}
             {isDatabase
               ? item('📊 Export as CSV', onCSV || (() => {}))
               : item('📝 Export as Word', onWord)
             }
             {!isDatabase && item('⬇️ Export as Markdown', onMarkdown || (() => {}))}
+            {(onImportMarkdown || onSaveTemplate) && (
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+            )}
+            {onImportMarkdown && item('⬆️ Import from Markdown', onImportMarkdown)}
+            {onSaveTemplate && item('📋 Save as template', onSaveTemplate)}
           </div>
         </>
       )}
@@ -1438,7 +1540,30 @@ function ExportMenu({ onPDF, onWord, onCSV, onMarkdown, isDatabase }: { onPDF: (
   )
 }
 
-function TopBarBtn({ onClick, active, children, ...props }: { onClick: () => void; active?: boolean; children: React.ReactNode; [key: string]: any }) {
+function TbIcon({ d, size = 14 }: { d: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ display: 'block', flexShrink: 0 }}>
+      <path d={d} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+const TB_ICONS = {
+  export:   'M8 3v8m0 0L5 8m3 3 3-3M3 13h10',
+  print:    'M4 3h8v4H4V3zM3 7h10v5H3V7zm2 4h6',
+  toc:      'M3 5h10M3 8h7M3 11h9',
+  history:  'M3 8a5 5 0 105-5H5M5 3v2H3',
+  backlink: 'M9 11H5a2 2 0 01-2-2V6m0 0l2-2M3 6l2 2',
+  chat:     'M2 4a1 1 0 011-1h10a1 1 0 011 1v6a1 1 0 01-1 1H9L7 13l-2-2H3a1 1 0 01-1-1V4z',
+  lock:     'M5 8V6a3 3 0 016 0v2M3 8h10v6H3V8z',
+  unlock:   'M5 8V6A3 3 0 0113 7M3 8h10v6H3V8z',
+  share:    'M10 3l3 3-3 3m3-3H6a3 3 0 000 6h2',
+  focusIn:  'M3 6V3h3M10 3h3v3M13 10v3h-3M6 13H3v-3',
+  focusOut: 'M6 3H3v3M13 3h-3v3M3 10v3h3M10 13h3v-3',
+  link:     'M10 7l2-2a3 3 0 00-4.2-4.2L5 4a3 3 0 000 4.2M6 9l-2 2a3 3 0 004.2 4.2L11 12a3 3 0 000-4.2',
+}
+
+function TopBarBtn({ onClick, active, iconOnly, children, ...props }: { onClick: () => void; active?: boolean; iconOnly?: boolean; children: React.ReactNode; [key: string]: any }) {
   const [hovered, setHovered] = useState(false)
   return (
     <button
@@ -1447,19 +1572,24 @@ function TopBarBtn({ onClick, active, children, ...props }: { onClick: () => voi
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: active ? 'var(--accent)' : hovered ? 'var(--sidebar-hover)' : 'var(--sidebar-bg)',
+        background: active ? 'var(--accent)' : hovered ? 'var(--sidebar-hover)' : 'transparent',
         color: active ? '#fff' : hovered ? 'var(--text)' : 'var(--text-secondary)',
-        border: `1px solid ${hovered && !active ? 'var(--text-tertiary)' : 'var(--border)'}`,
-        padding: '5px 14px',
-        borderRadius: '5px',
+        border: active ? '1px solid transparent' : `1px solid ${hovered ? 'var(--border)' : 'transparent'}`,
+        padding: iconOnly ? '0' : '0 9px',
+        height: '28px',
+        minWidth: '28px',
+        borderRadius: '6px',
         fontFamily: 'var(--font-sans)',
-        fontSize: '13px',
+        fontSize: '12.5px',
         fontWeight: 500,
         cursor: 'pointer',
-        transition: 'all 0.15s',
+        transition: 'background 0.12s, color 0.12s, border-color 0.12s',
         display: 'flex',
         alignItems: 'center',
+        justifyContent: 'center',
         gap: '5px',
+        flexShrink: 0,
+        whiteSpace: 'nowrap',
       }}>
       {children}
     </button>
