@@ -49,6 +49,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   const [backlinksOpen, setBacklinksOpen] = useState(false)
   const [backlinks, setBacklinks] = useState<{ id: string; title: string; icon: string }[]>([])
   const [backlinksLoaded, setBacklinksLoaded] = useState(false)
+  const [commentsOpen, setCommentsOpen] = useState(false)
+  const [comments, setComments] = useState<{ id: string; body: string; created_at: string; user_id: string; profile?: { full_name: string | null; email: string } | null }[]>([])
+  const [newComment, setNewComment] = useState('')
+  const [commentLoading, setCommentLoading] = useState(false)
   const [tocOpen, setTocOpen] = useState(false)
   const [headings, setHeadings] = useState<{ level: number; text: string; idx: number }[]>([])
   const [wordCount, setWordCount] = useState(0)
@@ -546,6 +550,35 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     setBacklinksLoaded(true)
   }
 
+  async function loadComments() {
+    const { data } = await supabase
+      .from('page_comments')
+      .select('id, body, created_at, user_id, profile:profiles(full_name, email)')
+      .eq('page_id', page.id)
+      .order('created_at', { ascending: true })
+    setComments((data as any) || [])
+  }
+
+  async function addComment() {
+    if (!newComment.trim() || commentLoading) return
+    setCommentLoading(true)
+    const { data, error } = await supabase
+      .from('page_comments')
+      .insert({ page_id: page.id, user_id: userId, body: newComment.trim() })
+      .select('id, body, created_at, user_id, profile:profiles(full_name, email)')
+      .single()
+    if (!error && data) {
+      setComments(c => [...c, data as any])
+      setNewComment('')
+    }
+    setCommentLoading(false)
+  }
+
+  async function deleteComment(id: string) {
+    await supabase.from('page_comments').delete().eq('id', id)
+    setComments(c => c.filter(x => x.id !== id))
+  }
+
   function restoreSnapshot(snap: { content: any; title: string }) {
     editorRef.current?.commands.setContent(snap.content)
     setPage(p => ({ ...p, content: snap.content, title: snap.title }))
@@ -601,6 +634,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
             ↩ Backlinks{backlinksLoaded && backlinks.length > 0 ? ` (${backlinks.length})` : ''}
           </TopBarBtn>
         )}
+        <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen} title="Comments">
+          💬{comments.length > 0 ? ` ${comments.length}` : ''}
+        </TopBarBtn>
         <TopBarBtn onClick={() => {
           setFocusMode(f => {
             window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus'))
@@ -761,6 +797,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                       editable={canEdit}
                       onUpdate={onContentUpdate}
                       onEditorReady={e => { setEditorInstance(e); editorRef.current = e }}
+                      workspaceId={page.workspace_id}
                     />
                   </>
               }
@@ -852,6 +889,60 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                   <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>{b.title || 'Untitled'}</span>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Comments panel */}
+        {commentsOpen && (
+          <div style={{ width: '300px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <span style={{ fontWeight: 600, fontSize: 13 }}>Comments</span>
+              <button onClick={() => setCommentsOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16 }}>✕</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+              {comments.length === 0 && (
+                <div style={{ padding: '20px 16px', fontSize: 12, color: 'var(--text-tertiary)' }}>No comments yet. Be the first!</div>
+              )}
+              {comments.map(c => {
+                const name = c.profile?.full_name || c.profile?.email || 'Someone'
+                const initial = name[0]?.toUpperCase()
+                const isOwn = c.user_id === userId
+                return (
+                  <div key={c.id} style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>{initial}</div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{new Date(c.created_at).toLocaleString()}</div>
+                      </div>
+                      {isOwn && (
+                        <button onClick={() => deleteComment(c.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 13, padding: '2px 4px', borderRadius: 3 }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)' }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>✕</button>
+                      )}
+                    </div>
+                    <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5, paddingLeft: 34, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{c.body}</div>
+                  </div>
+                )
+              })}
+            </div>
+            <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <textarea
+                value={newComment}
+                onChange={e => setNewComment(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addComment() }}
+                placeholder="Add a comment… (⌘↵ to send)"
+                rows={3}
+                style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'var(--font-sans)', fontSize: 13, resize: 'none', outline: 'none', background: 'var(--sidebar-bg)', color: 'var(--text)', lineHeight: 1.4, boxSizing: 'border-box' }}
+                onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }}
+                onBlur={e => { (e.target as HTMLElement).style.borderColor = 'var(--border)' }}
+              />
+              <button onClick={addComment} disabled={!newComment.trim() || commentLoading}
+                style={{ background: newComment.trim() ? 'var(--accent)' : 'var(--text-tertiary)', color: '#fff', border: 'none', borderRadius: 6, padding: '7px', fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, cursor: newComment.trim() ? 'pointer' : 'not-allowed', transition: 'background 0.1s' }}>
+                {commentLoading ? 'Sending…' : 'Comment'}
+              </button>
             </div>
           </div>
         )}

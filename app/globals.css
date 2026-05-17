@@ -452,3 +452,26 @@ html.theme-transitioning *::after {
 /* Show workspace gear button on hover */
 .ws-gear-btn { opacity: 0 !important; }
 div:hover > .ws-gear-btn { opacity: 1 !important; }
+
+/* Column layout */
+div[data-columns] {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin: 6px 0;
+}
+div[data-column] {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px dashed transparent;
+  transition: border-color 0.15s;
+}
+div[data-column]:focus-within {
+  border-color: var(--border);
+}
+@media (max-width: 640px) {
+  div[data-columns] { flex-direction: column; }
+  div[data-column] { width: 100%; }
+}

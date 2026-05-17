@@ -15,6 +15,7 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import Image from '@tiptap/extension-image'
 import { Node, mergeAttributes } from '@tiptap/core'
+import { createClient } from '@/lib/supabase/client'
 
 // ── Video node ─────────────────────────────────────────
 const VideoNode = Node.create({
@@ -317,6 +318,61 @@ const DatabaseBlockExtension = Node.create({
   },
 })
 
+// ── PAGE MENTION NODE ─────────────────────────────────────────────────
+const PageMentionNode = Node.create({
+  name: 'pageMention',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  addAttributes() {
+    return {
+      pageId: { default: null },
+      label: { default: '' },
+    }
+  },
+  parseHTML() { return [{ tag: 'a[data-page-mention]' }] },
+  renderHTML({ HTMLAttributes }) {
+    return ['a', mergeAttributes(HTMLAttributes, {
+      'data-page-mention': HTMLAttributes.pageId,
+      href: `/app/page/${HTMLAttributes.pageId}`,
+    }), '@' + (HTMLAttributes.label || '')]
+  },
+  addNodeView() {
+    return ({ node }: any) => {
+      const dom = document.createElement('a')
+      dom.href = `/app/page/${node.attrs.pageId}`
+      dom.setAttribute('data-page-mention', node.attrs.pageId)
+      dom.style.cssText = 'display:inline-flex;align-items:center;gap:2px;background:var(--accent-light);color:var(--accent);border-radius:4px;padding:1px 7px;font-size:0.92em;text-decoration:none;cursor:pointer;font-weight:500;transition:background 0.12s,color 0.12s;'
+      dom.textContent = '@' + (node.attrs.label || 'Page')
+      dom.addEventListener('click', e => { e.preventDefault(); window.location.href = `/app/page/${node.attrs.pageId}` })
+      dom.addEventListener('mouseover', () => { dom.style.background = 'var(--accent)'; dom.style.color = '#fff' })
+      dom.addEventListener('mouseout', () => { dom.style.background = 'var(--accent-light)'; dom.style.color = 'var(--accent)' })
+      return { dom }
+    }
+  },
+})
+
+// ── COLUMN LAYOUT NODES ───────────────────────────────────────────────
+const ColumnNode = Node.create({
+  name: 'column',
+  group: 'block',
+  content: 'block+',
+  parseHTML() { return [{ tag: 'div[data-column]' }] },
+  renderHTML({ HTMLAttributes }) {
+    return ['div', mergeAttributes(HTMLAttributes, { 'data-column': '' }), 0]
+  },
+})
+
+const ColumnsNode = Node.create({
+  name: 'columns',
+  group: 'block',
+  content: 'column+',
+  parseHTML() { return [{ tag: 'div[data-columns]' }] },
+  renderHTML({ HTMLAttributes }) {
+    return ['div', mergeAttributes(HTMLAttributes, { 'data-columns': '' }), 0]
+  },
+})
+
 // ── SLASH ITEMS ────────────────────────────────────────────────────────
 const SLASH_ITEMS = [
   { id: 'h1', label: 'Heading 1', hint: 'Big section heading', icon: 'H1', section: 'Basic blocks' },
@@ -336,6 +392,8 @@ const SLASH_ITEMS = [
   { id: 'file', label: 'File', hint: 'Attach a PDF, Word, Excel…', icon: '📎', section: 'Media' },
   { id: 'subpage', label: 'Sub-page', hint: 'Embed a linked page', icon: '📄', section: 'Advanced' },
   { id: 'database', label: 'Database', hint: 'Embed a database', icon: '🗄️', section: 'Advanced' },
+  { id: 'columns2', label: '2 Columns', hint: 'Side-by-side layout', icon: '⫿', section: 'Layout' },
+  { id: 'columns3', label: '3 Columns', hint: 'Three-column layout', icon: '⫽', section: 'Layout' },
 ]
 
 const COLORS = [
@@ -364,6 +422,7 @@ type Props = {
   editable: boolean
   onUpdate: (content: any) => void
   onEditorReady?: (editor: any) => void
+  workspaceId?: string
 }
 
 function FBtn({ onClick, active, children, title, btnRef, disabled }: { onClick?: () => void; active: boolean; children: React.ReactNode; title?: string; btnRef?: React.RefObject<HTMLButtonElement | null>; disabled?: boolean }) {
@@ -380,9 +439,13 @@ function FBtn({ onClick, active, children, title, btnRef, disabled }: { onClick?
   )
 }
 
-export default function Editor({ content, editable, onUpdate, onEditorReady }: Props) {
+export default function Editor({ content, editable, onUpdate, onEditorReady, workspaceId }: Props) {
   const [slashMenu, setSlashMenu] = useState<{ x: number; y: number; query: string; fromPos: number } | null>(null)
   const [slashIndex, setSlashIndex] = useState(0)
+  const [atMenu, setAtMenu] = useState<{ x: number; y: number; query: string } | null>(null)
+  const [atResults, setAtResults] = useState<{ id: string; title: string; icon: string }[]>([])
+  const [atIndex, setAtIndex] = useState(0)
+  const atQueryRef = useRef('')
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [showHighlightPicker, setShowHighlightPicker] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
@@ -424,6 +487,9 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
       TocExtension,
       SubpageExtension,
       DatabaseBlockExtension,
+      PageMentionNode,
+      ColumnNode,
+      ColumnsNode,
     ],
     content: content || '',
     editable,
@@ -513,6 +579,36 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
       },
       handleKeyDown(view, event) {
         if (!view.editable) return false
+        if (event.key === '@' && workspaceId) {
+          const { from } = view.state.selection
+          const coords = view.coordsAtPos(from)
+          setAtMenu({ x: coords.left, y: coords.bottom + 8, query: '' })
+          atQueryRef.current = ''
+          setAtIndex(0)
+          return false
+        }
+        if (atMenu) {
+          if (event.key === 'Escape') { setAtMenu(null); return true }
+          if (event.key === 'ArrowDown') { setAtIndex(i => (i + 1) % Math.max(1, atResults.length)); return true }
+          if (event.key === 'ArrowUp') { setAtIndex(i => (i - 1 + Math.max(1, atResults.length)) % Math.max(1, atResults.length)); return true }
+          if (event.key === 'Enter') {
+            if (atResults[atIndex]) { runMention(atResults[atIndex]); return true }
+            return false
+          }
+          if (event.key === 'Backspace') {
+            if (atQueryRef.current.length === 0) { setAtMenu(null); return false }
+            atQueryRef.current = atQueryRef.current.slice(0, -1)
+            setAtMenu(m => m ? { ...m, query: atQueryRef.current } : null)
+            return false
+          }
+          if (event.key === ' ') { setAtMenu(null); return false }
+          if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
+            atQueryRef.current += event.key
+            setAtMenu(m => m ? { ...m, query: atQueryRef.current } : null)
+            setAtIndex(0)
+            return false
+          }
+        }
         if (event.key === '/') {
           const { from } = view.state.selection
           const coords = view.coordsAtPos(from)
@@ -545,6 +641,36 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
       },
     },
   })
+
+  useEffect(() => {
+    if (!atMenu || !workspaceId) return
+    const q = atMenu.query
+    const timer = setTimeout(async () => {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('pages')
+        .select('id, title, icon')
+        .eq('workspace_id', workspaceId)
+        .ilike('title', `%${q}%`)
+        .limit(10)
+      setAtResults(data || [])
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [atMenu?.query, workspaceId])
+
+  function runMention(page: { id: string; title: string; icon: string }) {
+    if (!editor) return
+    setAtMenu(null)
+    const curPos = editor.state.selection.from
+    const q = atQueryRef.current
+    const deleteFrom = curPos - q.length - 1
+    editor.chain()
+      .focus()
+      .deleteRange({ from: deleteFrom, to: curPos })
+      .insertContentAt(deleteFrom, { type: 'pageMention', attrs: { pageId: page.id, label: page.title || 'Untitled' } })
+      .run()
+    atQueryRef.current = ''
+  }
 
   function getItems(q: string) {
     if (!q) return SLASH_ITEMS
@@ -638,6 +764,25 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
         if (pageId) editor.chain().focus().insertContent({ type: 'databaseBlock', attrs: { pageId: pageId.trim(), view: 'table', collapsed: false } }).run()
         break
       }
+      case 'columns2':
+        editor.chain().focus().insertContent({
+          type: 'columns',
+          content: [
+            { type: 'column', content: [{ type: 'paragraph' }] },
+            { type: 'column', content: [{ type: 'paragraph' }] },
+          ],
+        }).run()
+        break
+      case 'columns3':
+        editor.chain().focus().insertContent({
+          type: 'columns',
+          content: [
+            { type: 'column', content: [{ type: 'paragraph' }] },
+            { type: 'column', content: [{ type: 'paragraph' }] },
+            { type: 'column', content: [{ type: 'paragraph' }] },
+          ],
+        }).run()
+        break
     }
   }
 
@@ -862,6 +1007,32 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
           </div>
         </>
       )}
+      {/* @ mention menu */}
+      {atMenu && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setAtMenu(null)} />
+          <div className="slash-menu fade-in"
+            style={{ position: 'fixed', left: Math.min(atMenu.x, window.innerWidth - 240), top: Math.min(atMenu.y, window.innerHeight - 280), zIndex: 999, minWidth: 220 }}>
+            {atResults.length === 0
+              ? <div style={{ padding: '10px 12px', color: 'var(--text-tertiary)', fontSize: '13px' }}>
+                  {atMenu.query ? 'No pages found' : 'Type to search…'}
+                </div>
+              : atResults.map((page, i) => (
+                <div key={page.id}
+                  className={`slash-menu-item ${i === atIndex ? 'active' : ''}`}
+                  onMouseEnter={() => setAtIndex(i)}
+                  onClick={() => runMention(page)}>
+                  <div className="icon" style={{ fontSize: 16 }}>{page.icon || '📄'}</div>
+                  <div>
+                    <div className="label">{page.title || 'Untitled'}</div>
+                  </div>
+                </div>
+              ))
+            }
+          </div>
+        </>
+      )}
+
     {/* Block context menu */}
     {blockCtxMenu && (
       <>
