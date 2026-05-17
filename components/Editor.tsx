@@ -611,6 +611,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   const [showHighlightPicker, setShowHighlightPicker] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
   const [showAiMenu, setShowAiMenu] = useState(false)
+  const [aiMenuPos, setAiMenuPos] = useState<{ x: number; y: number } | null>(null)
   const [aiWritePos, setAiWritePos] = useState<{ x: number; y: number; insertAt: number } | null>(null)
   const [aiWritePrompt, setAiWritePrompt] = useState('')
   const aiBtnRef = useRef<HTMLButtonElement>(null)
@@ -821,6 +822,11 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       },
     },
   })
+
+  useEffect(() => {
+    if (!editor) return
+    editor.setEditable(editable)
+  }, [editor, editable])
 
   useEffect(() => {
     if (!atMenu || !workspaceId) return
@@ -1040,6 +1046,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       <BubbleMenu editor={editor} tippyOptions={{ duration: 100, placement: 'top', interactive: true, hideOnClick: false, maxWidth: 'calc(100vw - 32px)' }}
         shouldShow={({ editor }) => {
           if (!bubbleMenuEnabledRef.current) return false
+          if (!editor.isFocused) return false
           return editor.isActive('image') || (!editor.state.selection.empty)
         }}>
         <div className="floating-toolbar" style={{ overflowX: 'auto', maxWidth: 'calc(100vw - 32px)', flexWrap: 'nowrap' }}>
@@ -1163,37 +1170,17 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
             <FBtn onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} title='Center'>↔</FBtn>
             <FBtn onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} title='Align right'>➡</FBtn>
             <div className="floating-sep" />
-            <div style={{ position: 'relative' }}>
-              <FBtn btnRef={aiBtnRef} onClick={() => {
+            <FBtn btnRef={aiBtnRef} onClick={() => {
                 const { from, to } = editor.state.selection
                 savedSelection.current = { from, to }
+                if (!showAiMenu) {
+                  const r = aiBtnRef.current?.getBoundingClientRect()
+                  if (r) setAiMenuPos({ x: r.left, y: r.bottom + 6 })
+                }
                 setShowAiMenu(o => !o)
               }} active={showAiMenu} title='AI rewrite' disabled={aiLoading}>
                 {aiLoading ? '…' : '✨ AI'}
               </FBtn>
-              {showAiMenu && (
-                <>
-                  <div style={{ position: 'fixed', inset: 0, zIndex: 599 }} onClick={() => setShowAiMenu(false)} />
-                  <div style={{ position: 'absolute', top: '110%', left: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-lg)', zIndex: 600, minWidth: 160, padding: 4, whiteSpace: 'nowrap' }}>
-                    {[
-                      { id: 'improve',   label: '✍️ Improve writing' },
-                      { id: 'shorten',   label: '✂️ Make shorter' },
-                      { id: 'lengthen',  label: '📝 Make longer' },
-                      { id: 'formal',    label: '👔 More formal' },
-                      { id: 'casual',    label: '😊 More casual' },
-                      { id: 'translate', label: '🌐 Translate' },
-                    ].map(item => (
-                      <div key={item.id} onClick={() => runAI(item.id)}
-                        style={{ padding: '6px 10px', borderRadius: 5, cursor: 'pointer', fontSize: 12, color: 'var(--text)' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
-                        {item.label}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
           </>
           </>}
         </div>
@@ -1371,11 +1358,35 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
     </>
   ) : null
 
+  const aiMenu = showAiMenu && aiMenuPos ? (
+    <>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 599 }} onClick={() => setShowAiMenu(false)} />
+      <div style={{ position: 'fixed', left: aiMenuPos.x, top: aiMenuPos.y, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-lg)', zIndex: 600, minWidth: 160, padding: 4, whiteSpace: 'nowrap' }}>
+        {[
+          { id: 'improve',   label: '✍️ Improve writing' },
+          { id: 'shorten',   label: '✂️ Make shorter' },
+          { id: 'lengthen',  label: '📝 Make longer' },
+          { id: 'formal',    label: '👔 More formal' },
+          { id: 'casual',    label: '😊 More casual' },
+          { id: 'translate', label: '🌐 Translate' },
+        ].map(item => (
+          <div key={item.id} onClick={() => runAI(item.id)}
+            style={{ padding: '6px 10px', borderRadius: 5, cursor: 'pointer', fontSize: 12, color: 'var(--text)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+            {item.label}
+          </div>
+        ))}
+      </div>
+    </>
+  ) : null
+
   return (
     <>
       {main}
       {colorPicker}
       {highlightPicker}
+      {aiMenu}
     </>
   )
 }

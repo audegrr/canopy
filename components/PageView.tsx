@@ -192,6 +192,13 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         const remote = payload.new as any
         // Ignore our own saves (matched by timestamp)
         if (remote.updated_at === lastSaveTimestamp.current) return
+        // Ignore updates that only changed metadata (view_count, etc.) without touching content/title
+        const currentTitle = titleRef.current?.textContent ?? page.title
+        const remoteContentStr = JSON.stringify(remote.content)
+        const currentContentStr = JSON.stringify(editorRef.current?.getJSON() ?? page.content)
+        const titleChanged = remote.title && remote.title !== currentTitle
+        const contentChanged = remote.content && remoteContentStr !== currentContentStr
+        if (!titleChanged && !contentChanged) return
         if (savedRef.current) {
           // No unsaved local changes — silently apply remote content
           if (remote.content) editorRef.current?.commands.setContent(remote.content)
@@ -829,8 +836,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           {/* Separator */}
           {wordCount > 0 && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{wordCount}w</span>}
 <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
-          <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onXLSX={page.is_database ? exportXLSX : undefined} onMarkdown={exportMarkdown} onImportMarkdown={canEdit && !page.is_database ? triggerMarkdownImport : undefined} isDatabase={!!page.is_database} onSaveTemplate={!page.is_database && canEdit ? saveAsTemplate : undefined} />
+          <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onXLSX={page.is_database ? exportXLSX : undefined} onMarkdown={exportMarkdown} isDatabase={!!page.is_database} />
           <TopBarBtn onClick={exportPDF} iconOnly title="Print / Save as PDF">🖨️</TopBarBtn>
+          {canEdit && !page.is_database && <TopBarBtn onClick={triggerMarkdownImport} iconOnly title="Import from Markdown">📥</TopBarBtn>}
+          {canEdit && !page.is_database && <TopBarBtn onClick={saveAsTemplate} iconOnly title="Save as template">📋</TopBarBtn>}
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           {!page.is_database && headings.length > 0 && (
             <TopBarBtn onClick={() => setTocOpen(o => !o)} active={tocOpen} iconOnly title="Table of contents">📑</TopBarBtn>
@@ -890,7 +899,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         <button
           onClick={() => { setFocusMode(false); window.dispatchEvent(new CustomEvent('canopy:exitFocus')) }}
           title="Exit focus mode (Esc)"
-          style={{ position: 'fixed', top: 12, right: 12, zIndex: 1000, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)', boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: 5 }}>
+          style={{ position: 'fixed', top: 12, right: 12, zIndex: 500, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)', boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: 5 }}>
           <TbIcon d={TB_ICONS.focusOut} size={13} /> Exit focus
         </button>
       )}
@@ -942,7 +951,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           )}
 
           {/* Page body */}
-          <div className='page-body-padding print-content' style={{ maxWidth: '900px', margin: '0 auto', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 60px 80px') : (isMobile ? '32px 20px 60px' : '64px 60px 80px') }}>
+          <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? '1200px' : '900px', margin: '0 auto', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 60px 80px') : (isMobile ? '32px 20px 60px' : '64px 60px 80px'), transition: 'max-width 0.3s ease' }}>
 
             {/* Icon area */}
             <div style={{ marginBottom: '4px', position: 'relative' }}>
@@ -1662,7 +1671,7 @@ function CoverGallery({ onSelect, onUpload, onClose }: { onSelect: (v: string) =
   )
 }
 
-function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, onImportMarkdown, onSaveTemplate, isDatabase }: { onPDF: () => void; onWord: () => void; onCSV?: () => void; onXLSX?: () => void; onMarkdown?: () => void; onImportMarkdown?: () => void; onSaveTemplate?: () => void; isDatabase?: boolean }) {
+function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, isDatabase }: { onPDF: () => void; onWord: () => void; onCSV?: () => void; onXLSX?: () => void; onMarkdown?: () => void; isDatabase?: boolean }) {
   const [open, setOpen] = useState(false)
   const item = (label: string, fn: () => void) => (
     <div onClick={() => { fn(); setOpen(false) }}
@@ -1689,11 +1698,6 @@ function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, onImportMarkdown
               </>
             ) : item('📝 Export as Word', onWord)}
             {!isDatabase && item('⬇️ Export as Markdown', onMarkdown || (() => {}))}
-            {(onImportMarkdown || onSaveTemplate) && (
-              <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-            )}
-            {onImportMarkdown && item('⬆️ Import from Markdown', onImportMarkdown)}
-            {onSaveTemplate && item('📋 Save as template', onSaveTemplate)}
           </div>
         </>
       )}

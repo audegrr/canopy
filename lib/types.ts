@@ -46,6 +46,7 @@ export type SharedPage = {
   title: string
   icon: string
   owner_id: string
+  owner_name?: string | null
   permission: 'view' | 'edit'
   parent_id: string | null
   is_database?: boolean

@@ -49,9 +49,18 @@ export default async function AppLayout({ children }) {
     link_permission: p.link_permission || 'none',
   }))
 
+  // Fetch owner names for shared pages
+  const ownerIds = [...new Set((sharedResult.data || []).map((p: any) => p.owner_id).filter(Boolean))]
+  let ownerProfiles: Record<string, string> = {}
+  if (ownerIds.length > 0) {
+    const { data: profiles } = await supabase.from('profiles').select('id, full_name, email').in('id', ownerIds)
+    ownerProfiles = Object.fromEntries((profiles || []).map((p: any) => [p.id, p.full_name || p.email?.split('@')[0] || 'Unknown']))
+  }
+
   const sharedPages = (sharedResult.data || []).map((p: any) => ({
     id: p.id, title: p.title, icon: p.icon || '',
-    owner_id: p.owner_id, permission: p.permission, parent_id: p.parent_id ?? null,
+    owner_id: p.owner_id, owner_name: ownerProfiles[p.owner_id] ?? null,
+    permission: p.permission, parent_id: p.parent_id ?? null,
     is_database: p.is_database ?? false
   }))
 

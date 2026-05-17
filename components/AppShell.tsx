@@ -749,7 +749,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             onRenameSubmit={() => renamePage(page.id, renameVal)}
             onRenameCancel={() => setRenamingPageId(null)}
             onToggle={() => setExpandedPages(s => { const n = new Set(s); n.has(page.id) ? n.delete(page.id) : n.add(page.id); return n })}
-            onClick={() => { navigate(`/app/page/${page.id}`); setKeyFocusId(page.id) }}
+            onClick={() => { navigate(`/app/page/${page.id}`) }}
             onHover={() => { prefetch(`/app/page/${page.id}`); prewarmPage(page.id) }}
             onDragStart={(e: React.DragEvent) => handleDragStart(e, page.id)}
             onDragOver={(e: React.DragEvent) => handleDragOverPage(e, page.id)}
@@ -761,6 +761,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             onMoreMenu={(e: React.MouseEvent) => { e.stopPropagation(); setContextMenu({ x: (e.target as HTMLElement).getBoundingClientRect().right, y: (e.target as HTMLElement).getBoundingClientRect().bottom + 4, pageId: page.id }) }}
             isDragging={draggingId === page.id}
             dropIndicator={dragOverId === page.id ? dropPosition?.side : undefined}
+            isFavorite={favoriteIds.has(page.id)}
+            onToggleFavorite={() => toggleFavorite(page.id)}
           />
           {isExpanded && <div>{renderPageTree(page.id, depth + 1)}</div>}
         </div>
@@ -770,30 +772,50 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
   function renderSharedTree(parentId: string | null, depth = 0): React.ReactNode {
     const children = sharedPages.filter(p => p.parent_id === parentId)
-    return children.map(page => {
-      const hasChildren = sharedPages.some(p => p.parent_id === page.id)
-      const isExpanded = expandedShared.has(page.id)
-      const isActive = currentPageId === page.id
-      return (
-        <div key={page.id}>
-          <PageRow
-            page={page} depth={depth} isActive={isActive} isDragOver={false}
-            hasChildren={hasChildren} isExpanded={isExpanded}
-            isRenaming={false} renameVal='' onRenameChange={() => {}} onRenameSubmit={() => {}} onRenameCancel={() => {}}
-            onToggle={() => setExpandedShared(s => { const n = new Set(s); n.has(page.id) ? n.delete(page.id) : n.add(page.id); return n })}
-            onClick={() => navigate(`/app/page/${page.id}`)}
-            onDragStart={() => {}} onDragOver={() => {}} onDragLeave={() => {}} onDrop={() => {}} onDragEnd={() => {}}
-            onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, pageId: page.id }) }}
-            onAddSubpage={page.permission === 'edit' ? () => createPage(page.id) : undefined}
-            onMoreMenu={(e: React.MouseEvent) => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setContextMenu({ x: r.right + 4, y: r.bottom, pageId: page.id }) }}
-            isDragging={false}
-            badge={page.permission === 'edit' ? 'edit' : 'view'}
-            isShared={true}
-          />
-          {isExpanded && <div>{renderSharedTree(page.id, depth + 1)}</div>}
-        </div>
-      )
-    })
+    if (depth === 0) {
+      // Group root pages by owner for better readability
+      const ownerGroups = new Map<string, typeof children>()
+      for (const p of children) {
+        const key = p.owner_id
+        if (!ownerGroups.has(key)) ownerGroups.set(key, [])
+        ownerGroups.get(key)!.push(p)
+      }
+      return Array.from(ownerGroups.entries()).map(([ownerId, ownerPages]) => {
+        const ownerName = ownerPages[0].owner_name ?? 'Someone'
+        return (
+          <div key={ownerId}>
+            <div style={{ padding: '5px 14px 2px', fontSize: '10px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', userSelect: 'none' }}>From {ownerName}</div>
+            {ownerPages.map(page => renderSharedPage(page, 0))}
+          </div>
+        )
+      })
+    }
+    return children.map(page => renderSharedPage(page, depth))
+  }
+
+  function renderSharedPage(page: typeof sharedPages[0], depth: number): React.ReactNode {
+    const hasChildren = sharedPages.some(p => p.parent_id === page.id)
+    const isExpanded = expandedShared.has(page.id)
+    const isActive = currentPageId === page.id
+    return (
+      <div key={page.id}>
+        <PageRow
+          page={page} depth={depth} isActive={isActive} isDragOver={false}
+          hasChildren={hasChildren} isExpanded={isExpanded}
+          isRenaming={false} renameVal='' onRenameChange={() => {}} onRenameSubmit={() => {}} onRenameCancel={() => {}}
+          onToggle={() => setExpandedShared(s => { const n = new Set(s); n.has(page.id) ? n.delete(page.id) : n.add(page.id); return n })}
+          onClick={() => navigate(`/app/page/${page.id}`)}
+          onDragStart={() => {}} onDragOver={() => {}} onDragLeave={() => {}} onDrop={() => {}} onDragEnd={() => {}}
+          onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, pageId: page.id }) }}
+          onAddSubpage={page.permission === 'edit' ? () => createPage(page.id) : undefined}
+          onMoreMenu={(e: React.MouseEvent) => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setContextMenu({ x: r.right + 4, y: r.bottom, pageId: page.id }) }}
+          isDragging={false}
+          badge={page.permission === 'edit' ? 'edit' : 'view'}
+          isShared={true}
+        />
+        {isExpanded && <div>{renderSharedTree(page.id, depth + 1)}</div>}
+      </div>
+    )
   }
 
   const breadcrumbs = useMemo(() => {
@@ -1432,44 +1454,246 @@ export type PageTemplate = { title: string; icon: string; description: string; c
 
 const PAGE_TEMPLATES: PageTemplate[] = [
   {
-    title: 'Untitled', icon: '', description: 'Start with a blank page',
+    title: 'Blank', icon: '', description: 'Start with a blank page',
     content: { type: 'doc', content: [] },
   },
   {
-    title: 'Meeting notes', icon: '📝', description: 'Agenda, attendees, action items',
+    title: 'Meeting notes', icon: '📝', description: 'Agenda, attendees, decisions & action items',
     content: { type: 'doc', content: [
       { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Meeting notes' }] },
-      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Date:' }, { type: 'text', text: ' ' }] },
-      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Attendees:' }, { type: 'text', text: ' ' }] },
+      { type: 'paragraph', content: [
+        { type: 'text', marks: [{ type: 'bold' }], text: 'Date:' }, { type: 'text', text: '   ' },
+        { type: 'text', marks: [{ type: 'bold' }], text: 'Location / Link:' }, { type: 'text', text: ' ' },
+      ]},
+      { type: 'paragraph', content: [
+        { type: 'text', marks: [{ type: 'bold' }], text: 'Attendees:' }, { type: 'text', text: ' ' },
+      ]},
+      { type: 'callout', attrs: { emoji: '🎯' }, content: [
+        { type: 'text', marks: [{ type: 'bold' }], text: 'Goal: ' },
+        { type: 'text', text: 'What decision or outcome are we driving toward?' },
+      ]},
       { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Agenda' }] },
-      { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] }] },
+      { type: 'orderedList', attrs: { start: 1 }, content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
       { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Notes' }] },
       { type: 'paragraph', content: [{ type: 'text', text: '' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Decisions' }] },
+      { type: 'bulletList', content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
       { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Action items' }] },
-      { type: 'taskList', content: [{ type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] }] },
+      { type: 'taskList', content: [
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+      { type: 'paragraph', content: [
+        { type: 'text', marks: [{ type: 'bold' }], text: 'Next meeting:' }, { type: 'text', text: ' ' },
+      ]},
     ]},
   },
   {
-    title: 'Project brief', icon: '🎯', description: 'Goals, scope, timeline, stakeholders',
+    title: 'Project brief', icon: '🎯', description: 'Goals, scope, milestones & stakeholders',
     content: { type: 'doc', content: [
       { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Project brief' }] },
+      { type: 'paragraph', content: [
+        { type: 'text', marks: [{ type: 'bold' }], text: 'Owner:' }, { type: 'text', text: '   ' },
+        { type: 'text', marks: [{ type: 'bold' }], text: 'Status:' }, { type: 'text', text: ' Draft   ' },
+        { type: 'text', marks: [{ type: 'bold' }], text: 'Target date:' }, { type: 'text', text: ' ' },
+      ]},
       { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Overview' }] },
-      { type: 'paragraph', content: [{ type: 'text', text: 'Describe the project in one paragraph.' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: 'Describe the project and the problem it solves in 2–3 sentences.' }] },
       { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Goals' }] },
-      { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] }] },
+      { type: 'bulletList', content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Success metrics' }] },
+      { type: 'bulletList', content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
       { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Scope' }] },
-      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'In scope:' }, { type: 'text', text: ' ' }] },
-      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Out of scope:' }, { type: 'text', text: ' ' }] },
-      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Timeline' }] },
-      { type: 'paragraph', content: [{ type: 'text', text: '' }] },
+      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'In scope:' }] },
+      { type: 'bulletList', content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Out of scope:' }] },
+      { type: 'bulletList', content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Milestones' }] },
+      { type: 'table', content: [
+        { type: 'tableRow', content: [
+          { type: 'tableHeader', attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Milestone' }] }] },
+          { type: 'tableHeader', attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Due date' }] }] },
+          { type: 'tableHeader', attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Owner' }] }] },
+        ]},
+        { type: 'tableRow', content: [
+          { type: 'tableCell', attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+          { type: 'tableCell', attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+          { type: 'tableCell', attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        ]},
+        { type: 'tableRow', content: [
+          { type: 'tableCell', attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+          { type: 'tableCell', attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+          { type: 'tableCell', attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        ]},
+      ]},
       { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Stakeholders' }] },
+      { type: 'bulletList', content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Risks' }] },
+      { type: 'bulletList', content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+      { type: 'callout', attrs: { emoji: '❓' }, content: [
+        { type: 'text', marks: [{ type: 'bold' }], text: 'Open questions: ' },
+        { type: 'text', text: 'List anything that still needs to be resolved before this project can start.' },
+      ]},
+    ]},
+  },
+  {
+    title: 'To-do list', icon: '✅', description: 'Tasks organised by priority',
+    content: { type: 'doc', content: [
+      { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'To-do list' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: '🔴 Today' }] },
+      { type: 'taskList', content: [
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: '🟡 This week' }] },
+      { type: 'taskList', content: [
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: '⚪ Someday' }] },
+      { type: 'taskList', content: [
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+    ]},
+  },
+  {
+    title: 'Weekly review', icon: '📅', description: 'Wins, challenges, lessons & next week',
+    content: { type: 'doc', content: [
+      { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Weekly review' }] },
+      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Week of:' }, { type: 'text', text: ' ' }] },
+      { type: 'callout', attrs: { emoji: '🧘' }, content: [
+        { type: 'text', text: 'Block 15 minutes, close all tabs, and reflect honestly.' },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: '🌟 Wins & highlights' }] },
+      { type: 'bulletList', content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: '⚡ Challenges' }] },
+      { type: 'bulletList', content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: '📚 Lessons learned' }] },
+      { type: 'bulletList', content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: '🔜 Next week — top 3 priorities' }] },
+      { type: 'taskList', content: [
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: '💡 Ideas & notes' }] },
       { type: 'paragraph', content: [{ type: 'text', text: '' }] },
     ]},
   },
   {
-    title: 'To-do list', icon: '✅', description: 'Simple checklist to track tasks',
+    title: 'Design doc', icon: '🔬', description: 'Problem, solution, trade-offs & open questions',
     content: { type: 'doc', content: [
-      { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'To-do list' }] },
+      { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Design doc' }] },
+      { type: 'paragraph', content: [
+        { type: 'text', marks: [{ type: 'bold' }], text: 'Author:' }, { type: 'text', text: '   ' },
+        { type: 'text', marks: [{ type: 'bold' }], text: 'Status:' }, { type: 'text', text: ' Draft   ' },
+        { type: 'text', marks: [{ type: 'bold' }], text: 'Date:' }, { type: 'text', text: ' ' },
+      ]},
+      { type: 'paragraph', content: [
+        { type: 'text', marks: [{ type: 'bold' }], text: 'Reviewers:' }, { type: 'text', text: ' ' },
+      ]},
+      { type: 'callout', attrs: { emoji: '💡' }, content: [
+        { type: 'text', marks: [{ type: 'bold' }], text: 'TL;DR: ' },
+        { type: 'text', text: 'One or two sentences summarising the problem and the proposed solution.' },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Background' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: 'What context does the reader need to understand this doc?' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Problem statement' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: 'What is broken or missing? Who is affected, and what is the impact?' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Proposed solution' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: '' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Alternatives considered' }] },
+      { type: 'bulletList', content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [
+          { type: 'text', marks: [{ type: 'bold' }], text: 'Option A:' }, { type: 'text', text: ' ' },
+        ]}]},
+        { type: 'listItem', content: [{ type: 'paragraph', content: [
+          { type: 'text', marks: [{ type: 'bold' }], text: 'Option B:' }, { type: 'text', text: ' ' },
+        ]}]},
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Trade-offs & risks' }] },
+      { type: 'bulletList', content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Implementation plan' }] },
+      { type: 'orderedList', attrs: { start: 1 }, content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Success metrics' }] },
+      { type: 'bulletList', content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+      { type: 'callout', attrs: { emoji: '❓' }, content: [
+        { type: 'text', marks: [{ type: 'bold' }], text: 'Open questions: ' },
+        { type: 'text', text: 'Unresolved issues, assumptions to validate, dependencies.' },
+      ]},
+    ]},
+  },
+  {
+    title: 'OKRs', icon: '🏆', description: 'Objectives & key results for a quarter',
+    content: { type: 'doc', content: [
+      { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'OKRs' }] },
+      { type: 'paragraph', content: [
+        { type: 'text', marks: [{ type: 'bold' }], text: 'Quarter:' }, { type: 'text', text: '   ' },
+        { type: 'text', marks: [{ type: 'bold' }], text: 'Team / Owner:' }, { type: 'text', text: ' ' },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Objective 1' }] },
+      { type: 'callout', attrs: { emoji: '🎯' }, content: [
+        { type: 'text', text: 'An inspiring, qualitative goal. Not a metric — a direction.' },
+      ]},
+      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Key results' }] },
+      { type: 'bulletList', content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'KR1: ' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'KR2: ' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'KR3: ' }] }] },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Objective 2' }] },
+      { type: 'callout', attrs: { emoji: '🎯' }, content: [
+        { type: 'text', text: 'An inspiring, qualitative goal. Not a metric — a direction.' },
+      ]},
+      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Key results' }] },
+      { type: 'bulletList', content: [
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'KR1: ' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'KR2: ' }] }] },
+        { type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'KR3: ' }] }] },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Initiatives' }] },
       { type: 'taskList', content: [
         { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
         { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
@@ -1478,31 +1702,26 @@ const PAGE_TEMPLATES: PageTemplate[] = [
     ]},
   },
   {
-    title: 'Weekly review', icon: '📅', description: 'Reflect on wins, lessons, priorities',
+    title: 'Daily notes', icon: '📓', description: 'Focus, tasks & end-of-day reflection',
     content: { type: 'doc', content: [
-      { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Weekly review' }] },
-      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Week of:' }, { type: 'text', text: ' ' }] },
-      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Wins this week' }] },
-      { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] }] },
-      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Lessons learned' }] },
-      { type: 'bulletList', content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] }] },
-      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Priorities for next week' }] },
-      { type: 'taskList', content: [{ type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] }] },
-    ]},
-  },
-  {
-    title: 'Design doc', icon: '🔬', description: 'Problem, proposed solution, trade-offs',
-    content: { type: 'doc', content: [
-      { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Design doc' }] },
-      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Author:' }, { type: 'text', text: '  |  ' }, { type: 'text', marks: [{ type: 'bold' }], text: 'Status:' }, { type: 'text', text: ' Draft' }] },
-      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Problem statement' }] },
+      { type: 'heading', attrs: { level: 2 }, content: [{ type: 'text', text: 'Daily notes' }] },
+      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'Date:' }, { type: 'text', text: ' ' }] },
+      { type: 'callout', attrs: { emoji: '🌤️' }, content: [
+        { type: 'text', marks: [{ type: 'bold' }], text: "Today's intention: " },
+        { type: 'text', text: '' },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Tasks' }] },
+      { type: 'taskList', content: [
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+        { type: 'taskItem', attrs: { checked: false }, content: [{ type: 'paragraph', content: [{ type: 'text', text: '' }] }] },
+      ]},
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Notes & ideas' }] },
       { type: 'paragraph', content: [{ type: 'text', text: '' }] },
-      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Proposed solution' }] },
-      { type: 'paragraph', content: [{ type: 'text', text: '' }] },
-      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Alternatives considered' }] },
-      { type: 'paragraph', content: [{ type: 'text', text: '' }] },
-      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'Trade-offs' }] },
-      { type: 'paragraph', content: [{ type: 'text', text: '' }] },
+      { type: 'heading', attrs: { level: 3 }, content: [{ type: 'text', text: 'End of day' }] },
+      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'What went well:' }, { type: 'text', text: ' ' }] },
+      { type: 'paragraph', content: [{ type: 'text', marks: [{ type: 'bold' }], text: 'What to improve:' }, { type: 'text', text: ' ' }] },
     ]},
   },
 ]
@@ -1838,9 +2057,11 @@ type PageRowProps = {
   dropIndicator?: 'above' | 'below' | 'inside' | null
   isShared?: boolean
   isKeyFocused?: boolean
+  isFavorite?: boolean
+  onToggleFavorite?: () => void
 }
 
-function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, isRenaming, renameVal, onRenameChange, onRenameSubmit, onRenameCancel, onToggle, onClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu, onAddSubpage, onMoreMenu, isDragging, badge, onRemove, onHover, dropIndicator, isShared, isKeyFocused }: PageRowProps) {
+function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, isRenaming, renameVal, onRenameChange, onRenameSubmit, onRenameCancel, onToggle, onClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu, onAddSubpage, onMoreMenu, isDragging, badge, onRemove, onHover, dropIndicator, isShared, isKeyFocused, isFavorite, onToggleFavorite }: PageRowProps) {
   const [hovered, setHovered] = useState(false)
   return (
     <div style={{ position: 'relative' }} data-page-id={page.id}>
@@ -1919,12 +2140,17 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
       )}
 
       {/* Actions row — always on same line */}
-      {hovered && !isRenaming && (
+      {(hovered || isFavorite) && !isRenaming && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
           {onRemove ? (
             <SbBtn onClick={onRemove} title="Remove">✕</SbBtn>
           ) : (
             <>
+              {onToggleFavorite && (
+                <SbBtn onClick={onToggleFavorite} title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
+                  <span style={{ color: isFavorite ? '#f59e0b' : undefined }}>{isFavorite ? '★' : '☆'}</span>
+                </SbBtn>
+              )}
               <SbBtn onClick={onAddSubpage} title="New sub-page">+</SbBtn>
               <SbBtn onClick={onMoreMenu} title="More options">•••</SbBtn>
             </>
