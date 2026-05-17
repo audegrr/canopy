@@ -194,16 +194,18 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         const remote = payload.new as any
         // Ignore our own saves (matched by timestamp)
         if (remote.updated_at === lastSaveTimestamp.current) return
-        // Ignore updates that only changed metadata (view_count, etc.) without touching content/title
+        // Editor not yet mounted — no local changes possible, ignore
+        if (!editorRef.current) return
+        // Compare actual content to filter out metadata-only updates (view_count, etc.)
         const currentTitle = titleRef.current?.textContent ?? page.title
         const remoteContentStr = JSON.stringify(remote.content)
-        const currentContentStr = JSON.stringify(editorRef.current?.getJSON() ?? page.content)
+        const currentContentStr = JSON.stringify(editorRef.current.getJSON())
         const titleChanged = remote.title && remote.title !== currentTitle
         const contentChanged = remote.content && remoteContentStr !== currentContentStr
         if (!titleChanged && !contentChanged) return
         if (savedRef.current) {
           // No unsaved local changes — silently apply remote content
-          if (remote.content) editorRef.current?.commands.setContent(remote.content)
+          if (remote.content) editorRef.current.commands.setContent(remote.content)
           setPage(p => ({ ...p, content: remote.content ?? p.content, title: remote.title ?? p.title }))
           if (remote.title && titleRef.current) titleRef.current.textContent = remote.title
         } else {
@@ -649,8 +651,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     e.target.value = ''
     const text = await file.text()
     const doc = mdToTiptap(text)
-    if (editorRef.current) {
-      editorRef.current.commands.setContent(doc)
+    if (editorRef.current && doc.content.length > 0) {
+      const pos = editorRef.current.state.selection.to
+      editorRef.current.chain().insertContentAt(pos, doc.content).focus().run()
     }
     showToast('Markdown imported!')
   }
@@ -836,11 +839,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         {/* Desktop buttons */}
         {!isPublicShare && !isMobile && <>
           {/* Separator */}
-          {wordCount > 0 && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{wordCount}w</span>}
-<div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
+          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onXLSX={page.is_database ? exportXLSX : undefined} onMarkdown={exportMarkdown} isDatabase={!!page.is_database} />
           <TopBarBtn onClick={exportPDF} iconOnly title="Print / Save as PDF">🖨️</TopBarBtn>
-          {canEdit && !page.is_database && <TopBarBtn onClick={triggerMarkdownImport} iconOnly title="Import from Markdown">⬆️</TopBarBtn>}
+          {canEdit && !page.is_database && <TopBarBtn onClick={triggerMarkdownImport} iconOnly title="Import from Markdown">⬇️</TopBarBtn>}
           {canEdit && !page.is_database && <TopBarBtn onClick={saveAsTemplate} iconOnly title="Save as template">📋</TopBarBtn>}
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           {!page.is_database && headings.length > 0 && (
@@ -860,8 +862,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           </TopBarBtn>
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           {onToggleFavorite && (
-            <TopBarBtn onClick={onToggleFavorite} iconOnly title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
-              <span style={{ color: isFavorite ? '#f59e0b' : undefined }}>{isFavorite ? '⭐' : '☆'}</span>
+            <TopBarBtn onClick={onToggleFavorite} iconOnly title={isFavorite ? 'Remove from favorites' : 'Add to favorites'} active={!!isFavorite}>
+              ⭐
             </TopBarBtn>
           )}
           {isOwner && (
@@ -886,8 +888,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                 <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setMobileMenuOpen(false)} />
                 <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 6, boxShadow: 'var(--shadow-lg)', zIndex: 200, minWidth: 180 }} className="scale-in">
                   <MobileMenuItem onClick={() => { exportPDF(); setMobileMenuOpen(false) }}>📄 Export PDF</MobileMenuItem>
-                  {!page.is_database && <MobileMenuItem onClick={() => { exportMarkdown(); setMobileMenuOpen(false) }}>⬇️ Export Markdown</MobileMenuItem>}
-                  {canEdit && !page.is_database && <MobileMenuItem onClick={() => { triggerMarkdownImport(); setMobileMenuOpen(false) }}>⬆️ Import Markdown</MobileMenuItem>}
+                  {!page.is_database && <MobileMenuItem onClick={() => { exportMarkdown(); setMobileMenuOpen(false) }}>⬆️ Export Markdown</MobileMenuItem>}
+                  {canEdit && !page.is_database && <MobileMenuItem onClick={() => { triggerMarkdownImport(); setMobileMenuOpen(false) }}>⬇️ Import Markdown</MobileMenuItem>}
                   {canEdit && !page.is_database && <MobileMenuItem onClick={() => { saveAsTemplate(); setMobileMenuOpen(false) }}>📋 Save as template</MobileMenuItem>}
                   {page.is_database && <MobileMenuItem onClick={() => { exportCSV(); setMobileMenuOpen(false) }}>📊 Export CSV</MobileMenuItem>}
                   {!page.is_database && headings.length > 0 && <MobileMenuItem onClick={() => { setTocOpen(o => !o); setMobileMenuOpen(false) }}>☰ Table of contents</MobileMenuItem>}
@@ -906,7 +908,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         <button
           onClick={() => { setFocusMode(false); window.dispatchEvent(new CustomEvent('canopy:exitFocus')) }}
           title="Exit focus mode (Esc)"
-          style={{ position: 'fixed', top: 12, right: 12, zIndex: 500, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)', boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: 5 }}>
+          style={{ position: 'fixed', top: 64, right: 12, zIndex: 500, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)', boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: 5 }}>
           <TbIcon d={TB_ICONS.focusOut} size={13} /> Exit focus
         </button>
       )}
@@ -1704,7 +1706,7 @@ function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, isDatabase }: { 
                 {item('📗 Export as Excel', onXLSX || (() => {}))}
               </>
             ) : item('📝 Export as Word', onWord)}
-            {!isDatabase && item('⬇️ Export as Markdown', onMarkdown || (() => {}))}
+            {!isDatabase && item('⬆️ Export as Markdown', onMarkdown || (() => {}))}
           </div>
         </>
       )}

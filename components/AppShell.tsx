@@ -335,7 +335,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     const maxPos = pages.filter(p => p.parent_id === parentId).reduce((m, p) => Math.max(m, p.position), 0)
     const { data, error } = await supabase.from('pages').insert({
       workspace_id: currentWs.id, parent_id: parentId, title: template.title,
-      icon: template.icon, content: template.content, position: maxPos + 1, is_database: false, link_permission: 'none'
+      icon: template.icon, content: template.content, position: maxPos + 1, is_database: false, link_permission: 'none', owner_id: user.id
     }).select().single()
     if (error) { showError('Failed to create page'); return }
     if (data) {
@@ -971,7 +971,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                   <div key={p.id}
                     onClick={() => navigate(`/app/page/${p.id}`)}
                     onContextMenu={e => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, pageId: p.id }) }}
-                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 14px 5px 16px', cursor: 'pointer', borderRadius: '5px', margin: '0 6px', background: currentPageId === p.id ? 'var(--sidebar-active)' : 'transparent', fontSize: '13px' }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 14px 5px 16px', cursor: 'pointer', borderRadius: '5px', margin: '0 6px', background: currentPageId === p.id ? 'var(--sidebar-active)' : 'transparent', fontSize: '13.5px' }}
                     onMouseEnter={e => { if (currentPageId !== p.id) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = currentPageId === p.id ? 'var(--sidebar-active)' : 'transparent' }}>
                     <span style={{ flexShrink: 0, fontSize: '14px' }}>{p.icon || '📄'}</span>
@@ -1804,8 +1804,36 @@ function SettingsModal({ user, tab, theme, profileName, setProfileName, onTabCha
   onTabChange: (t: 'profile' | 'appearance') => void; onThemeChange: (t: 'light' | 'dark' | 'system') => void
   onSave: () => void; onClose: () => void; onDeleteAccount: () => void
 }) {
+  const supabase = createClient()
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    supabase.from('profiles').select('avatar_url').eq('id', user.id).single()
+      .then(({ data }) => { if (data?.avatar_url) setAvatarUrl(data.avatar_url) })
+  }, [user.id])
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setUploadingAvatar(true)
+    const ext = file.name.split('.').pop()
+    const path = `avatars/${user.id}.${ext}`
+    const { error } = await supabase.storage.from('images').upload(path, file, { upsert: true })
+    if (!error) {
+      const { data } = supabase.storage.from('images').getPublicUrl(path)
+      const url = data.publicUrl + '?t=' + Date.now()
+      await supabase.from('profiles').update({ avatar_url: url }).eq('id', user.id)
+      setAvatarUrl(url)
+    }
+    setUploadingAvatar(false)
+  }
+
   return (
     <>
+      <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarUpload} />
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 2000 }} onClick={onClose} />
       <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: 'min(500px, calc(100vw - 24px))', maxHeight: '90vh', display: 'flex', overflow: 'hidden', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in">
         <div style={{ width: '150px', minWidth: '130px', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '14px 8px', flexShrink: 0 }}>
@@ -1831,7 +1859,26 @@ function SettingsModal({ user, tab, theme, profileName, setProfileName, onTabCha
             <div>
               <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Profile</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
-                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{user.name[0]?.toUpperCase()}</div>
+                <div
+                  onClick={() => avatarInputRef.current?.click()}
+                  title="Change profile photo"
+                  style={{ position: 'relative', width: '56px', height: '56px', borderRadius: '50%', flexShrink: 0, cursor: 'pointer', overflow: 'hidden' }}>
+                  {avatarUrl
+                    ? <img src={avatarUrl} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <div style={{ width: '100%', height: '100%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: 700, color: '#fff' }}>{user.name[0]?.toUpperCase()}</div>
+                  }
+                  <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: uploadingAvatar ? 1 : 0, transition: 'opacity 0.15s' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
+                    onMouseLeave={e => { if (!uploadingAvatar) (e.currentTarget as HTMLElement).style.opacity = '0' }}>
+                    <span style={{ fontSize: 10, color: '#fff', fontWeight: 600, textAlign: 'center', lineHeight: 1.3 }}>{uploadingAvatar ? '…' : '📷'}</span>
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{profileName || user.name}</div>
+                  <button onClick={() => avatarInputRef.current?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--accent)', padding: 0, marginTop: 2 }}>
+                    {avatarUrl ? 'Change photo' : 'Add photo'}
+                  </button>
+                </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0 }}>Name</div>
