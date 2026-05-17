@@ -1055,11 +1055,11 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           {/* Cmd+K button */}
           <button
             onClick={() => setSearchOpen(true)}
-            style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px', padding: '5px 12px', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap', transition: 'all 0.15s' }}
+            style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px', padding: isMobile ? '6px 9px' : '5px 12px', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap', transition: 'all 0.15s' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
             title="Search pages (⌘K)">
-            🔍 Search {!isMobile && <kbd style={{ fontSize: '11px', background: 'var(--border)', border: 'none', borderRadius: '3px', padding: '1px 5px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)' }}>⌘K</kbd>}
+            {isMobile ? '🔍' : <>🔍 Search <kbd style={{ fontSize: '11px', background: 'var(--border)', border: 'none', borderRadius: '3px', padding: '1px 5px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)' }}>⌘K</kbd></>}
           </button>
 
           {/* Notification bell */}
@@ -1080,7 +1080,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             {notifOpen && (
               <>
                 <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setNotifOpen(false)} />
-                <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: '300px', maxHeight: '380px', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', boxShadow: 'var(--shadow-lg)', zIndex: 200 }} className="scale-in">
+                <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 'min(300px, calc(100vw - 16px))', maxHeight: '380px', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', boxShadow: 'var(--shadow-lg)', zIndex: 200 }} className="scale-in">
                   <div style={{ padding: '11px 14px', fontWeight: 600, fontSize: '13px', borderBottom: '1px solid var(--border)', color: 'var(--text)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>Notifications</span>
                     {notifications.length > 0 && (
@@ -1149,7 +1149,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       {newWsModal && (
         <>
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 2000 }} onClick={() => setNewWsModal(false)} />
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', width: '320px', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in"
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '24px', width: 'min(320px, calc(100vw - 24px))', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in"
             onClick={e => e.stopPropagation()}>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--text)' }}>New workspace</h3>
             {/* Emoji picker */}
@@ -1192,7 +1192,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       {moveToWsMenu && (
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => setMoveToWsMenu(null)} />
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '20px', width: '300px', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in">
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', padding: '20px', width: 'min(300px, calc(100vw - 24px))', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in">
             <h3 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px' }}>Move to workspace</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {workspaces.filter(w => w.id !== currentWs.id).map(ws => (
@@ -1320,7 +1320,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       {showDeleteAccount && (
         <>
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 500 }} />
-          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '28px', width: '380px', boxShadow: 'var(--shadow-lg)', zIndex: 501 }} className="scale-in">
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '28px', width: 'min(380px, calc(100vw - 24px))', boxShadow: 'var(--shadow-lg)', zIndex: 501 }} className="scale-in">
             <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '10px', color: 'var(--red)' }}>Delete account?</h2>
             <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '20px', lineHeight: 1.5 }}>
               This will permanently delete all your pages, workspaces and data. This action cannot be undone.
@@ -1491,7 +1491,7 @@ function TemplatePicker({ workspaceId, userId, onSelect, onClose }: { workspaceI
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 2000 }} onClick={onClose} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: '540px', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)', zIndex: 2001, overflow: 'hidden' }} className="scale-in">
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: 'min(540px, calc(100vw - 24px))', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: 'var(--shadow-lg)', zIndex: 2001, overflow: 'hidden' }} className="scale-in">
         <div style={{ padding: '18px 22px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
           <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>New page</div>
           <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>Choose a template to get started, or start blank.</div>
@@ -1529,8 +1529,8 @@ function SettingsModal({ user, tab, theme, profileName, setProfileName, onTabCha
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 2000 }} onClick={onClose} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: '500px', height: '330px', display: 'flex', overflow: 'hidden', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in">
-        <div style={{ width: '150px', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '14px 8px', flexShrink: 0 }}>
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: 'min(500px, calc(100vw - 24px))', maxHeight: '90vh', display: 'flex', overflow: 'hidden', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in">
+        <div style={{ width: '150px', minWidth: '130px', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '14px 8px', flexShrink: 0 }}>
           <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0 6px 8px' }}>Settings</div>
           {(['profile', 'appearance'] as const).map(t => (
             <div key={t} onClick={() => onTabChange(t)}
@@ -1655,8 +1655,8 @@ function WsSettingsModal({ workspace, tab, members, owner, inviteEmail, inviteRo
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 2000 }} onClick={onClose} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: '520px', height: '360px', display: 'flex', overflow: 'hidden', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in">
-        <div style={{ width: '150px', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '14px 8px', flexShrink: 0 }}>
+      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: 'min(520px, calc(100vw - 24px))', maxHeight: '90vh', display: 'flex', overflow: 'hidden', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in">
+        <div style={{ width: '150px', minWidth: '120px', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '14px 8px', flexShrink: 0 }}>
           <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0 6px 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {workspace.icon} {workspace.name}
           </div>

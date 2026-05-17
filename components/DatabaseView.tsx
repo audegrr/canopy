@@ -491,7 +491,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
           </button>
         )}
         {canEdit && (
-          <button onClick={() => setShowImport(true)}
+          <button onClick={() => setShowImport(true)} className="db-toolbar-import"
             style={{ marginLeft: 'auto', background: 'none', color: 'var(--text-secondary)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 5, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
