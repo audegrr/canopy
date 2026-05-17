@@ -42,6 +42,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   const savedRef = useRef(true)
   const lastSaveTimestamp = useRef<string | null>(null)
   const editorRef = useRef<any>(null)
+  const saveCountRef = useRef(0)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [snapshots, setSnapshots] = useState<{ id: string; title: string; content: any; created_at: string }[]>([])
+  const [snapshotLoading, setSnapshotLoading] = useState(false)
   const titleRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
   const router = useRouter()
@@ -242,6 +246,14 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
       lastSaveTimestamp.current = ts
       setSaved(true)
       savedRef.current = true
+      // Save a snapshot every 10 edits (silently ignore if table doesn't exist)
+      saveCountRef.current += 1
+      if (saveCountRef.current % 10 === 0) {
+        const snap = { page_id: page.id, title: updates.title ?? page.title, content: updates.content ?? page.content, saved_by: userId }
+        supabase.from('page_snapshots').insert(snap).then(() => {})
+        // Prune: keep only last 50
+        supabase.rpc('prune_page_snapshots', { p_page_id: page.id, p_keep: 50 }).then(() => {})
+      }
     }, 800)
   }
 
@@ -463,6 +475,22 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
 
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2500) }
 
+  async function loadSnapshots() {
+    setSnapshotLoading(true)
+    const { data } = await supabase.from('page_snapshots').select('id, title, content, created_at').eq('page_id', page.id).order('created_at', { ascending: false }).limit(50)
+    setSnapshots(data || [])
+    setSnapshotLoading(false)
+  }
+
+  function restoreSnapshot(snap: { content: any; title: string }) {
+    editorRef.current?.commands.setContent(snap.content)
+    setPage(p => ({ ...p, content: snap.content, title: snap.title }))
+    if (titleRef.current) titleRef.current.textContent = snap.title
+    scheduleSave({ content: snap.content, title: snap.title })
+    setHistoryOpen(false)
+    showToast('Version restored')
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
 
@@ -495,6 +523,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
           window.print()
           setTimeout(() => document.body.classList.remove('printing-page'), 1000)
         }}>🖨️ Print</TopBarBtn>
+        {canEdit && (
+          <TopBarBtn onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots() }} active={historyOpen}>🕓 History</TopBarBtn>
+        )}
         {isOwner && (
           <TopBarBtn
             active={shareOpen}
@@ -651,6 +682,36 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
             </div>
           </div>
         </div>
+
+        {/* History panel */}
+        {historyOpen && canEdit && (
+          <div style={{ width: '280px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>Version history</span>
+              <button onClick={() => setHistoryOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16 }}>✕</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
+              {snapshotLoading && <div style={{ padding: '20px 16px', color: 'var(--text-tertiary)', fontSize: 13 }}>Loading…</div>}
+              {!snapshotLoading && snapshots.length === 0 && (
+                <div style={{ padding: '20px 16px', color: 'var(--text-tertiary)', fontSize: 13 }}>
+                  No saved versions yet. Versions are saved automatically every 10 edits.
+                </div>
+              )}
+              {snapshots.map(snap => (
+                <div key={snap.id} style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{snap.title || 'Untitled'}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{new Date(snap.created_at).toLocaleString()}</div>
+                  <button onClick={() => restoreSnapshot(snap)}
+                    style={{ marginTop: 4, background: 'var(--accent-light)', border: 'none', borderRadius: 5, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: 'var(--accent)', fontFamily: 'var(--font-sans)', fontWeight: 500, alignSelf: 'flex-start' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent)'; (e.currentTarget as HTMLElement).style.color = '#fff' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}>
+                    Restore this version
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Share panel */}
         {shareOpen && isOwner && (

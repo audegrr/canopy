@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import type { Workspace, Page, SharedPage, User, MemberWorkspace, WsMember } from '@/lib/types'
 import PageView from './PageView'
 import CommandPalette from './CommandPalette'
+import SearchModal from './SearchModal'
+import ShortcutsModal from './ShortcutsModal'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useTheme } from '@/hooks/useTheme'
 import { exportPageAsPDF, exportPageAsWord, exportPageAsCSV } from '@/lib/export'
@@ -67,6 +69,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [moveToWsMenu, setMoveToWsMenu] = useState<string | null>(null)
   const [showWsIconPicker, setShowWsIconPicker] = useState(false)
   const [newWsModal, setNewWsModal] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [newWsName, setNewWsName] = useState('')
   const [newWsIcon, setNewWsIcon] = useState('🌿')
   const [instantPage, setInstantPage] = useState<{ page: any; canEdit: boolean; isOwner: boolean; userId: string } | null>(null)
@@ -82,6 +86,26 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName
+      const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setSearchOpen(o => !o) }
+      if (e.key === '?' && !isEditing) { setShortcutsOpen(o => !o) }
+      if (e.key === 'Escape') { setSearchOpen(false); setShortcutsOpen(false) }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // Apply workspace accent color
+  useEffect(() => {
+    const color = currentWs.accent_color || '#0b6e99'
+    document.documentElement.style.setProperty('--accent', color)
+    // Derive a lighter tint for accent-light
+    document.documentElement.style.setProperty('--accent-light', color + '18')
+  }, [currentWs.accent_color, currentWs.id])
 
   // Prewarm ALL pages into cache as soon as sidebar loads
   useEffect(() => {
@@ -878,12 +902,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
           {/* Cmd+K button */}
           <button
-            onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', metaKey: true, bubbles: true }))}
+            onClick={() => setSearchOpen(true)}
             style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px', padding: '5px 12px', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap', transition: 'all 0.15s' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
-            title="Search & commands (⌘F)">
-            🔍 Search {!isMobile && <kbd style={{ fontSize: '11px', background: 'var(--border)', border: 'none', borderRadius: '3px', padding: '1px 5px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)' }}>⌘F</kbd>}
+            title="Search pages (⌘K)">
+            🔍 Search {!isMobile && <kbd style={{ fontSize: '11px', background: 'var(--border)', border: 'none', borderRadius: '3px', padding: '1px 5px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)' }}>⌘K</kbd>}
           </button>
 
           {/* Notification bell */}
@@ -1044,6 +1068,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           onTabChange={(tab) => { setWsSettingsTab(tab); if (tab === 'members') loadWsMembers() }}
           onIconChange={async (em) => { await supabase.from('workspaces').update({ icon: em }).eq('id', currentWs.id); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, icon: em } : w)) }}
           onNameBlur={async (name) => { await supabase.from('workspaces').update({ name }).eq('id', currentWs.id); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, name } : w)); showToastMsg('Saved!') }}
+          onAccentChange={async (color) => { await supabase.from('workspaces').update({ accent_color: color }).eq('id', currentWs.id); setCurrentWs(w => ({ ...w, accent_color: color })); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, accent_color: color } : w)) }}
           onRoleChange={async (memberId, role) => { await supabase.from('workspace_members').update({ role }).eq('id', memberId); loadWsMembers() }}
           onRemoveMember={removeMember}
           onInviteEmailChange={setInviteEmail}
@@ -1152,6 +1177,16 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         onCreateDatabase={() => createDatabase(null)}
       />
 
+      {searchOpen && (
+        <SearchModal
+          workspaceId={currentWs.id}
+          onNavigate={pageId => navigate(`/app/page/${pageId}`)}
+          onClose={() => setSearchOpen(false)}
+        />
+      )}
+
+      {shortcutsOpen && <ShortcutsModal onClose={() => setShortcutsOpen(false)} />}
+
       {toast && (
         <div style={{ position: 'fixed', bottom: '24px', right: '24px', background: toast.type === 'error' ? '#eb5757' : '#37352f', color: '#fff', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', zIndex: 300, boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: '8px' }} className="fade-in">
           {toast.type === 'error' && <span style={{ fontSize: '15px' }}>⚠️</span>}
@@ -1244,12 +1279,53 @@ function SettingsModal({ user, tab, theme, profileName, setProfileName, onTabCha
   )
 }
 
+// ── INVITE LINK SECTION ───────────────────────────────────────
+function InviteLinkSection({ workspaceId }: { workspaceId: string }) {
+  const [link, setLink] = useState<string | null>(null)
+  const [role, setRole] = useState<'member' | 'viewer'>('member')
+  const [loading, setLoading] = useState(false)
+  const supabase = createClient()
+
+  async function generate() {
+    setLoading(true)
+    const { data } = await supabase.from('workspace_invites').insert({ workspace_id: workspaceId, role }).select('token').single()
+    if (data) setLink(`${window.location.origin}/invite/${data.token}`)
+    setLoading(false)
+  }
+
+  return (
+    <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
+      <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Invite link</div>
+      {link ? (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input readOnly value={link} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 5, padding: '5px 8px', fontSize: 11, fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--sidebar-bg)', outline: 'none' }} />
+          <button onClick={() => { navigator.clipboard.writeText(link); setLink(null) }}
+            style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500, whiteSpace: 'nowrap' }}>Copy & close</button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <select value={role} onChange={e => setRole(e.target.value as 'member' | 'viewer')} style={{ border: '1px solid var(--border)', borderRadius: 5, padding: '5px 6px', fontSize: 12, fontFamily: 'var(--font-sans)', background: 'var(--surface)', color: 'var(--text)' }}>
+            <option value="member">member</option>
+            <option value="viewer">viewer</option>
+          </select>
+          <button onClick={generate} disabled={loading}
+            style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 5, padding: '5px 10px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--text)' }}>
+            {loading ? '…' : '🔗 Generate invite link'}
+          </button>
+          <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>Valid 7 days</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── WORKSPACE SETTINGS MODAL ─────────────────────────────────
-function WsSettingsModal({ workspace, tab, members, owner, inviteEmail, inviteRole, onTabChange, onIconChange, onNameBlur, onRoleChange, onRemoveMember, onInviteEmailChange, onInviteRoleChange, onInvite, onDelete, onClose }: {
+function WsSettingsModal({ workspace, tab, members, owner, inviteEmail, inviteRole, onTabChange, onIconChange, onNameBlur, onAccentChange, onRoleChange, onRemoveMember, onInviteEmailChange, onInviteRoleChange, onInvite, onDelete, onClose }: {
   workspace: Workspace; tab: 'general' | 'members'; members: WsMember[]
   owner: User; inviteEmail: string; inviteRole: 'member' | 'viewer'
   onTabChange: (t: 'general' | 'members') => void
   onIconChange: (em: string) => void; onNameBlur: (name: string) => void
+  onAccentChange: (color: string) => void
   onRoleChange: (memberId: string, role: string) => void; onRemoveMember: (userId: string) => void
   onInviteEmailChange: (v: string) => void; onInviteRoleChange: (v: 'member' | 'viewer') => void
   onInvite: () => void; onDelete: () => void; onClose: () => void
@@ -1297,6 +1373,17 @@ function WsSettingsModal({ workspace, tab, members, owner, inviteEmail, inviteRo
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '50px', flexShrink: 0 }}>Name</div>
                 <input defaultValue={workspace.name} onBlur={e => onNameBlur(e.target.value)} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }} onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }} />
               </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '50px', flexShrink: 0 }}>Colour</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {['#0b6e99','#0f7b6c','#6940a5','#ad1a72','#d9730d','#e03e3e','#37352f','#2f9e44'].map(col => (
+                    <div key={col} onClick={() => onAccentChange(col)}
+                      style={{ width: 22, height: 22, borderRadius: '50%', background: col, cursor: 'pointer', border: (workspace.accent_color || '#0b6e99') === col ? '3px solid var(--text)' : '2px solid transparent', flexShrink: 0 }} />
+                  ))}
+                  <input type="color" value={workspace.accent_color || '#0b6e99'} onChange={e => onAccentChange(e.target.value)}
+                    style={{ width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--border)', cursor: 'pointer', padding: 0 }} title="Custom colour" />
+                </div>
+              </div>
               <div style={{ borderTop: '1px solid var(--border)', marginTop: '16px', paddingTop: '12px' }}>
                 <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Danger zone</div>
                 <button onClick={onDelete} style={{ border: '1px solid #fecaca', background: 'none', borderRadius: '5px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--red)' }}>Delete workspace</button>
@@ -1333,6 +1420,7 @@ function WsSettingsModal({ workspace, tab, members, owner, inviteEmail, inviteRo
                 </select>
                 <button onClick={onInvite} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '5px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>Invite</button>
               </div>
+              <InviteLinkSection workspaceId={workspace.id} />
             </div>
           )}
         </div>

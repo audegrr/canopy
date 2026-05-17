@@ -366,14 +366,15 @@ type Props = {
   onEditorReady?: (editor: any) => void
 }
 
-function FBtn({ onClick, active, children, title, btnRef }: { onClick?: () => void; active: boolean; children: React.ReactNode; title?: string; btnRef?: React.RefObject<HTMLButtonElement | null> }) {
+function FBtn({ onClick, active, children, title, btnRef, disabled }: { onClick?: () => void; active: boolean; children: React.ReactNode; title?: string; btnRef?: React.RefObject<HTMLButtonElement | null>; disabled?: boolean }) {
   return (
     <button
       ref={btnRef as React.RefObject<HTMLButtonElement>}
       onClick={onClick}
       title={title}
       data-tip={title}
-      className={`floating-btn ${active ? 'active' : ''}`}>
+      disabled={disabled}
+      className={`floating-btn ${active ? 'active' : ''}${disabled ? ' opacity-50' : ''}`}>
       {children}
     </button>
   )
@@ -384,6 +385,9 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
   const [slashIndex, setSlashIndex] = useState(0)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [showHighlightPicker, setShowHighlightPicker] = useState(false)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [showAiMenu, setShowAiMenu] = useState(false)
+  const aiBtnRef = useRef<HTMLButtonElement>(null)
   const savedSelection = useRef<{ from: number; to: number } | null>(null)
   const colorBtnRef = useRef<HTMLButtonElement>(null)
   const highlightBtnRef = useRef<HTMLButtonElement>(null)
@@ -637,6 +641,22 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
     }
   }
 
+  async function runAI(action: string) {
+    if (!editor || aiLoading) return
+    const { from, to } = editor.state.selection
+    const text = editor.state.doc.textBetween(from, to, '\n')
+    if (!text.trim()) return
+    setAiLoading(true)
+    setShowAiMenu(false)
+    try {
+      const res = await fetch('/api/ai', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, action }) })
+      const { result, error } = await res.json()
+      if (error || !result) throw new Error(error || 'No result')
+      editor.chain().focus().deleteRange({ from, to }).insertContentAt(from, result).run()
+    } catch {}
+    setAiLoading(false)
+  }
+
   if (!editor) return null
 
   const items = getItems(slashMenu?.query || '')
@@ -773,6 +793,38 @@ export default function Editor({ content, editable, onUpdate, onEditorReady }: P
             <FBtn onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title='Align left'>⬅</FBtn>
             <FBtn onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} title='Center'>↔</FBtn>
             <FBtn onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} title='Align right'>➡</FBtn>
+            <div className="floating-sep" />
+            <div style={{ position: 'relative' }}>
+              <FBtn btnRef={aiBtnRef} onClick={() => {
+                const { from, to } = editor.state.selection
+                savedSelection.current = { from, to }
+                setShowAiMenu(o => !o)
+              }} active={showAiMenu} title='AI rewrite' disabled={aiLoading}>
+                {aiLoading ? '…' : '✨ AI'}
+              </FBtn>
+              {showAiMenu && (
+                <>
+                  <div style={{ position: 'fixed', inset: 0, zIndex: 599 }} onClick={() => setShowAiMenu(false)} />
+                  <div style={{ position: 'absolute', top: '110%', left: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-lg)', zIndex: 600, minWidth: 160, padding: 4, whiteSpace: 'nowrap' }}>
+                    {[
+                      { id: 'improve',   label: '✍️ Improve writing' },
+                      { id: 'shorten',   label: '✂️ Make shorter' },
+                      { id: 'lengthen',  label: '📝 Make longer' },
+                      { id: 'formal',    label: '👔 More formal' },
+                      { id: 'casual',    label: '😊 More casual' },
+                      { id: 'translate', label: '🌐 Translate' },
+                    ].map(item => (
+                      <div key={item.id} onClick={() => runAI(item.id)}
+                        style={{ padding: '6px 10px', borderRadius: 5, cursor: 'pointer', fontSize: 12, color: 'var(--text)' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+                        {item.label}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </>
           </>}
         </div>

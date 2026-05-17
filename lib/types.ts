@@ -19,6 +19,7 @@ export type Workspace = {
   icon: string
   owner_id: string
   created_at: string
+  accent_color?: string
 }
 
 export type Page = {
