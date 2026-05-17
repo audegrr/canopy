@@ -91,11 +91,14 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   useEffect(() => {
     const onEnter = () => setSidebarOpen(false)
     const onExit = () => setSidebarOpen(true)
+    const onOpen = () => setSidebarOpen(true)
     window.addEventListener('canopy:enterFocus', onEnter)
     window.addEventListener('canopy:exitFocus', onExit)
+    window.addEventListener('canopy:openSidebar', onOpen)
     return () => {
       window.removeEventListener('canopy:enterFocus', onEnter)
       window.removeEventListener('canopy:exitFocus', onExit)
+      window.removeEventListener('canopy:openSidebar', onOpen)
     }
   }, [])
 

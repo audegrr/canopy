@@ -58,9 +58,18 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   const [wordCount, setWordCount] = useState(0)
   const [focusMode, setFocusMode] = useState(false)
   const [showCoverGallery, setShowCoverGallery] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const titleRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
   const router = useRouter()
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   useEffect(() => {
     if (shareOpen && isOwner) loadShares()
@@ -300,16 +309,21 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
   function onContentUpdate(content: any) {
     setPage(p => ({ ...p, content }) as Page)
     scheduleSave({ content })
-    // Update TOC headings
-    const nodes: any[] = Array.isArray(content) ? content : (content?.content || [])
-    const hs = nodes.filter(n => n.type === 'heading').map((n, idx) => ({
-      level: n.attrs?.level || 1,
-      text: (n.content || []).map((c: any) => c.text || '').join(''),
-      idx,
-    })).filter(h => h.text)
+    // Deep traversal for headings — matches querySelectorAll DOM order
+    const topNodes: any[] = Array.isArray(content) ? content : (content?.content || [])
+    const hs: { level: number; text: string; idx: number }[] = []
+    let hIdx = 0
+    function collectHeadings(node: any) {
+      if (node.type === 'heading') {
+        const text = (node.content || []).map((c: any) => c.text || '').join('')
+        if (text) hs.push({ level: node.attrs?.level || 1, text, idx: hIdx++ })
+      }
+      if (node.content) node.content.forEach(collectHeadings)
+    }
+    topNodes.forEach(collectHeadings)
     setHeadings(hs)
     // Word count
-    const text = nodes.map((n: any) => extractText(n)).join(' ')
+    const text = topNodes.map((n: any) => extractText(n)).join(' ')
     setWordCount(text.trim() ? text.trim().split(/\s+/).length : 0)
   }
 
@@ -588,70 +602,99 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
     showToast('Version restored')
   }
 
+  const mobilePanel: React.CSSProperties = {
+    position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(85vw, 340px)',
+    background: 'var(--surface)', borderLeft: '1px solid var(--border)',
+    display: 'flex', flexDirection: 'column', zIndex: 200, boxShadow: '-4px 0 24px rgba(0,0,0,0.15)'
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
 
       {/* Top bar */}
-      <div style={{ height: focusMode ? 0 : '48px', padding: focusMode ? 0 : '0 16px', borderBottom: focusMode ? 'none' : '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, overflow: 'hidden', transition: 'height 0.2s, padding 0.2s' }}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-tertiary)', overflow: 'hidden' }}>
-          {page.icon && <span style={{ fontSize: '14px' }}>{page.icon}</span>}
+      <div style={{ height: focusMode ? 0 : '48px', padding: focusMode ? 0 : '0 12px', borderBottom: focusMode ? 'none' : '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, overflow: 'hidden', transition: 'height 0.2s, padding 0.2s' }}>
+
+        {/* Hamburger — opens sidebar on mobile */}
+        {isMobile && (
+          <button onClick={() => window.dispatchEvent(new CustomEvent('canopy:openSidebar'))}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 18, padding: '4px 6px', borderRadius: 5, flexShrink: 0, lineHeight: 1 }}>
+            ☰
+          </button>
+        )}
+
+        {/* Breadcrumb title */}
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-tertiary)', overflow: 'hidden', minWidth: 0 }}>
+          {page.icon && <span style={{ fontSize: '14px', flexShrink: 0 }}>{page.icon}</span>}
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{page.title || 'Untitled'}</span>
         </div>
+
+        {/* Presence avatars */}
         {presenceUsers.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-            {presenceUsers.slice(0, 4).map(u => (
+            {presenceUsers.slice(0, isMobile ? 2 : 4).map(u => (
               <div key={u.userId} title={u.name}
                 style={{ width: 24, height: 24, borderRadius: '50%', background: u.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#fff', border: '2px solid var(--surface)', marginLeft: -4, flexShrink: 0 }}>
                 {u.name.charAt(0).toUpperCase()}
               </div>
             ))}
-            {presenceUsers.length > 4 && (
+            {presenceUsers.length > (isMobile ? 2 : 4) && (
               <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--text-secondary)', border: '2px solid var(--surface)', marginLeft: -4 }}>
-                +{presenceUsers.length - 4}
+                +{presenceUsers.length - (isMobile ? 2 : 4)}
               </div>
             )}
           </div>
         )}
+
         <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0, transition: 'opacity 0.3s', opacity: saved ? 0 : 1 }}>Saving…</span>
 
-        <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onMarkdown={exportMarkdown} isDatabase={!!page.is_database} />
-        <TopBarBtn onClick={() => {
-          document.body.classList.add('printing-page')
-          window.print()
-          setTimeout(() => document.body.classList.remove('printing-page'), 1000)
-        }}>🖨️ Print</TopBarBtn>
-        {wordCount > 0 && (
-          <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{wordCount} words</span>
-        )}
-        {!page.is_database && headings.length > 0 && (
-          <TopBarBtn onClick={() => setTocOpen(o => !o)} active={tocOpen} title="Table of contents">☰ ToC</TopBarBtn>
-        )}
-        {canEdit && (
-          <TopBarBtn onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots() }} active={historyOpen}>🕓 History</TopBarBtn>
-        )}
-        {!page.is_database && (
-          <TopBarBtn onClick={() => { setBacklinksOpen(o => !o); loadBacklinks() }} active={backlinksOpen} title="Backlinks — pages that reference this one">
-            ↩ Backlinks{backlinksLoaded && backlinks.length > 0 ? ` (${backlinks.length})` : ''}
+        {/* Desktop buttons */}
+        {!isMobile && <>
+          <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onMarkdown={exportMarkdown} isDatabase={!!page.is_database} />
+          <TopBarBtn onClick={() => { document.body.classList.add('printing-page'); window.print(); setTimeout(() => document.body.classList.remove('printing-page'), 1000) }}>🖨️</TopBarBtn>
+          {wordCount > 0 && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{wordCount} words</span>}
+          {!page.is_database && headings.length > 0 && (
+            <TopBarBtn onClick={() => setTocOpen(o => !o)} active={tocOpen} title="Table of contents">☰ ToC</TopBarBtn>
+          )}
+          {canEdit && <TopBarBtn onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots() }} active={historyOpen}>🕓 History</TopBarBtn>}
+          {!page.is_database && (
+            <TopBarBtn onClick={() => { setBacklinksOpen(o => !o); loadBacklinks() }} active={backlinksOpen} title="Backlinks">
+              ↩{backlinksLoaded && backlinks.length > 0 ? ` ${backlinks.length}` : ''}
+            </TopBarBtn>
+          )}
+          <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen} title="Comments">
+            💬{comments.length > 0 ? ` ${comments.length}` : ''}
           </TopBarBtn>
-        )}
-        <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen} title="Comments">
-          💬{comments.length > 0 ? ` ${comments.length}` : ''}
-        </TopBarBtn>
-        <TopBarBtn onClick={() => {
-          setFocusMode(f => {
-            window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus'))
-            return !f
-          })
-        }} active={focusMode} title="Focus mode (⌘⇧F)">
-          {focusMode ? '⊡ Exit focus' : '⊠ Focus'}
-        </TopBarBtn>
-        {isOwner && (
-          <TopBarBtn
-            active={shareOpen}
-            onClick={() => setShareOpen(o => !o)}
-            data-share-btn
-          >🔒 Share</TopBarBtn>
-        )}
+          <TopBarBtn onClick={() => { setFocusMode(f => { window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus')); return !f }) }} active={focusMode} title="Focus mode (⌘⇧F)">
+            {focusMode ? '⊡' : '⊠'}
+          </TopBarBtn>
+          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn>🔒 Share</TopBarBtn>}
+        </>}
+
+        {/* Mobile: compact action row */}
+        {isMobile && <>
+          <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen}>
+            💬{comments.length > 0 ? ` ${comments.length}` : ''}
+          </TopBarBtn>
+          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn>🔒</TopBarBtn>}
+          {/* Mobile overflow menu */}
+          <div style={{ position: 'relative' }}>
+            <TopBarBtn onClick={() => setMobileMenuOpen(o => !o)} active={mobileMenuOpen}>⋯</TopBarBtn>
+            {mobileMenuOpen && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setMobileMenuOpen(false)} />
+                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 6, boxShadow: 'var(--shadow-lg)', zIndex: 200, minWidth: 180 }} className="scale-in">
+                  <MobileMenuItem onClick={() => { exportPDF(); setMobileMenuOpen(false) }}>📄 Export PDF</MobileMenuItem>
+                  {!page.is_database && <MobileMenuItem onClick={() => { exportMarkdown(); setMobileMenuOpen(false) }}>⬇️ Export Markdown</MobileMenuItem>}
+                  {page.is_database && <MobileMenuItem onClick={() => { exportCSV(); setMobileMenuOpen(false) }}>📊 Export CSV</MobileMenuItem>}
+                  {!page.is_database && headings.length > 0 && <MobileMenuItem onClick={() => { setTocOpen(o => !o); setMobileMenuOpen(false) }}>☰ Table of contents</MobileMenuItem>}
+                  {canEdit && <MobileMenuItem onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots(); setMobileMenuOpen(false) }}>🕓 Version history</MobileMenuItem>}
+                  {!page.is_database && <MobileMenuItem onClick={() => { setBacklinksOpen(o => !o); loadBacklinks(); setMobileMenuOpen(false) }}>↩ Backlinks{backlinksLoaded && backlinks.length > 0 ? ` (${backlinks.length})` : ''}</MobileMenuItem>}
+                  <MobileMenuItem onClick={() => { setFocusMode(f => { window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus')); return !f }); setMobileMenuOpen(false) }}>{focusMode ? '⊡ Exit focus mode' : '⊠ Focus mode'}</MobileMenuItem>
+                </div>
+              </>
+            )}
+          </div>
+        </>}
       </div>
 
       {/* Conflict banner */}
@@ -701,7 +744,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
           )}
 
           {/* Page body */}
-          <div className='page-body-padding print-content' style={{ maxWidth: '900px', margin: '0 auto', padding: page.cover_url ? '24px 60px 80px' : '64px 60px 80px' }}>
+          <div className='page-body-padding print-content' style={{ maxWidth: '900px', margin: '0 auto', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 60px 80px') : (isMobile ? '32px 20px 60px' : '64px 60px 80px') }}>
 
             {/* Icon area */}
             <div style={{ marginBottom: '4px', position: 'relative' }}>
@@ -807,7 +850,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
 
         {/* Table of contents panel */}
         {tocOpen && !page.is_database && (
-          <div style={{ width: '220px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+          <div style={isMobile ? mobilePanel : { width: '220px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+            {isMobile && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 199 }} onClick={() => setTocOpen(false)} />}
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <span style={{ fontWeight: 600, fontSize: 13 }}>Contents</span>
               <button onClick={() => setTocOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16 }}>✕</button>
@@ -819,9 +863,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
                   <div key={i}
                     onClick={() => {
                       const els = document.querySelectorAll('.tiptap h1,.tiptap h2,.tiptap h3')
-                      const matching = Array.from(els).filter(el => el.textContent?.trim() === h.text)
-                      const el = matching[0] || els[h.idx]
-                      el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      els[h.idx]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                     }}
                     style={{ padding: `5px 16px 5px ${8 + (h.level - 1) * 12}px`, cursor: 'pointer', fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderLeft: '2px solid transparent' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)'; (e.currentTarget as HTMLElement).style.borderLeftColor = 'var(--accent)'; (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
@@ -836,7 +878,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
 
         {/* History panel */}
         {historyOpen && canEdit && (
-          <div style={{ width: '280px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+          <div style={isMobile ? mobilePanel : { width: '280px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+            {isMobile && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 199 }} onClick={() => setHistoryOpen(false)} />}
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <span style={{ fontWeight: 600, fontSize: 14 }}>Version history</span>
               <button onClick={() => setHistoryOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16 }}>✕</button>
@@ -866,7 +909,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
 
         {/* Backlinks panel */}
         {backlinksOpen && !page.is_database && (
-          <div style={{ width: '260px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+          <div style={isMobile ? mobilePanel : { width: '260px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+            {isMobile && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 199 }} onClick={() => setBacklinksOpen(false)} />}
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <span style={{ fontWeight: 600, fontSize: 13 }}>Backlinks</span>
               <button onClick={() => setBacklinksOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16 }}>✕</button>
@@ -895,7 +939,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
 
         {/* Comments panel */}
         {commentsOpen && (
-          <div style={{ width: '300px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+          <div style={isMobile ? mobilePanel : { width: '300px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+            {isMobile && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 199 }} onClick={() => setCommentsOpen(false)} />}
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <span style={{ fontWeight: 600, fontSize: 13 }}>Comments</span>
               <button onClick={() => setCommentsOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16 }}>✕</button>
@@ -949,7 +994,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
 
         {/* Share panel */}
         {shareOpen && isOwner && (
-          <div className='share-panel-mobile' style={{ width: '300px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', padding: '20px', overflowY: 'auto', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className='share-panel-mobile' style={isMobile ? { ...mobilePanel, padding: 20, overflowY: 'auto', flexDirection: 'column', gap: 16 } : { width: '300px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', padding: '20px', overflowY: 'auto', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {isMobile && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 199 }} onClick={() => setShareOpen(false)} />}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3 style={{ fontSize: '15px', fontWeight: 600 }}>Share</h3>
               <button onClick={() => setShareOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '16px', lineHeight: 1 }}>✕</button>
@@ -1182,6 +1228,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId }
 
 // ── TIPTAP → MARKDOWN ────────────────────────────────────────
 function inlineToMd(node: any): string {
+  if (node.type === 'pageMention') {
+    return `[@${node.attrs?.label || 'Page'}](/app/page/${node.attrs?.pageId || ''})`
+  }
   if (node.type === 'text') {
     let t = node.text || ''
     const marks: string[] = (node.marks || []).map((m: any) => m.type)
@@ -1230,6 +1279,10 @@ function nodeToMd(node: any, listDepth = 0): string {
       const code = (node.content || []).map((c: any) => c.text || '').join('')
       return `\`\`\`${lang}\n${code}\n\`\`\`\n\n`
     }
+    case 'columns':
+      return (node.content || []).map((col: any) =>
+        (col.content || []).map((c: any) => nodeToMd(c)).join('')
+      ).join('\n') + '\n'
     case 'horizontalRule': return '---\n\n'
     case 'image': return `![${node.attrs?.alt || ''}](${node.attrs?.src || ''})\n\n`
     case 'table':
@@ -1410,6 +1463,17 @@ function TopBarBtn({ onClick, active, children, ...props }: { onClick: () => voi
       }}>
       {children}
     </button>
+  )
+}
+
+function MobileMenuItem({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <div onClick={onClick}
+      style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 5, cursor: 'pointer', fontSize: 14, color: 'var(--text)' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+      {children}
+    </div>
   )
 }
 
