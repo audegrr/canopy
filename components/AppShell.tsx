@@ -779,27 +779,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
   function renderSharedTree(parentId: string | null, depth = 0): React.ReactNode {
     const children = sharedPages.filter(p => p.parent_id === parentId)
-    if (depth === 0) {
-      // Group root pages by owner for better readability
-      const ownerGroups = new Map<string, typeof children>()
-      for (const p of children) {
-        const key = p.owner_id
-        if (!ownerGroups.has(key)) ownerGroups.set(key, [])
-        ownerGroups.get(key)!.push(p)
-      }
-      return Array.from(ownerGroups.entries()).map(([ownerId, ownerPages]) => {
-        const ownerName = ownerPages[0].owner_name ?? 'Someone'
-        return (
-          <div key={ownerId}>
-            <div style={{ padding: '6px 14px 3px', fontSize: '11px', fontWeight: 500, color: 'var(--text-secondary)', userSelect: 'none', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ fontSize: 12 }}>👤</span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ownerName}</span>
-            </div>
-            {ownerPages.map(page => renderSharedPage(page, 0))}
-          </div>
-        )
-      })
-    }
     return children.map(page => renderSharedPage(page, depth))
   }
 

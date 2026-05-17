@@ -68,6 +68,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   const [isMobile, setIsMobile] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [subPages, setSubPages] = useState<{ id: string; title: string; icon: string; is_database: boolean }[]>([])
+  const [ownerName, setOwnerName] = useState<string | null>(null)
   const titleRef = useRef<HTMLDivElement>(null)
   const supabase = createClient()
   const router = useRouter()
@@ -306,6 +307,15 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       titleRef.current.textContent = page.title
     }
   }, [page.id])
+
+  useEffect(() => {
+    if (!isOwner && page.owner_id) {
+      supabase.from('profiles').select('full_name, email').eq('id', page.owner_id).single()
+        .then(({ data }) => {
+          if (data) setOwnerName(data.full_name || data.email?.split('@')[0] || null)
+        })
+    }
+  }, [isOwner, page.owner_id])
 
   async function loadShares() {
     const { data } = await supabase.from('page_shares').select('*').eq('page_id', page.id)
@@ -963,6 +973,14 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
 
           {/* Page body */}
           <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? '1200px' : '900px', margin: '0 auto', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 60px 80px') : (isMobile ? '32px 20px 60px' : '64px 60px 80px'), transition: 'max-width 0.3s ease' }}>
+
+            {/* Shared-by notice */}
+            {!isOwner && ownerName && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20, color: 'var(--text-tertiary)', fontSize: 12 }}>
+                <span>👤</span>
+                <span>Shared by <strong style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{ownerName}</strong></span>
+              </div>
+            )}
 
             {/* Icon area */}
             <div style={{ marginBottom: '4px', position: 'relative' }}>
