@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   let systemPrompt = SYSTEM_PROMPTS[action]
   if (!systemPrompt && action.startsWith('translate:')) {
     const lang = action.split(':')[1]
-    if (lang) systemPrompt = `Translate the following text into ${lang}. Return only the translated text, no explanation.`
+    if (lang) systemPrompt = `Translate the following text into ${lang}. If the text is already in ${lang}, return it unchanged. Do not translate into any other language. Return only the translated text, no explanation.`
   }
   if (!systemPrompt) return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
 
