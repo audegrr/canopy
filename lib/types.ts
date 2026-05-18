@@ -49,6 +49,7 @@ export type SharedPage = {
   owner_name?: string | null
   permission: 'view' | 'edit'
   parent_id: string | null
+  workspace_id?: string
   is_database?: boolean
 }
 

@@ -548,6 +548,13 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       link_permission: 'none',
     }).select('id, title, icon, is_database').single()
     if (data) {
+      // Non-owners need an explicit page_shares entry so RLS allows them to read the new sub-page
+      if (!isOwner && userId) {
+        await supabase.from('page_shares').upsert(
+          { page_id: data.id, user_id: userId, permission: 'edit' },
+          { onConflict: 'page_id,user_id' }
+        )
+      }
       setSubPages(sp => [...sp, data as any])
       router.push(`/app/page/${data.id}`)
     }
@@ -574,19 +581,26 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   }
 
   async function duplicatePage() {
+    let targetWorkspaceId = page.workspace_id
+    let targetParentId: string | null = page.parent_id
+    if (!isOwner && userId) {
+      // For non-owners, duplicate into the user's own workspace at the top level
+      const { data: userWs } = await supabase.from('workspaces').select('id').eq('owner_id', userId).limit(1).single()
+      if (userWs?.id) { targetWorkspaceId = userWs.id; targetParentId = null }
+    }
     const { data } = await supabase.from('pages').insert({
-      workspace_id: page.workspace_id,
-      parent_id: page.parent_id,
+      workspace_id: targetWorkspaceId,
+      parent_id: targetParentId,
       title: page.title + ' (copy)',
       icon: page.icon,
       content: localContentRef.current,
-      position: page.position + 0.5,
+      position: (page.position ?? 0) + 0.5,
       is_database: page.is_database,
-      link_permission: 'none'
+      link_permission: 'none',
     }).select().single()
     if (data) {
       router.push(`/app/page/${data.id}`)
-      showToast('Page duplicated!')
+      showToast('Page duplicated in your workspace!')
     }
   }
 
@@ -1135,7 +1149,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                   <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     {subPages.length} sub-page{subPages.length !== 1 ? 's' : ''}
                   </span>
-                  {canEdit && (
+                  {canEdit && !isPublicShare && (
                     <button onClick={createSubPage}
                       style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: 5, transition: 'background 0.12s, border-color 0.12s' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' }}

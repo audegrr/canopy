@@ -332,15 +332,29 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }
 
   async function createPageWithTemplate(parentId: string | null, template: PageTemplate) {
+    // If creating under a shared page, use that page's workspace, not the current user's
+    const parentShared = parentId ? sharedPages.find(p => p.id === parentId) : null
+    const targetWorkspaceId = parentShared?.workspace_id ?? currentWs.id
+
     const maxPos = pages.filter(p => p.parent_id === parentId).reduce((m, p) => Math.max(m, p.position), 0)
     const { data, error } = await supabase.from('pages').insert({
-      workspace_id: currentWs.id, parent_id: parentId, title: template.title,
+      workspace_id: targetWorkspaceId, parent_id: parentId, title: template.title,
       icon: template.icon, content: template.content, position: maxPos + 1, is_database: false, link_permission: 'none', owner_id: user.id
     }).select().single()
     if (error) { showError('Failed to create page'); return }
     if (data) {
-      setPages(p => [...p, data as Page])
-      if (parentId) setExpandedPages(e => new Set([...e, parentId]))
+      if (parentShared) {
+        // Sub-page lives in the shared workspace — give current user access and add to shared list
+        await supabase.from('page_shares').upsert(
+          { page_id: data.id, user_id: user.id, permission: 'edit' },
+          { onConflict: 'page_id,user_id' }
+        )
+        setSharedPages(sp => [...sp, { id: data.id, title: data.title, icon: data.icon || '', owner_id: data.owner_id, permission: 'edit', parent_id: parentId, workspace_id: targetWorkspaceId, is_database: false }])
+        if (parentId) setExpandedShared(s => new Set([...s, parentId]))
+      } else {
+        setPages(p => [...p, data as Page])
+        if (parentId) setExpandedPages(e => new Set([...e, parentId]))
+      }
       const instantData = { page: data as Page, canEdit: true, isOwner: true, userId: user.id }
       if (!(window as any).__pageCache) (window as any).__pageCache = new Map()
       ;(window as any).__pageCache.set(data.id, instantData)
@@ -348,6 +362,29 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       window.history.pushState({}, '', `/app/page/${data.id}`)
       setNavigating(false)
     }
+  }
+
+  async function duplicateSharedPage(pageId: string) {
+    const { data: source } = await supabase.from('pages').select('*').eq('id', pageId).single()
+    if (!source) { showError('Page not found'); setContextMenu(null); return }
+    const maxPos = pages.filter(p => !p.parent_id).reduce((m, p) => Math.max(m, p.position), 0)
+    const { data: copy, error } = await supabase.from('pages').insert({
+      workspace_id: currentWs.id,
+      parent_id: null,
+      title: (source.title || 'Untitled') + ' (copy)',
+      icon: source.icon,
+      content: source.content,
+      position: maxPos + 1,
+      is_database: source.is_database,
+      link_permission: 'none',
+      owner_id: user.id,
+    }).select().single()
+    if (error) { showError('Failed to duplicate page'); setContextMenu(null); return }
+    if (copy) {
+      setPages(p => [...p, copy as Page])
+      navigate(`/app/page/${copy.id}`)
+    }
+    setContextMenu(null)
   }
 
   async function createDatabase(parentId: string | null = null) {
@@ -1348,7 +1385,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               <MenuItem onClick={() => { setMoveToWsMenu(contextMenu.pageId); setContextMenu(null) }}>📦 Move to workspace…</MenuItem>
             )}
             {!isOwnPage(contextMenu.pageId) && (
-              <MenuItem onClick={() => { removeSharedPage(contextMenu.pageId) }}>🚫 Remove from my workspace</MenuItem>
+              <>
+                <MenuItem onClick={() => duplicateSharedPage(contextMenu.pageId)}>📋 Duplicate to my workspace</MenuItem>
+                <MenuItem onClick={() => { removeSharedPage(contextMenu.pageId) }}>🚫 Remove from my workspace</MenuItem>
+              </>
             )}
             {isOwnPage(contextMenu.pageId) && <>
               <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />

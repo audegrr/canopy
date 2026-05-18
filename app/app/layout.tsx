@@ -61,6 +61,7 @@ export default async function AppLayout({ children }) {
     id: p.id, title: p.title, icon: p.icon || '',
     owner_id: p.owner_id, owner_name: ownerProfiles[p.owner_id] ?? null,
     permission: p.permission, parent_id: p.parent_id ?? null,
+    workspace_id: p.workspace_id ?? undefined,
     is_database: p.is_database ?? false
   }))
 
