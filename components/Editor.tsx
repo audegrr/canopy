@@ -616,7 +616,7 @@ function previewSrcDoc(lang: string, code: string): string {
     return `<!DOCTYPE html><html><head><style>
 body{margin:0;padding:16px 20px;background:#fff;font-family:sans-serif}
 pre{margin:0;padding:0;overflow:visible}
-svg{max-width:100%!important;width:100%;height:auto}
+svg{max-width:100%!important;height:auto;display:block}
 html,body{height:auto!important;min-height:0!important}
 </style></head><body><pre class="mermaid">${escaped}</pre><script type="module">
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
