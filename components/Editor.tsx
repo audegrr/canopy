@@ -579,7 +579,7 @@ const HIGHLIGHTS = [
 ]
 
 // ── CUSTOM CODE BLOCK ─────────────────────────────────────────────────────────
-const CODE_LANGUAGES = ['bash','css','go','html','java','javascript','json','markdown','python','rust','sql','svg','typescript','xml','yaml']
+const CODE_LANGUAGES = ['bash','css','go','html','java','javascript','json','markdown','mermaid','python','rust','sql','svg','typescript','xml','yaml']
 
 function CodeBlockComponent({ node, updateAttributes }: any) {
   const [tab, setTab] = useState<'code' | 'preview' | 'split'>('code')
@@ -612,13 +612,13 @@ function CodeBlockComponent({ node, updateAttributes }: any) {
           )}
         </div>
         {/* Code + preview area */}
-        <div style={{ display: tab === 'split' ? 'grid' : 'block', gridTemplateColumns: '1fr 1fr', minHeight: 48 }}>
-          <NodeViewContent as="pre" style={{ display: tab === 'preview' ? 'none' : 'block', margin: 0, padding: '12px 16px', color: '#c9d1d9', fontSize: 13, fontFamily: '"Fira Code","Cascadia Code",monospace', overflowX: 'auto', lineHeight: 1.6, whiteSpace: 'pre', borderRight: tab === 'split' ? '1px solid rgba(255,255,255,0.06)' : 'none' }} />
+        <div style={{ display: tab === 'split' ? 'grid' : 'block', gridTemplateColumns: '1fr 1fr' }}>
+          <NodeViewContent as="pre" style={{ display: tab === 'preview' ? 'none' : 'block', margin: 0, padding: '10px 16px 2px', color: '#c9d1d9', fontSize: 13, fontFamily: '"Fira Code","Cascadia Code",monospace', overflowX: 'auto', lineHeight: 1.6, whiteSpace: 'pre', borderRight: tab === 'split' ? '1px solid rgba(255,255,255,0.06)' : 'none' }} />
           {tab !== 'code' && (
             <iframe
               srcDoc={node.textContent}
               title="HTML preview"
-              style={{ width: '100%', minHeight: 200, border: 'none', background: '#fff', display: 'block' }}
+              style={{ width: '100%', height: 240, border: 'none', background: '#fff', display: 'block' }}
               sandbox="allow-scripts allow-same-origin"
             />
           )}
@@ -656,6 +656,10 @@ const CustomCodeBlock = Node.create({
   addKeyboardShortcuts() {
     return {
       'Mod-Alt-c': () => (this.editor as any).commands.toggleCodeBlock(),
+      'Mod-Enter': ({ editor }: any) => {
+        if (!editor.isActive('codeBlock')) return false
+        return editor.commands.exitCode()
+      },
       Tab: ({ editor }: any) => {
         if (!editor.isActive('codeBlock')) return false
         editor.commands.insertContent('  ')
@@ -1144,7 +1148,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
           if (!editor.isFocused) return false
           return editor.isActive('image') || (!editor.state.selection.empty)
         }}>
-        <div className="floating-toolbar" style={{ overflowX: 'auto', maxWidth: 'calc(100vw - 32px)', flexWrap: 'nowrap' }}>
+        <div className="floating-toolbar" style={{ overflowX: 'auto', maxWidth: 'calc(100vw - 32px)', flexWrap: 'nowrap' }} onMouseDown={e => e.preventDefault()}>
           {/* Image-only controls */}
           {editor.isActive('image') && <>
             <FBtn title="Align left" onClick={() => editor.chain().focus().updateAttributes('image', { align: 'left' }).run()}
@@ -1292,7 +1296,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
           const hoverIn = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }
           const hoverOut = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'none' }
           return (
-            <div style={{ display: 'flex', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '3px', boxShadow: 'var(--shadow-lg)', gap: '1px' }}>
+            <div style={{ display: 'flex', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '3px', boxShadow: 'var(--shadow-lg)', gap: '1px' }} onMouseDown={e => e.preventDefault()}>
               <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().addRowBefore().run()} title="Add row above">↑ Row</button>
               <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().addRowAfter().run()} title="Add row below">↓ Row</button>
               <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().deleteRow().run()} title="Delete row" >✕ Row</button>
