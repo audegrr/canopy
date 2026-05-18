@@ -11,8 +11,8 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 }
 
 export async function POST(req: NextRequest) {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
+  const apiKey = process.env.GROQ_API_KEY
+  if (!apiKey) return NextResponse.json({ error: 'GROQ_API_KEY not configured' }, { status: 500 })
 
   const { text, action } = await req.json()
   if (!text || !action) return NextResponse.json({ error: 'Missing text or action' }, { status: 400 })
@@ -20,17 +20,19 @@ export async function POST(req: NextRequest) {
   const systemPrompt = SYSTEM_PROMPTS[action]
   if (!systemPrompt) return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'llama-3.1-8b-instant',
       max_tokens: 1024,
-      messages: [{ role: 'user', content: `${systemPrompt}\n\n${text}` }],
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: text },
+      ],
     }),
   })
 
@@ -40,6 +42,6 @@ export async function POST(req: NextRequest) {
   }
 
   const data = await res.json()
-  const result = data.content?.[0]?.text ?? ''
+  const result = data.choices?.[0]?.message?.content ?? ''
   return NextResponse.json({ result })
 }

@@ -620,7 +620,7 @@ svg{max-width:100%!important;height:auto;display:block}
 html,body{height:auto!important;min-height:0!important}
 </style></head><body><pre class="mermaid">${escaped}</pre><script type="module">
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
-mermaid.initialize({startOnLoad:true,theme:'default',securityLevel:'loose'});
+mermaid.initialize({startOnLoad:true,theme:'default',securityLevel:'loose',fontSize:14});
 await mermaid.run().catch(()=>{});
 function r(){
   var svg=document.body.querySelector('svg');
