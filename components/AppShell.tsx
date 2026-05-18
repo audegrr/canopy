@@ -248,6 +248,20 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }, [])
 
   useEffect(() => {
+    function onNewSubPage(e: Event) {
+      const d = (e as CustomEvent).detail
+      if (!d?.id) return
+      setSharedPages(sp => {
+        if (sp.some(p => p.id === d.id)) return sp
+        return [...sp, { id: d.id, title: d.title, icon: d.icon, owner_id: d.owner_id, permission: d.permission, parent_id: d.parent_id, workspace_id: d.workspace_id, is_database: d.is_database }]
+      })
+      if (d.parent_id) setExpandedShared(s => new Set([...s, d.parent_id]))
+    }
+    window.addEventListener('canopy:newSubPage', onNewSubPage)
+    return () => window.removeEventListener('canopy:newSubPage', onNewSubPage)
+  }, [])
+
+  useEffect(() => {
     function onPageUpdate(e: any) {
       const { id, title, icon } = e.detail
       setPages(p => p.map(x => x.id === id ? { ...x, ...(title !== undefined ? { title } : {}), ...(icon !== undefined ? { icon } : {}) } : x))
@@ -365,26 +379,36 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }
 
   async function duplicateSharedPage(pageId: string) {
-    const { data: source } = await supabase.from('pages').select('*').eq('id', pageId).single()
-    if (!source) { showError('Page not found'); setContextMenu(null); return }
-    const maxPos = pages.filter(p => !p.parent_id).reduce((m, p) => Math.max(m, p.position), 0)
-    const { data: copy, error } = await supabase.from('pages').insert({
-      workspace_id: currentWs.id,
-      parent_id: null,
-      title: (source.title || 'Untitled') + ' (copy)',
-      icon: source.icon,
-      content: source.content,
-      position: maxPos + 1,
-      is_database: source.is_database,
-      link_permission: 'none',
-      owner_id: user.id,
-    }).select().single()
-    if (error) { showError('Failed to duplicate page'); setContextMenu(null); return }
-    if (copy) {
-      setPages(p => [...p, copy as Page])
-      navigate(`/app/page/${copy.id}`)
-    }
     setContextMenu(null)
+    const maxPos = pages.filter(p => !p.parent_id).reduce((m, p) => Math.max(m, p.position), 0)
+
+    async function copyTree(srcId: string, newParentId: string | null, isRoot: boolean): Promise<string | null> {
+      const { data: src } = await supabase.from('pages').select('*').eq('id', srcId).single()
+      if (!src) return null
+      const { data: copy, error } = await supabase.from('pages').insert({
+        workspace_id: currentWs.id,
+        parent_id: newParentId,
+        title: isRoot ? (src.title || 'Untitled') + ' (copy)' : (src.title || ''),
+        icon: src.icon,
+        content: src.content,
+        position: isRoot ? maxPos + 1 : src.position,
+        is_database: src.is_database,
+        link_permission: 'none',
+        owner_id: user.id,
+      }).select().single()
+      if (error || !copy) return null
+      setPages(p => [...p, copy as Page])
+      const { data: children } = await supabase.from('pages')
+        .select('id').eq('parent_id', srcId).is('deleted_at', null).order('position')
+      if (children) {
+        for (const child of children) await copyTree(child.id, copy.id, false)
+      }
+      return copy.id
+    }
+
+    const rootId = await copyTree(pageId, null, true)
+    if (rootId) navigate(`/app/page/${rootId}`)
+    else showError('Failed to duplicate page')
   }
 
   async function createDatabase(parentId: string | null = null) {
@@ -2254,7 +2278,6 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
         opacity: isDragging ? 0.4 : 1,
         margin: '0 4px',
         userSelect: 'none',
-        borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
         fontWeight: isActive ? 500 : 400,
         transition: 'background 0.08s',
       }}
@@ -2319,7 +2342,7 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
                   <span style={{ color: isFavorite ? '#f59e0b' : undefined }}>{isFavorite ? '★' : '☆'}</span>
                 </SbBtn>
               )}
-              {hovered && <SbBtn onClick={onAddSubpage} title="New sub-page">+</SbBtn>}
+              {hovered && onAddSubpage && <SbBtn onClick={onAddSubpage} title="New sub-page">+</SbBtn>}
               {hovered && <SbBtn onClick={onMoreMenu} title="More options">•••</SbBtn>}
             </>
           )}

@@ -546,14 +546,24 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       position: maxPos + 1,
       is_database: false,
       link_permission: 'none',
+      owner_id: userId || undefined,
     }).select('id, title, icon, is_database').single()
     if (data) {
-      // Non-owners need an explicit page_shares entry so RLS allows them to read the new sub-page
       if (!isOwner && userId) {
+        // Non-owners need an explicit page_shares entry so RLS allows them to read the new sub-page
         await supabase.from('page_shares').upsert(
           { page_id: data.id, user_id: userId, permission: 'edit' },
           { onConflict: 'page_id,user_id' }
         )
+        // Tell AppShell to add the new page to the shared sidebar
+        window.dispatchEvent(new CustomEvent('canopy:newSubPage', {
+          detail: {
+            id: data.id, title: data.title ?? '', icon: data.icon || '',
+            owner_id: userId, permission: 'edit',
+            parent_id: page.id, workspace_id: page.workspace_id,
+            is_database: false,
+          }
+        }))
       }
       setSubPages(sp => [...sp, data as any])
       router.push(`/app/page/${data.id}`)
