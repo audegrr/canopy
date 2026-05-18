@@ -622,6 +622,11 @@ html,body{height:auto!important;min-height:0!important}
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 mermaid.initialize({startOnLoad:true,theme:'default',securityLevel:'loose',fontSize:14});
 await mermaid.run().catch(()=>{});
+// Clamp SVG to its natural width — mermaid sets width="100%" which would upscale
+// small diagrams to fill the container and inflate the font proportionally.
+// max-width:100%!important in CSS still prevents overflow in narrow containers.
+var _svg=document.body.querySelector('svg');
+if(_svg){var _mw=_svg.style.maxWidth;if(_mw)_svg.setAttribute('width',_mw);}
 function r(){
   var svg=document.body.querySelector('svg');
   var h=svg?svg.getBoundingClientRect().bottom+16:document.body.scrollHeight;
@@ -830,6 +835,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   const [aiError, setAiError] = useState<string | null>(null)
   const [showAiMenu, setShowAiMenu] = useState(false)
   const [aiMenuPos, setAiMenuPos] = useState<{ x: number; y: number } | null>(null)
+  const [translateExpanded, setTranslateExpanded] = useState(false)
   const [aiWritePos, setAiWritePos] = useState<{ x: number; y: number; insertAt: number } | null>(null)
   const [aiWritePrompt, setAiWritePrompt] = useState('')
   const aiBtnRef = useRef<HTMLButtonElement>(null)
@@ -1601,26 +1607,49 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
     </>
   ) : null
 
+  const TRANSLATE_LANGS = ['English','French','Spanish','German','Italian','Portuguese','Dutch','Japanese','Chinese','Arabic']
+
   const aiMenu = showAiMenu && aiMenuPos ? (
     <>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 10000 }} onMouseDown={() => setShowAiMenu(false)} />
-      <div style={{ position: 'fixed', left: aiMenuPos.x, top: aiMenuPos.y, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-lg)', zIndex: 10001, minWidth: 160, padding: 4, whiteSpace: 'nowrap' }}>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 10000 }} onMouseDown={() => { setShowAiMenu(false); setTranslateExpanded(false) }} />
+      <div style={{ position: 'fixed', left: aiMenuPos.x, top: aiMenuPos.y, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-lg)', zIndex: 10001, minWidth: 170, padding: 4, whiteSpace: 'nowrap' }}>
         {[
           { id: 'improve',   label: '✍️ Improve writing' },
           { id: 'shorten',   label: '✂️ Make shorter' },
           { id: 'lengthen',  label: '📝 Make longer' },
           { id: 'formal',    label: '👔 More formal' },
           { id: 'casual',    label: '😊 More casual' },
-          { id: 'translate', label: '🌐 Translate' },
         ].map(item => (
           <div key={item.id}
-            onMouseDown={e => { e.preventDefault(); setShowAiMenu(false); runAI(item.id) }}
+            onMouseDown={e => { e.preventDefault(); setShowAiMenu(false); setTranslateExpanded(false); runAI(item.id) }}
             style={{ padding: '6px 10px', borderRadius: 5, cursor: 'pointer', fontSize: 12, color: 'var(--text)' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
             {item.label}
           </div>
         ))}
+        {/* Translate with expandable language list */}
+        <div
+          onMouseDown={e => { e.preventDefault(); setTranslateExpanded(x => !x) }}
+          style={{ padding: '6px 10px', borderRadius: 5, cursor: 'pointer', fontSize: 12, color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+          <span>🌐 Translate</span>
+          <span style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>{translateExpanded ? '▲' : '▼'}</span>
+        </div>
+        {translateExpanded && (
+          <div style={{ borderTop: '1px solid var(--border)', margin: '2px 4px', paddingTop: 2 }}>
+            {TRANSLATE_LANGS.map(lang => (
+              <div key={lang}
+                onMouseDown={e => { e.preventDefault(); setShowAiMenu(false); setTranslateExpanded(false); runAI('translate:' + lang) }}
+                style={{ padding: '5px 10px 5px 20px', borderRadius: 5, cursor: 'pointer', fontSize: 12, color: 'var(--text)' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+                {lang}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </>
   ) : null

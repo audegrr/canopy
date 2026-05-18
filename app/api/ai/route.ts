@@ -17,7 +17,11 @@ export async function POST(req: NextRequest) {
   const { text, action } = await req.json()
   if (!text || !action) return NextResponse.json({ error: 'Missing text or action' }, { status: 400 })
 
-  const systemPrompt = SYSTEM_PROMPTS[action]
+  let systemPrompt = SYSTEM_PROMPTS[action]
+  if (!systemPrompt && action.startsWith('translate:')) {
+    const lang = action.split(':')[1]
+    if (lang) systemPrompt = `Translate the following text into ${lang}. Return only the translated text, no explanation.`
+  }
   if (!systemPrompt) return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
 
   const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
