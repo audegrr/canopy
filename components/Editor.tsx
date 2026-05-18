@@ -1199,7 +1199,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
 
   async function runAI(action: string) {
     if (!editor || aiLoading) return
-    const { from, to } = editor.state.selection
+    const { from, to } = savedSelection.current || editor.state.selection
     const text = editor.state.doc.textBetween(from, to, '\n')
     if (!text.trim()) return
     setAiLoading(true)
