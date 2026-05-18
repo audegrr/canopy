@@ -44,6 +44,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   const [presenceUsers, setPresenceUsers] = useState<{ userId: string; name: string; color: string; section?: string }[]>([])
   const savedRef = useRef(true)
   const lastSaveTimestamp = useRef<string | null>(null)
+  const saveTimestamps = useRef(new Set<string>())
   const editorRef = useRef<any>(null)
   const editorReadyRef = useRef(false)
   const saveCountRef = useRef(0)
@@ -196,6 +197,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         const remote = payload.new as any
         // Ignore our own saves (matched by timestamp)
         if (remote.updated_at === lastSaveTimestamp.current) return
+        if (saveTimestamps.current.has(remote.updated_at)) return
         // Editor not yet mounted — no local changes possible, ignore
         if (!editorRef.current) return
         const currentTitle = titleRef.current?.textContent ?? page.title
@@ -349,8 +351,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(async () => {
       const ts = new Date().toISOString()
-      await supabase.from('pages').update({ ...updates, updated_at: ts }).eq('id', page.id)
       lastSaveTimestamp.current = ts
+      saveTimestamps.current.add(ts)
+      await supabase.from('pages').update({ ...updates, updated_at: ts }).eq('id', page.id)
+      saveTimestamps.current.delete(ts)
       setSaved(true)
       savedRef.current = true
       setPage(p => ({ ...p, updated_at: ts }))
@@ -952,20 +956,26 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
               Use theirs
             </button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#713f12', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Your version</div>
-              <pre style={{ margin: 0, padding: '6px 10px', background: 'rgba(255,255,255,0.6)', border: '1px solid #fde047', borderRadius: 5, fontSize: 12, fontFamily: 'var(--font-sans)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 110, overflowY: 'auto', color: '#713f12', lineHeight: 1.5 }}>
-                {tiptapToPlainText(editorRef.current?.getJSON()).trim().slice(0, 600) || '(empty)'}
-              </pre>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#166534', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Their version</div>
-              <pre style={{ margin: 0, padding: '6px 10px', background: 'rgba(220,252,231,0.7)', border: '1px solid #86efac', borderRadius: 5, fontSize: 12, fontFamily: 'var(--font-sans)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 110, overflowY: 'auto', color: '#166534', lineHeight: 1.5 }}>
-                {tiptapToPlainText(remoteConflict.content).trim().slice(0, 600) || '(empty)'}
-              </pre>
-            </div>
-          </div>
+          {(() => {
+            const diff = findFirstDifferingBlock(editorRef.current?.getJSON(), remoteConflict.content)
+            if (!diff) return null
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#713f12', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Your version</div>
+                  <pre style={{ margin: 0, padding: '6px 10px', background: 'rgba(255,255,255,0.6)', border: '1px solid #fde047', borderRadius: 5, fontSize: 12, fontFamily: 'var(--font-sans)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 110, overflowY: 'auto', color: '#713f12', lineHeight: 1.5 }}>
+                    {diff.mine || '(empty)'}
+                  </pre>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#166534', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Their version</div>
+                  <pre style={{ margin: 0, padding: '6px 10px', background: 'rgba(220,252,231,0.7)', border: '1px solid #86efac', borderRadius: 5, fontSize: 12, fontFamily: 'var(--font-sans)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 110, overflowY: 'auto', color: '#166534', lineHeight: 1.5 }}>
+                    {diff.theirs || '(empty)'}
+                  </pre>
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
 
@@ -1526,6 +1536,21 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       )}
     </div>
   )
+}
+
+function findFirstDifferingBlock(docA: any, docB: any): { mine: string; theirs: string } | null {
+  const nodesA: any[] = docA?.type === 'doc' ? (docA.content || []) : Array.isArray(docA) ? docA : []
+  const nodesB: any[] = docB?.type === 'doc' ? (docB.content || []) : Array.isArray(docB) ? docB : []
+  const maxLen = Math.max(nodesA.length, nodesB.length)
+  for (let i = 0; i < maxLen; i++) {
+    if (JSON.stringify(nodesA[i]) !== JSON.stringify(nodesB[i])) {
+      return {
+        mine: nodesA[i] ? tiptapToPlainText({ type: 'doc', content: [nodesA[i]] }).trim() : '(block deleted)',
+        theirs: nodesB[i] ? tiptapToPlainText({ type: 'doc', content: [nodesB[i]] }).trim() : '(block deleted)',
+      }
+    }
+  }
+  return null
 }
 
 // ── RELATIVE TIME ─────────────────────────────────────────────

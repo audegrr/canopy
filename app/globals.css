@@ -118,9 +118,9 @@ html, body {
 .tiptap td.selectedCell, .tiptap th.selectedCell { background: var(--accent-light); }
 .tiptap .tableWrapper { overflow-x: auto; }
 .tiptap ul[data-type="taskList"] { list-style: none; padding-left: 0; }
-.tiptap ul[data-type="taskList"] li { display: flex; align-items: baseline; gap: 8px; }
-.tiptap ul[data-type="taskList"] li label { flex-shrink: 0; display: flex; align-items: center; height: 1.5em; }
-.tiptap ul[data-type="taskList"] li label input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+.tiptap ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 8px; }
+.tiptap ul[data-type="taskList"] li label { flex-shrink: 0; margin-top: 3px; }
+.tiptap ul[data-type="taskList"] li label input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; display: block; }
 .tiptap ul[data-type="taskList"] li[data-checked="true"] > div { text-decoration: line-through; color: var(--text-tertiary); }
 .tiptap mark { background: #fdf3a7; border-radius: 2px; padding: 1px 0; }
 
