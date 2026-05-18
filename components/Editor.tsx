@@ -603,7 +603,9 @@ function CodeBlockComponent({ node, updateAttributes }: any) {
   const lang = (node.attrs.language || '').toLowerCase()
   const canPreview = lang === 'html' || lang === 'svg' || lang === 'mermaid'
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const codeWrapRef = useRef<HTMLDivElement>(null)
   const [iframeHeight, setIframeHeight] = useState(160)
+  const [codeH, setCodeH] = useState(0)
 
   // Receive height reports from the preview iframe
   useEffect(() => {
@@ -618,11 +620,24 @@ function CodeBlockComponent({ node, updateAttributes }: any) {
     return () => window.removeEventListener('message', handler)
   }, [])
 
+  // Measure natural code pane height (the wrapper never has a fixed height, so scrollHeight = content height)
+  useEffect(() => {
+    if (!codeWrapRef.current) return
+    const ro = new ResizeObserver(() => {
+      if (codeWrapRef.current) setCodeH(codeWrapRef.current.scrollHeight)
+    })
+    ro.observe(codeWrapRef.current)
+    return () => ro.disconnect()
+  }, [])
+
   // Reset to a modest placeholder height when the content or language changes
   const textContent = node.textContent
   useEffect(() => {
     if (tab !== 'code') setIframeHeight(160)
   }, [textContent, lang])
+
+  // In split mode: iframe height = max(code content height, iframe content height)
+  const previewH = tab === 'split' ? Math.max(codeH || iframeHeight, iframeHeight) : iframeHeight
 
   return (
     <NodeViewWrapper style={{ margin: '8px 0' }}>
@@ -651,13 +666,15 @@ function CodeBlockComponent({ node, updateAttributes }: any) {
         </div>
         {/* Code + preview area */}
         <div style={{ display: tab === 'split' ? 'grid' : 'block', gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
-          <NodeViewContent as="pre" style={{ display: tab === 'preview' ? 'none' : 'block', margin: 0, padding: '10px 16px 10px', color: '#c9d1d9', fontSize: 13, fontFamily: '"Fira Code","Cascadia Code",monospace', overflowX: 'auto', lineHeight: 1.6, whiteSpace: 'pre', borderRight: tab === 'split' ? '1px solid rgba(255,255,255,0.06)' : 'none' }} />
+          <div ref={codeWrapRef} style={{ display: tab === 'preview' ? 'none' : 'block', borderRight: tab === 'split' ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
+            <NodeViewContent as="pre" style={{ margin: 0, padding: '10px 16px 10px', color: '#c9d1d9', fontSize: 13, fontFamily: '"Fira Code","Cascadia Code",monospace', overflowX: 'auto', lineHeight: 1.6, whiteSpace: 'pre' }} />
+          </div>
           {tab !== 'code' && (
             <iframe
               ref={iframeRef}
               srcDoc={previewSrcDoc(lang, node.textContent)}
               title={lang === 'mermaid' ? 'Mermaid diagram' : 'Preview'}
-              style={{ width: '100%', height: iframeHeight, border: 'none', background: '#fff', display: 'block' }}
+              style={{ width: '100%', height: previewH, border: 'none', background: '#fff', display: 'block' }}
               sandbox="allow-scripts allow-same-origin"
             />
           )}

@@ -412,13 +412,24 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }
 
   async function createDatabase(parentId: string | null = null) {
-    const maxPos = pages.filter(p => p.parent_id === parentId).reduce((m, p) => Math.max(m, p.position), 0)
+    const parentShared = parentId ? sharedPages.find(p => p.id === parentId) : null
+    const targetWorkspaceId = parentShared?.workspace_id ?? currentWs.id
+    const maxPos = [...pages, ...sharedPages].filter(p => p.parent_id === parentId).reduce((m, p) => Math.max(m, (p as any).position ?? 0), 0)
     const { data, error } = await supabase.from('pages').insert({
-      workspace_id: currentWs.id, parent_id: parentId, title: 'Untitled database',
+      workspace_id: targetWorkspaceId, parent_id: parentId, title: 'Untitled database',
       icon: '🗄️', content: [], position: maxPos + 1, is_database: true, link_permission: 'none'
     }).select().single()
     if (error) { showError('Failed to create database'); setContextMenu(null); return }
-    if (data) { setPages(p => [...p, data as Page]); navigate(`/app/page/${data.id}`) }
+    if (data) {
+      if (parentShared) {
+        await supabase.from('page_shares').upsert({ page_id: data.id, user_id: user.id, permission: 'edit' }, { onConflict: 'page_id,user_id' })
+        setSharedPages(sp => [...sp, { id: data.id, title: data.title, icon: data.icon || '', owner_id: data.owner_id, permission: 'edit', parent_id: parentId, workspace_id: targetWorkspaceId, is_database: true }])
+        if (parentId) setExpandedShared(s => new Set([...s, parentId]))
+      } else {
+        setPages(p => [...p, data as Page])
+      }
+      navigate(`/app/page/${data.id}`)
+    }
     setContextMenu(null)
   }
 
@@ -480,6 +491,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     const { error } = await supabase.from('pages').update({ title }).eq('id', pageId)
     if (error) { showError('Failed to rename page'); return }
     setPages(p => p.map(x => x.id === pageId ? { ...x, title } : x))
+    setSharedPages(sp => sp.map(x => x.id === pageId ? { ...x, title } : x))
     setRenamingPageId(null)
   }
 
@@ -852,7 +864,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         <PageRow
           page={page} depth={depth} isActive={isActive} isDragOver={false}
           hasChildren={hasChildren} isExpanded={isExpanded}
-          isRenaming={false} renameVal='' onRenameChange={() => {}} onRenameSubmit={() => {}} onRenameCancel={() => {}}
+          isRenaming={renamingPageId === page.id} renameVal={renameVal}
+          onRenameChange={setRenameVal}
+          onRenameSubmit={() => renamePage(page.id, renameVal)}
+          onRenameCancel={() => setRenamingPageId(null)}
           onToggle={() => setExpandedShared(s => { const n = new Set(s); n.has(page.id) ? n.delete(page.id) : n.add(page.id); return n })}
           onClick={() => navigate(`/app/page/${page.id}`)}
           onDragStart={() => {}} onDragOver={() => {}} onDragLeave={() => {}} onDrop={() => {}} onDragEnd={() => {}}
@@ -1386,8 +1401,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
       {/* Context menu */}
       {contextMenu && (() => {
-        const ownPage = isOwnPage(contextMenu.pageId)
-        const estimatedH = ownPage ? (workspaces.length > 1 ? 340 : 310) : 130
+        const ctxShared = sharedPages.find(p => p.id === contextMenu.pageId)
+        // A page is "fully own" if it's in the user's pages list AND not also appearing as a shared page
+        // (sub-pages created by the user under shared parents appear in sharedPages with permission='edit')
+        const isFullyOwn = pages.some(p => p.id === contextMenu.pageId) && !ctxShared
+        const canEditShared = !!ctxShared && ctxShared.permission === 'edit'
+        const estimatedH = isFullyOwn ? (workspaces.length > 1 ? 340 : 310) : canEditShared ? 280 : 130
         const spaceBelow = window.innerHeight - contextMenu.y - 8
         const menuTop = spaceBelow >= estimatedH ? contextMenu.y : Math.max(8, contextMenu.y - estimatedH)
         return (
@@ -1395,9 +1414,16 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           <div style={{ position: 'fixed', inset: 0, zIndex: 1999 }} onClick={() => { setContextMenu(null); setExportMenu(null) }} />
           <div className="context-menu scale-in"
             style={{ position: 'fixed', left: Math.min(contextMenu.x, window.innerWidth - 220), top: menuTop, zIndex: 2000, maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
-            {isOwnPage(contextMenu.pageId) && <>
-              <MenuItem onClick={() => { setRenamingPageId(contextMenu.pageId); setRenameVal(pages.find(p => p.id === contextMenu.pageId)?.title || ''); setContextMenu(null) }}>✏️ Rename</MenuItem>
-              <MenuItem onClick={() => duplicatePage(contextMenu.pageId)}>📋 Duplicate</MenuItem>
+            {/* Edit actions: own pages, or shared pages with edit access */}
+            {(isFullyOwn || canEditShared) && (
+              <MenuItem onClick={() => {
+                setRenamingPageId(contextMenu.pageId)
+                setRenameVal(pages.find(p => p.id === contextMenu.pageId)?.title ?? ctxShared?.title ?? '')
+                setContextMenu(null)
+              }}>✏️ Rename</MenuItem>
+            )}
+            {isFullyOwn && <MenuItem onClick={() => duplicatePage(contextMenu.pageId)}>📋 Duplicate</MenuItem>}
+            {(isFullyOwn || canEditShared) && <>
               <MenuItem onClick={() => createPage(contextMenu.pageId)}>📄 Add sub-page</MenuItem>
               <MenuItem onClick={() => createDatabase(contextMenu.pageId)}>🗄️ Add database</MenuItem>
             </>}
@@ -1405,16 +1431,18 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               {favoriteIds.has(contextMenu.pageId) ? '⭐ Remove from favorites' : '⭐ Add to favorites'}
             </MenuItem>
             <MenuItem onClick={() => copyPageUrl(contextMenu.pageId)}>🔗 Copy URL</MenuItem>
-            {isOwnPage(contextMenu.pageId) && workspaces.length > 1 && (
+            {/* Move to workspace: only for fully own pages */}
+            {isFullyOwn && workspaces.length > 1 && (
               <MenuItem onClick={() => { setMoveToWsMenu(contextMenu.pageId); setContextMenu(null) }}>📦 Move to workspace…</MenuItem>
             )}
-            {!isOwnPage(contextMenu.pageId) && (
+            {/* Shared page actions (including sub-pages the user created under shared parents) */}
+            {ctxShared && (
               <>
                 <MenuItem onClick={() => duplicateSharedPage(contextMenu.pageId)}>📋 Duplicate to my workspace</MenuItem>
                 <MenuItem onClick={() => { removeSharedPage(contextMenu.pageId) }}>🚫 Remove from my workspace</MenuItem>
               </>
             )}
-            {isOwnPage(contextMenu.pageId) && <>
+            {isFullyOwn && <>
               <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
               <MenuItem danger onClick={() => deletePage(contextMenu.pageId)}>🗑️ Delete</MenuItem>
             </>}
