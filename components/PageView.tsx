@@ -45,6 +45,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   const savedRef = useRef(true)
   const lastSaveTimestamp = useRef<string | null>(null)
   const saveTimestamps = useRef(new Set<string>())
+  const savedContents = useRef(new Set<string>())
+  const localContentRef = useRef(initialPage.content)
   const editorRef = useRef<any>(null)
   const editorReadyRef = useRef(false)
   const saveCountRef = useRef(0)
@@ -195,9 +197,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     channel
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pages', filter: `id=eq.${page.id}` }, payload => {
         const remote = payload.new as any
-        // Ignore our own saves (matched by timestamp)
-        if (remote.updated_at === lastSaveTimestamp.current) return
-        if (saveTimestamps.current.has(remote.updated_at)) return
+        // Normalise timestamp to ISO so JS and PostgreSQL formats compare correctly
+        const normTs = (t: string | null) => { try { return t ? new Date(t).toISOString() : '' } catch { return t ?? '' } }
+        if (remote.updated_at && normTs(remote.updated_at) === normTs(lastSaveTimestamp.current)) return
+        if (remote.updated_at && saveTimestamps.current.has(normTs(remote.updated_at))) return
         // Editor not yet mounted — no local changes possible, ignore
         if (!editorRef.current) return
         const currentTitle = titleRef.current?.textContent ?? page.title
@@ -205,11 +208,12 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         const initialContentStr = JSON.stringify(initialContentRef.current)
         const currentContentStr = JSON.stringify(editorRef.current.getJSON())
         const titleChanged = remote.title && remote.title !== currentTitle
-        // True conflict only when remote has *new* content vs what was in DB when page loaded.
-        // If remote === initial, it's a metadata-only update (view_count, etc.) — ignore.
-        // If remote === current, it's our own delayed event — ignore.
+        // Ignore metadata-only updates (view_count, etc.) where content hasn't changed vs initial.
+        // Ignore our own saves whose content echoes back via realtime.
         const remoteIsNew = remote.content && remoteContentStr !== initialContentStr
         const remoteMatchesCurrent = remote.content && remoteContentStr === currentContentStr
+        // Also ignore if this content was saved by us (delayed realtime echo)
+        if (remote.content && savedContents.current.has(remoteContentStr)) return
         if (!titleChanged && (!remoteIsNew || remoteMatchesCurrent)) return
         if (savedRef.current) {
           // No unsaved local changes — silently apply remote content
@@ -351,17 +355,24 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(async () => {
       const ts = new Date().toISOString()
+      const normTs = (t: string) => { try { return new Date(t).toISOString() } catch { return t } }
       lastSaveTimestamp.current = ts
-      saveTimestamps.current.add(ts)
+      saveTimestamps.current.add(normTs(ts))
+      // Track saved content to suppress false conflicts from our own realtime echoes
+      const contentStr = JSON.stringify(updates.content)
+      if (updates.content) savedContents.current.add(contentStr)
       await supabase.from('pages').update({ ...updates, updated_at: ts }).eq('id', page.id)
-      saveTimestamps.current.delete(ts)
+      // Keep timestamp in the set for 20s so delayed realtime events are recognised as ours
+      setTimeout(() => saveTimestamps.current.delete(normTs(ts)), 20_000)
+      if (updates.content) setTimeout(() => savedContents.current.delete(contentStr), 20_000)
       setSaved(true)
       savedRef.current = true
-      setPage(p => ({ ...p, updated_at: ts }))
+      // Update page state after save (not on every keystroke) to reduce re-renders
+      setPage(p => ({ ...p, ...(updates.content ? { content: updates.content } : {}), updated_at: ts }))
       // Save a snapshot every 10 edits (silently ignore if table doesn't exist)
       saveCountRef.current += 1
       if (saveCountRef.current % 10 === 0) {
-        const snap = { page_id: page.id, title: updates.title ?? page.title, content: updates.content ?? page.content, saved_by: userId }
+        const snap = { page_id: page.id, title: updates.title ?? page.title, content: updates.content ?? localContentRef.current, saved_by: userId }
         supabase.from('page_snapshots').insert(snap).then(() => {})
         // Prune: keep only last 50
         supabase.rpc('prune_page_snapshots', { p_page_id: page.id, p_keep: 50 }).then(() => {})
@@ -379,7 +390,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   }
 
   function onContentUpdate(content: any) {
-    setPage(p => ({ ...p, content }) as Page)
+    localContentRef.current = content
+    // Don't call setPage(content) on every keystroke — reduces re-renders and cursor jumps.
+    // page.content is updated in scheduleSave after the debounced write completes.
     scheduleSave({ content })
     // Deep traversal for headings — matches querySelectorAll DOM order
     const topNodes: any[] = Array.isArray(content) ? content : (content?.content || [])
@@ -548,7 +561,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       title: page.title || 'Untitled',
       icon: page.icon || '',
       description,
-      content: page.content,
+      content: localContentRef.current,
     })
     if (error) { showToast('Failed to save template'); return }
     showToast('Saved as template!')
@@ -566,7 +579,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       parent_id: page.parent_id,
       title: page.title + ' (copy)',
       icon: page.icon,
-      content: page.content,
+      content: localContentRef.current,
       position: page.position + 0.5,
       is_database: page.is_database,
       link_permission: 'none'

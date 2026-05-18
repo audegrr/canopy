@@ -581,10 +581,24 @@ const HIGHLIGHTS = [
 // ── CUSTOM CODE BLOCK ─────────────────────────────────────────────────────────
 const CODE_LANGUAGES = ['bash','css','go','html','java','javascript','json','markdown','mermaid','python','rust','sql','svg','typescript','xml','yaml']
 
+function mermaidSrcDoc(code: string) {
+  const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return `<!DOCTYPE html><html><head><style>body{margin:0;padding:16px 20px;background:#fff;font-family:sans-serif}svg{max-width:100%}</style></head><body><pre class="mermaid">${escaped}</pre><script type="module">import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';mermaid.initialize({startOnLoad:true,theme:'default',securityLevel:'loose'})</script></body></html>`
+}
+
 function CodeBlockComponent({ node, updateAttributes }: any) {
   const [tab, setTab] = useState<'code' | 'preview' | 'split'>('code')
   const lang = (node.attrs.language || '').toLowerCase()
-  const canPreview = lang === 'html' || lang === 'svg'
+  const canPreview = lang === 'html' || lang === 'svg' || lang === 'mermaid'
+
+  const previewIframe = (
+    <iframe
+      srcDoc={lang === 'mermaid' ? mermaidSrcDoc(node.textContent) : node.textContent}
+      title={lang === 'mermaid' ? 'Mermaid diagram' : 'Preview'}
+      style={{ width: '100%', height: 240, border: 'none', background: '#fff', display: 'block' }}
+      sandbox="allow-scripts allow-same-origin"
+    />
+  )
 
   return (
     <NodeViewWrapper style={{ margin: '8px 0' }}>
@@ -612,16 +626,9 @@ function CodeBlockComponent({ node, updateAttributes }: any) {
           )}
         </div>
         {/* Code + preview area */}
-        <div style={{ display: tab === 'split' ? 'grid' : 'block', gridTemplateColumns: '1fr 1fr' }}>
-          <NodeViewContent as="pre" style={{ display: tab === 'preview' ? 'none' : 'block', margin: 0, padding: '10px 16px 2px', color: '#c9d1d9', fontSize: 13, fontFamily: '"Fira Code","Cascadia Code",monospace', overflowX: 'auto', lineHeight: 1.6, whiteSpace: 'pre', borderRight: tab === 'split' ? '1px solid rgba(255,255,255,0.06)' : 'none' }} />
-          {tab !== 'code' && (
-            <iframe
-              srcDoc={node.textContent}
-              title="HTML preview"
-              style={{ width: '100%', height: 240, border: 'none', background: '#fff', display: 'block' }}
-              sandbox="allow-scripts allow-same-origin"
-            />
-          )}
+        <div style={{ display: tab === 'split' ? 'grid' : 'block', gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
+          <NodeViewContent as="pre" style={{ display: tab === 'preview' ? 'none' : 'block', margin: 0, padding: '10px 16px 10px', color: '#c9d1d9', fontSize: 13, fontFamily: '"Fira Code","Cascadia Code",monospace', overflowX: 'auto', lineHeight: 1.6, whiteSpace: 'pre', borderRight: tab === 'split' ? '1px solid rgba(255,255,255,0.06)' : 'none' }} />
+          {tab !== 'code' && previewIframe}
         </div>
       </div>
     </NodeViewWrapper>
@@ -735,7 +742,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       Color,
       Highlight.configure({ multicolor: true }),
       TaskList,
-      TaskItem.configure({ nested: true }),
+      TaskItem.extend({ content: 'paragraph' }),
       Table.configure({ resizable: true }),
       TableRow, TableCell, TableHeader,
       ResizableImage,
@@ -1316,6 +1323,22 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       </BubbleMenu>
 
       <EditorContent editor={editor} />
+
+      {/* Clickable area below editor — lets user place cursor after the last block */}
+      {editable && (
+        <div
+          style={{ height: '60px', cursor: 'text' }}
+          onClick={() => {
+            const { doc } = editor.state
+            const lastNode = doc.lastChild
+            if (lastNode && lastNode.type.name !== 'paragraph') {
+              editor.chain().insertContentAt(doc.content.size, { type: 'paragraph' }).focus('end').run()
+            } else {
+              editor.commands.focus('end')
+            }
+          }}
+        />
+      )}
 
       {/* AI Write prompt */}
       {aiWritePos && (
