@@ -581,24 +581,48 @@ const HIGHLIGHTS = [
 // ── CUSTOM CODE BLOCK ─────────────────────────────────────────────────────────
 const CODE_LANGUAGES = ['bash','css','go','html','java','javascript','json','markdown','mermaid','python','rust','sql','svg','typescript','xml','yaml']
 
-function mermaidSrcDoc(code: string) {
-  const escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  return `<!DOCTYPE html><html><head><style>body{margin:0;padding:16px 20px;background:#fff;font-family:sans-serif}svg{max-width:100%}</style></head><body><pre class="mermaid">${escaped}</pre><script type="module">import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';mermaid.initialize({startOnLoad:true,theme:'default',securityLevel:'loose'})</script></body></html>`
+// Inline script that posts the document's scroll-height to the parent frame
+const HEIGHT_REPORTER = `<script>(function(){function r(){window.parent.postMessage({type:'canopy-height',h:document.documentElement.scrollHeight},'*')}window.addEventListener('load',r);setTimeout(r,300)})()</script>`
+
+function previewSrcDoc(lang: string, code: string): string {
+  if (lang === 'mermaid') {
+    const escaped = code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    return `<!DOCTYPE html><html><head><style>body{margin:0;padding:16px 20px;background:#fff;font-family:sans-serif}svg{max-width:100%}</style></head><body><pre class="mermaid">${escaped}</pre><script type="module">import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';mermaid.initialize({startOnLoad:true,theme:'default',securityLevel:'loose'});await mermaid.run().catch(()=>{});setTimeout(()=>window.parent.postMessage({type:'canopy-height',h:document.documentElement.scrollHeight},'*'),80)</script></body></html>`
+  }
+  if (lang === 'svg') {
+    return `<!DOCTYPE html><html><head><style>body{margin:0;padding:8px;background:#fff;display:flex;justify-content:center}svg{max-width:100%;height:auto}</style></head><body>${code}${HEIGHT_REPORTER}</body></html>`
+  }
+  // HTML: inject reporter before </body> if present, otherwise wrap
+  if (/<\/body\s*>/i.test(code)) return code.replace(/<\/body\s*>/i, `${HEIGHT_REPORTER}</body>`)
+  if (/<html/i.test(code)) return code + HEIGHT_REPORTER
+  return `<!DOCTYPE html><html><head><style>body{margin:0;padding:8px;background:#fff}</style></head><body>${code}${HEIGHT_REPORTER}</body></html>`
 }
 
 function CodeBlockComponent({ node, updateAttributes }: any) {
   const [tab, setTab] = useState<'code' | 'preview' | 'split'>('code')
   const lang = (node.attrs.language || '').toLowerCase()
   const canPreview = lang === 'html' || lang === 'svg' || lang === 'mermaid'
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const [iframeHeight, setIframeHeight] = useState(160)
 
-  const previewIframe = (
-    <iframe
-      srcDoc={lang === 'mermaid' ? mermaidSrcDoc(node.textContent) : node.textContent}
-      title={lang === 'mermaid' ? 'Mermaid diagram' : 'Preview'}
-      style={{ width: '100%', height: 240, border: 'none', background: '#fff', display: 'block' }}
-      sandbox="allow-scripts allow-same-origin"
-    />
-  )
+  // Receive height reports from the preview iframe
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (iframeRef.current && e.source === iframeRef.current.contentWindow) {
+        if (e.data?.type === 'canopy-height' && typeof e.data.h === 'number') {
+          setIframeHeight(Math.max(60, Math.ceil(e.data.h) + 8))
+        }
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [])
+
+  // Reset to a modest placeholder height when the content or language changes
+  const textContent = node.textContent
+  useEffect(() => {
+    if (tab !== 'code') setIframeHeight(160)
+  }, [textContent, lang])
 
   return (
     <NodeViewWrapper style={{ margin: '8px 0' }}>
@@ -628,7 +652,15 @@ function CodeBlockComponent({ node, updateAttributes }: any) {
         {/* Code + preview area */}
         <div style={{ display: tab === 'split' ? 'grid' : 'block', gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
           <NodeViewContent as="pre" style={{ display: tab === 'preview' ? 'none' : 'block', margin: 0, padding: '10px 16px 10px', color: '#c9d1d9', fontSize: 13, fontFamily: '"Fira Code","Cascadia Code",monospace', overflowX: 'auto', lineHeight: 1.6, whiteSpace: 'pre', borderRight: tab === 'split' ? '1px solid rgba(255,255,255,0.06)' : 'none' }} />
-          {tab !== 'code' && previewIframe}
+          {tab !== 'code' && (
+            <iframe
+              ref={iframeRef}
+              srcDoc={previewSrcDoc(lang, node.textContent)}
+              title={lang === 'mermaid' ? 'Mermaid diagram' : 'Preview'}
+              style={{ width: '100%', height: iframeHeight, border: 'none', background: '#fff', display: 'block' }}
+              sandbox="allow-scripts allow-same-origin"
+            />
+          )}
         </div>
       </div>
     </NodeViewWrapper>
