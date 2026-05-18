@@ -583,6 +583,8 @@ const CODE_LANGUAGES = ['bash','css','go','html','java','javascript','json','mar
 
 // Reports body scroll-height to parent via postMessage.
 // Uses ResizeObserver for live tracking + fallback timeouts for lazy content.
+// Also listens for 'canopy-remeasure' so the parent can trigger a fresh
+// measurement whenever the iframe viewport width changes (preview ↔ split).
 const HEIGHT_REPORTER = `<script>(function(){
   var tm;
   function r(){
@@ -593,13 +595,15 @@ const HEIGHT_REPORTER = `<script>(function(){
   window.addEventListener('load',r);
   setTimeout(r,150);setTimeout(r,600);
   if(typeof ResizeObserver!=='undefined')new ResizeObserver(d).observe(document.body);
+  window.addEventListener('message',function(e){if(e.data&&e.data.type==='canopy-remeasure')d();});
 })()</script>`
 
 function previewSrcDoc(lang: string, code: string): string {
   if (lang === 'mermaid') {
     const escaped = code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     // Use requestAnimationFrame to wait for SVG layout after mermaid.run(),
-    // then ResizeObserver to catch any subsequent reflows.
+    // then ResizeObserver + remeasure listener to catch any reflows (including
+    // viewport-width changes when the parent switches between preview and split).
     return `<!DOCTYPE html><html><head><style>body{margin:0;padding:16px 20px;background:#fff;font-family:sans-serif}svg{max-width:100%;height:auto}</style></head><body><pre class="mermaid">${escaped}</pre><script type="module">
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 mermaid.initialize({startOnLoad:true,theme:'default',securityLevel:'loose'});
@@ -608,6 +612,7 @@ function r(){var h=Math.max(document.body.scrollHeight,document.documentElement.
 requestAnimationFrame(()=>requestAnimationFrame(()=>{
   r();setTimeout(r,200);setTimeout(r,600);
   if(typeof ResizeObserver!=='undefined'){var tm;new ResizeObserver(()=>{clearTimeout(tm);tm=setTimeout(r,50);}).observe(document.body);}
+  window.addEventListener('message',function(e){if(e.data&&e.data.type==='canopy-remeasure')r();});
 }));
 </script></body></html>`
   }
@@ -658,6 +663,18 @@ function CodeBlockComponent({ node, updateAttributes }: any) {
   useEffect(() => {
     if (tab !== 'code') setIframeHeight(160)
   }, [textContent, lang])
+
+  // When the tab switches between preview and split, the iframe viewport width changes
+  // (full width vs half width). Ask the iframe to remeasure once the new layout has settled.
+  useEffect(() => {
+    if (tab === 'code') return
+    let raf = requestAnimationFrame(() => {
+      raf = requestAnimationFrame(() => {
+        iframeRef.current?.contentWindow?.postMessage({ type: 'canopy-remeasure' }, '*')
+      })
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [tab])
 
   // In split mode: iframe height = max(code content height, iframe content height)
   const previewH = tab === 'split' ? Math.max(codeH || iframeHeight, iframeHeight) : iframeHeight
