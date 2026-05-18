@@ -198,16 +198,20 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         if (remote.updated_at === lastSaveTimestamp.current) return
         // Editor not yet mounted — no local changes possible, ignore
         if (!editorRef.current) return
-        // Compare actual content to filter out metadata-only updates (view_count, etc.)
         const currentTitle = titleRef.current?.textContent ?? page.title
         const remoteContentStr = JSON.stringify(remote.content)
+        const initialContentStr = JSON.stringify(initialContentRef.current)
         const currentContentStr = JSON.stringify(editorRef.current.getJSON())
         const titleChanged = remote.title && remote.title !== currentTitle
-        const contentChanged = remote.content && remoteContentStr !== currentContentStr
-        if (!titleChanged && !contentChanged) return
+        // True conflict only when remote has *new* content vs what was in DB when page loaded.
+        // If remote === initial, it's a metadata-only update (view_count, etc.) — ignore.
+        // If remote === current, it's our own delayed event — ignore.
+        const remoteIsNew = remote.content && remoteContentStr !== initialContentStr
+        const remoteMatchesCurrent = remote.content && remoteContentStr === currentContentStr
+        if (!titleChanged && (!remoteIsNew || remoteMatchesCurrent)) return
         if (savedRef.current) {
           // No unsaved local changes — silently apply remote content
-          if (remote.content) editorRef.current.commands.setContent(remote.content)
+          if (remote.content) editorRef.current.commands.setContent(remote.content, false)
           setPage(p => ({ ...p, content: remote.content ?? p.content, title: remote.title ?? p.title }))
           if (remote.title && titleRef.current) titleRef.current.textContent = remote.title
         } else {
@@ -349,6 +353,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       lastSaveTimestamp.current = ts
       setSaved(true)
       savedRef.current = true
+      setPage(p => ({ ...p, updated_at: ts }))
       // Save a snapshot every 10 edits (silently ignore if table doesn't exist)
       saveCountRef.current += 1
       if (saveCountRef.current % 10 === 0) {
@@ -927,24 +932,40 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
 
       {/* Conflict banner */}
       {remoteConflict && (
-        <div style={{ padding: '8px 16px', background: '#fef9c3', borderBottom: '1px solid #fde047', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 13, color: '#713f12', flex: 1 }}>⚠️ This page was updated by someone else while you were editing.</span>
-          <button onClick={() => setRemoteConflict(null)}
-            style={{ background: '#fff', border: '1px solid #fde047', borderRadius: 5, padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', color: '#713f12', fontWeight: 500 }}>
-            Keep mine
-          </button>
-          <button onClick={() => {
-            if (remoteConflict.content) editorRef.current?.commands.setContent(remoteConflict.content)
-            setPage(p => ({ ...p, content: remoteConflict.content ?? p.content, title: remoteConflict.title ?? p.title }))
-            if (remoteConflict.title && titleRef.current) titleRef.current.textContent = remoteConflict.title
-            if (saveTimer.current) clearTimeout(saveTimer.current)
-            setSaved(true)
-            savedRef.current = true
-            setRemoteConflict(null)
-          }}
-            style={{ background: '#713f12', border: 'none', borderRadius: 5, padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', color: '#fff', fontWeight: 500 }}>
-            Use theirs
-          </button>
+        <div style={{ padding: '10px 16px', background: '#fef9c3', borderBottom: '1px solid #fde047', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, color: '#713f12', flex: 1 }}>⚠️ This page was updated by someone else while you were editing.</span>
+            <button onClick={() => setRemoteConflict(null)}
+              style={{ background: '#fff', border: '1px solid #fde047', borderRadius: 5, padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', color: '#713f12', fontWeight: 500 }}>
+              Keep mine
+            </button>
+            <button onClick={() => {
+              if (remoteConflict.content) editorRef.current?.commands.setContent(remoteConflict.content, false)
+              setPage(p => ({ ...p, content: remoteConflict.content ?? p.content, title: remoteConflict.title ?? p.title }))
+              if (remoteConflict.title && titleRef.current) titleRef.current.textContent = remoteConflict.title
+              if (saveTimer.current) clearTimeout(saveTimer.current)
+              setSaved(true)
+              savedRef.current = true
+              setRemoteConflict(null)
+            }}
+              style={{ background: '#713f12', border: 'none', borderRadius: 5, padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', color: '#fff', fontWeight: 500 }}>
+              Use theirs
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#713f12', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Your version</div>
+              <pre style={{ margin: 0, padding: '6px 10px', background: 'rgba(255,255,255,0.6)', border: '1px solid #fde047', borderRadius: 5, fontSize: 12, fontFamily: 'var(--font-sans)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 110, overflowY: 'auto', color: '#713f12', lineHeight: 1.5 }}>
+                {tiptapToPlainText(editorRef.current?.getJSON()).trim().slice(0, 600) || '(empty)'}
+              </pre>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#166534', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Their version</div>
+              <pre style={{ margin: 0, padding: '6px 10px', background: 'rgba(220,252,231,0.7)', border: '1px solid #86efac', borderRadius: 5, fontSize: 12, fontFamily: 'var(--font-sans)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 110, overflowY: 'auto', color: '#166534', lineHeight: 1.5 }}>
+                {tiptapToPlainText(remoteConflict.content).trim().slice(0, 600) || '(empty)'}
+              </pre>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1508,6 +1529,17 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
 }
 
 // ── RELATIVE TIME ─────────────────────────────────────────────
+function tiptapToPlainText(content: any): string {
+  if (!content) return ''
+  const nodes: any[] = content.type === 'doc' ? (content.content || []) : Array.isArray(content) ? content : [content]
+  return nodes.map((n: any) => {
+    if (n.text) return n.text
+    const children = tiptapToPlainText(n.content || [])
+    const block = ['paragraph','heading','blockquote','codeBlock','listItem','taskItem'].includes(n.type)
+    return block ? children + '\n' : children
+  }).join('')
+}
+
 function formatRelativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const m = Math.floor(diff / 60000)

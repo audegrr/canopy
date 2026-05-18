@@ -578,6 +578,100 @@ const HIGHLIGHTS = [
   { label: 'Orange', value: '#fce5cd' },
 ]
 
+// ── CUSTOM CODE BLOCK ─────────────────────────────────────────────────────────
+const CODE_LANGUAGES = ['bash','css','go','html','java','javascript','json','markdown','python','rust','sql','svg','typescript','xml','yaml']
+
+function CodeBlockComponent({ node, updateAttributes }: any) {
+  const [tab, setTab] = useState<'code' | 'preview' | 'split'>('code')
+  const lang = (node.attrs.language || '').toLowerCase()
+  const canPreview = lang === 'html' || lang === 'svg'
+
+  return (
+    <NodeViewWrapper style={{ margin: '8px 0' }}>
+      <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: '#1b1b2e' }}>
+        {/* Header */}
+        <div contentEditable={false} style={{ display: 'flex', alignItems: 'center', padding: '5px 10px', background: 'rgba(0,0,0,0.25)', borderBottom: '1px solid rgba(255,255,255,0.06)', gap: 8, userSelect: 'none' }}>
+          <select
+            value={node.attrs.language || ''}
+            onChange={e => updateAttributes({ language: e.target.value })}
+            onMouseDown={e => e.stopPropagation()}
+            style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: '#9ba3b0', borderRadius: 4, padding: '2px 6px', fontSize: 11, fontFamily: 'monospace', cursor: 'pointer', outline: 'none' }}>
+            <option value="">plain text</option>
+            {CODE_LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
+          </select>
+          {canPreview && (
+            <div style={{ marginLeft: 'auto', display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: 5, padding: 2, gap: 1 }}>
+              {(['code', 'preview', 'split'] as const).map(t => (
+                <button key={t}
+                  onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setTab(t) }}
+                  style={{ background: tab === t ? 'rgba(255,255,255,0.14)' : 'none', color: tab === t ? '#e2e8f0' : '#666', border: 'none', borderRadius: 4, padding: '2px 10px', cursor: 'pointer', fontSize: 11, fontFamily: 'var(--font-sans)', transition: 'all 0.1s' }}>
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        {/* Code + preview area */}
+        <div style={{ display: tab === 'split' ? 'grid' : 'block', gridTemplateColumns: '1fr 1fr', minHeight: 48 }}>
+          <NodeViewContent as="pre" style={{ display: tab === 'preview' ? 'none' : 'block', margin: 0, padding: '12px 16px', color: '#c9d1d9', fontSize: 13, fontFamily: '"Fira Code","Cascadia Code",monospace', overflowX: 'auto', lineHeight: 1.6, whiteSpace: 'pre', borderRight: tab === 'split' ? '1px solid rgba(255,255,255,0.06)' : 'none' }} />
+          {tab !== 'code' && (
+            <iframe
+              srcDoc={node.textContent}
+              title="HTML preview"
+              style={{ width: '100%', minHeight: 200, border: 'none', background: '#fff', display: 'block' }}
+              sandbox="allow-scripts allow-same-origin"
+            />
+          )}
+        </div>
+      </div>
+    </NodeViewWrapper>
+  )
+}
+
+const CustomCodeBlock = Node.create({
+  name: 'codeBlock',
+  group: 'block',
+  content: 'text*',
+  marks: '',
+  code: true,
+  defining: true,
+  addAttributes() {
+    return {
+      language: {
+        default: null,
+        parseHTML: el => el.getAttribute('data-language') || el.querySelector('code')?.className?.replace('language-', '') || null,
+      },
+    }
+  },
+  parseHTML() { return [{ tag: 'pre', preserveWhitespace: 'full' }] },
+  renderHTML({ HTMLAttributes }) {
+    return ['pre', mergeAttributes(HTMLAttributes, { 'data-language': HTMLAttributes.language || '' }), ['code', 0]]
+  },
+  addCommands() {
+    return {
+      setCodeBlock: (attrs?: any) => ({ commands }: any) => commands.setNode('codeBlock', attrs),
+      toggleCodeBlock: (attrs?: any) => ({ commands }: any) => commands.toggleNode('codeBlock', 'paragraph', attrs || {}),
+    } as any
+  },
+  addKeyboardShortcuts() {
+    return {
+      'Mod-Alt-c': () => (this.editor as any).commands.toggleCodeBlock(),
+      Tab: ({ editor }: any) => {
+        if (!editor.isActive('codeBlock')) return false
+        editor.commands.insertContent('  ')
+        return true
+      },
+      Backspace: ({ editor }: any) => {
+        if (!editor.isActive('codeBlock')) return false
+        const { $from } = editor.state.selection
+        if ($from.pos !== $from.start()) return false
+        return editor.commands.clearNodes()
+      },
+    }
+  },
+  addNodeView() { return ReactNodeViewRenderer(CodeBlockComponent) },
+})
+
 type Props = {
   content: any
   editable: boolean
@@ -627,7 +721,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+      StarterKit.configure({ heading: { levels: [1, 2, 3] }, codeBlock: false }),
+      CustomCodeBlock,
       Placeholder.configure({
         placeholder: ({ node }) => node.type.name === 'heading' ? 'Heading' : "Type '/' for commands…"
       }),
