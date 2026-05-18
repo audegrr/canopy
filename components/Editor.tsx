@@ -585,6 +585,9 @@ const CODE_LANGUAGES = ['bash','css','go','html','java','javascript','json','mar
 // Uses ResizeObserver for live tracking + fallback timeouts for lazy content.
 // Also listens for 'canopy-remeasure' so the parent can trigger a fresh
 // measurement whenever the iframe viewport width changes (preview ↔ split).
+// NOTE: window.resize is intentionally NOT used — changing the iframe height
+// also changes the iframe viewport, which would trigger resize → remeasure →
+// height change → resize → infinite loop.
 const HEIGHT_REPORTER = `<script>(function(){
   var s=document.createElement('style');
   s.textContent='html,body{height:auto!important;min-height:0!important}';
@@ -599,7 +602,6 @@ const HEIGHT_REPORTER = `<script>(function(){
   }
   function d(){clearTimeout(tm);tm=setTimeout(r,50);}
   window.addEventListener('load',r);
-  window.addEventListener('resize',d);
   setTimeout(r,150);setTimeout(r,600);
   if(typeof ResizeObserver!=='undefined')new ResizeObserver(d).observe(document.body);
   window.addEventListener('message',function(e){if(e.data&&e.data.type==='canopy-remeasure')d();});
@@ -619,8 +621,7 @@ function r(){var h=Math.max(document.body.scrollHeight,document.documentElement.
 requestAnimationFrame(()=>requestAnimationFrame(()=>{
   r();setTimeout(r,200);setTimeout(r,600);
   if(typeof ResizeObserver!=='undefined'){var tm;new ResizeObserver(()=>{clearTimeout(tm);tm=setTimeout(r,50);}).observe(document.body);}
-  window.addEventListener('message',function(e){if(e.data&&e.data.type==='canopy-remeasure')r();});
-  window.addEventListener('resize',()=>{clearTimeout(tm);tm=setTimeout(r,50);});
+  window.addEventListener('message',function(e){if(e.data&&e.data.type==='canopy-remeasure'){if(typeof tm!=='undefined')clearTimeout(tm);tm=setTimeout(r,50);}});
 }));
 </script></body></html>`
   }
@@ -817,6 +818,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [showHighlightPicker, setShowHighlightPicker] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
   const [showAiMenu, setShowAiMenu] = useState(false)
   const [aiMenuPos, setAiMenuPos] = useState<{ x: number; y: number } | null>(null)
   const [aiWritePos, setAiWritePos] = useState<{ x: number; y: number; insertAt: number } | null>(null)
@@ -1233,13 +1235,17 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
     const text = editor.state.doc.textBetween(from, to, '\n')
     if (!text.trim()) return
     setAiLoading(true)
+    setAiError(null)
     setShowAiMenu(false)
     try {
       const res = await fetch('/api/ai', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ text, action }) })
       const { result, error } = await res.json()
       if (error || !result) throw new Error(error || 'No result')
-      editor.chain().focus().deleteRange({ from, to }).insertContentAt(from, result).run()
-    } catch {}
+      editor.chain().focus().setTextSelection({ from, to }).insertContent(result).run()
+    } catch (err: any) {
+      setAiError(err?.message || 'AI error')
+      setTimeout(() => setAiError(null), 3000)
+    }
     setAiLoading(false)
   }
 
@@ -1588,8 +1594,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
 
   const aiMenu = showAiMenu && aiMenuPos ? (
     <>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setShowAiMenu(false)} />
-      <div style={{ position: 'fixed', left: aiMenuPos.x, top: aiMenuPos.y, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-lg)', zIndex: 9999, minWidth: 160, padding: 4, whiteSpace: 'nowrap' }}>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 10000 }} onMouseDown={() => setShowAiMenu(false)} />
+      <div style={{ position: 'fixed', left: aiMenuPos.x, top: aiMenuPos.y, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-lg)', zIndex: 10001, minWidth: 160, padding: 4, whiteSpace: 'nowrap' }}>
         {[
           { id: 'improve',   label: '✍️ Improve writing' },
           { id: 'shorten',   label: '✂️ Make shorter' },
@@ -1598,7 +1604,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
           { id: 'casual',    label: '😊 More casual' },
           { id: 'translate', label: '🌐 Translate' },
         ].map(item => (
-          <div key={item.id} onClick={() => runAI(item.id)}
+          <div key={item.id}
+            onMouseDown={e => { e.preventDefault(); setShowAiMenu(false); runAI(item.id) }}
             style={{ padding: '6px 10px', borderRadius: 5, cursor: 'pointer', fontSize: 12, color: 'var(--text)' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
@@ -1609,12 +1616,19 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
     </>
   ) : null
 
+  const aiErrorToast = aiError ? (
+    <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#2d1a1a', color: '#f87171', border: '1px solid #7f1d1d', borderRadius: 8, padding: '8px 16px', fontSize: 13, zIndex: 10002, boxShadow: 'var(--shadow-lg)', whiteSpace: 'nowrap' }}>
+      ⚠️ {aiError}
+    </div>
+  ) : null
+
   return (
     <>
       {main}
       {colorPicker}
       {highlightPicker}
       {aiMenu}
+      {aiErrorToast}
     </>
   )
 }
