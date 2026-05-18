@@ -586,13 +586,20 @@ const CODE_LANGUAGES = ['bash','css','go','html','java','javascript','json','mar
 // Also listens for 'canopy-remeasure' so the parent can trigger a fresh
 // measurement whenever the iframe viewport width changes (preview ↔ split).
 const HEIGHT_REPORTER = `<script>(function(){
+  var s=document.createElement('style');
+  s.textContent='html,body{height:auto!important;min-height:0!important}';
+  (document.head||document.documentElement).appendChild(s);
   var tm;
   function r(){
-    var h=Math.max(document.body?document.body.scrollHeight:0,document.documentElement.scrollHeight);
-    window.parent.postMessage({type:'canopy-height',h:h},'*');
+    var b=document.body;if(!b)return;
+    var cs=window.getComputedStyle(b);
+    var mt=parseFloat(cs.marginTop)||0,mb=parseFloat(cs.marginBottom)||0;
+    var h=b.scrollHeight+mt+mb;
+    window.parent.postMessage({type:'canopy-height',h:Math.max(40,h)},'*');
   }
   function d(){clearTimeout(tm);tm=setTimeout(r,50);}
   window.addEventListener('load',r);
+  window.addEventListener('resize',d);
   setTimeout(r,150);setTimeout(r,600);
   if(typeof ResizeObserver!=='undefined')new ResizeObserver(d).observe(document.body);
   window.addEventListener('message',function(e){if(e.data&&e.data.type==='canopy-remeasure')d();});
@@ -613,6 +620,7 @@ requestAnimationFrame(()=>requestAnimationFrame(()=>{
   r();setTimeout(r,200);setTimeout(r,600);
   if(typeof ResizeObserver!=='undefined'){var tm;new ResizeObserver(()=>{clearTimeout(tm);tm=setTimeout(r,50);}).observe(document.body);}
   window.addEventListener('message',function(e){if(e.data&&e.data.type==='canopy-remeasure')r();});
+  window.addEventListener('resize',()=>{clearTimeout(tm);tm=setTimeout(r,50);});
 }));
 </script></body></html>`
   }
@@ -663,6 +671,11 @@ function CodeBlockComponent({ node, updateAttributes }: any) {
   useEffect(() => {
     if (tab !== 'code') setIframeHeight(160)
   }, [textContent, lang])
+
+  // Revert to code tab when switching to a language that has no preview
+  useEffect(() => {
+    if (!canPreview) setTab('code')
+  }, [canPreview])
 
   // When the tab switches between preview and split, the iframe viewport width changes
   // (full width vs half width). Ask the iframe to remeasure once the new layout has settled.
@@ -1575,8 +1588,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
 
   const aiMenu = showAiMenu && aiMenuPos ? (
     <>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 599 }} onClick={() => setShowAiMenu(false)} />
-      <div style={{ position: 'fixed', left: aiMenuPos.x, top: aiMenuPos.y, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-lg)', zIndex: 600, minWidth: 160, padding: 4, whiteSpace: 'nowrap' }}>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onClick={() => setShowAiMenu(false)} />
+      <div style={{ position: 'fixed', left: aiMenuPos.x, top: aiMenuPos.y, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-lg)', zIndex: 9999, minWidth: 160, padding: 4, whiteSpace: 'nowrap' }}>
         {[
           { id: 'improve',   label: '✍️ Improve writing' },
           { id: 'shorten',   label: '✂️ Make shorter' },
