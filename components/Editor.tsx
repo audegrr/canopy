@@ -613,11 +613,20 @@ function previewSrcDoc(lang: string, code: string): string {
     // Use requestAnimationFrame to wait for SVG layout after mermaid.run(),
     // then ResizeObserver + remeasure listener to catch any reflows (including
     // viewport-width changes when the parent switches between preview and split).
-    return `<!DOCTYPE html><html><head><style>body{margin:0;padding:16px 20px;background:#fff;font-family:sans-serif}svg{max-width:100%;height:auto}</style></head><body><pre class="mermaid">${escaped}</pre><script type="module">
+    return `<!DOCTYPE html><html><head><style>
+body{margin:0;padding:16px 20px;background:#fff;font-family:sans-serif}
+pre{margin:0;padding:0;overflow:visible}
+svg{max-width:100%!important;width:100%;height:auto}
+html,body{height:auto!important;min-height:0!important}
+</style></head><body><pre class="mermaid">${escaped}</pre><script type="module">
 import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 mermaid.initialize({startOnLoad:true,theme:'default',securityLevel:'loose'});
 await mermaid.run().catch(()=>{});
-function r(){var h=Math.max(document.body.scrollHeight,document.documentElement.scrollHeight);window.parent.postMessage({type:'canopy-height',h:h},'*');}
+function r(){
+  var svg=document.body.querySelector('svg');
+  var h=svg?svg.getBoundingClientRect().bottom+16:document.body.scrollHeight;
+  window.parent.postMessage({type:'canopy-height',h:Math.max(40,Math.ceil(h))},'*');
+}
 requestAnimationFrame(()=>requestAnimationFrame(()=>{
   r();setTimeout(r,200);setTimeout(r,600);
   if(typeof ResizeObserver!=='undefined'){var tm;new ResizeObserver(()=>{clearTimeout(tm);tm=setTimeout(r,50);}).observe(document.body);}
