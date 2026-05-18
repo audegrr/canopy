@@ -581,13 +581,35 @@ const HIGHLIGHTS = [
 // ── CUSTOM CODE BLOCK ─────────────────────────────────────────────────────────
 const CODE_LANGUAGES = ['bash','css','go','html','java','javascript','json','markdown','mermaid','python','rust','sql','svg','typescript','xml','yaml']
 
-// Inline script that posts the document's scroll-height to the parent frame
-const HEIGHT_REPORTER = `<script>(function(){function r(){window.parent.postMessage({type:'canopy-height',h:document.documentElement.scrollHeight},'*')}window.addEventListener('load',r);setTimeout(r,300)})()</script>`
+// Reports body scroll-height to parent via postMessage.
+// Uses ResizeObserver for live tracking + fallback timeouts for lazy content.
+const HEIGHT_REPORTER = `<script>(function(){
+  var tm;
+  function r(){
+    var h=Math.max(document.body?document.body.scrollHeight:0,document.documentElement.scrollHeight);
+    window.parent.postMessage({type:'canopy-height',h:h},'*');
+  }
+  function d(){clearTimeout(tm);tm=setTimeout(r,50);}
+  window.addEventListener('load',r);
+  setTimeout(r,150);setTimeout(r,600);
+  if(typeof ResizeObserver!=='undefined')new ResizeObserver(d).observe(document.body);
+})()</script>`
 
 function previewSrcDoc(lang: string, code: string): string {
   if (lang === 'mermaid') {
     const escaped = code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    return `<!DOCTYPE html><html><head><style>body{margin:0;padding:16px 20px;background:#fff;font-family:sans-serif}svg{max-width:100%}</style></head><body><pre class="mermaid">${escaped}</pre><script type="module">import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';mermaid.initialize({startOnLoad:true,theme:'default',securityLevel:'loose'});await mermaid.run().catch(()=>{});setTimeout(()=>window.parent.postMessage({type:'canopy-height',h:document.documentElement.scrollHeight},'*'),80)</script></body></html>`
+    // Use requestAnimationFrame to wait for SVG layout after mermaid.run(),
+    // then ResizeObserver to catch any subsequent reflows.
+    return `<!DOCTYPE html><html><head><style>body{margin:0;padding:16px 20px;background:#fff;font-family:sans-serif}svg{max-width:100%;height:auto}</style></head><body><pre class="mermaid">${escaped}</pre><script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+mermaid.initialize({startOnLoad:true,theme:'default',securityLevel:'loose'});
+await mermaid.run().catch(()=>{});
+function r(){var h=Math.max(document.body.scrollHeight,document.documentElement.scrollHeight);window.parent.postMessage({type:'canopy-height',h:h},'*');}
+requestAnimationFrame(()=>requestAnimationFrame(()=>{
+  r();setTimeout(r,200);setTimeout(r,600);
+  if(typeof ResizeObserver!=='undefined'){var tm;new ResizeObserver(()=>{clearTimeout(tm);tm=setTimeout(r,50);}).observe(document.body);}
+}));
+</script></body></html>`
   }
   if (lang === 'svg') {
     return `<!DOCTYPE html><html><head><style>body{margin:0;padding:8px;background:#fff;display:flex;justify-content:center}svg{max-width:100%;height:auto}</style></head><body>${code}${HEIGHT_REPORTER}</body></html>`
@@ -607,12 +629,13 @@ function CodeBlockComponent({ node, updateAttributes }: any) {
   const [iframeHeight, setIframeHeight] = useState(160)
   const [codeH, setCodeH] = useState(0)
 
-  // Receive height reports from the preview iframe
+  // Receive height reports from the preview iframe; only update when value meaningfully changes
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (iframeRef.current && e.source === iframeRef.current.contentWindow) {
         if (e.data?.type === 'canopy-height' && typeof e.data.h === 'number') {
-          setIframeHeight(Math.max(60, Math.ceil(e.data.h) + 8))
+          const next = Math.max(60, Math.ceil(e.data.h) + 4)
+          setIframeHeight(prev => Math.abs(next - prev) > 2 ? next : prev)
         }
       }
     }
