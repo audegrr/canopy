@@ -974,7 +974,10 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       case 'h3': editor.chain().focus().toggleHeading({ level: 3 }).run(); break
       case 'bullet': editor.chain().focus().toggleBulletList().run(); break
       case 'numbered': editor.chain().focus().toggleOrderedList().run(); break
-      case 'todo': editor.chain().focus().toggleTaskList().run(); break
+      case 'todo':
+        editor.chain().focus().toggleTaskList().run()
+        setTimeout(() => editor.commands.focus(), 0)
+        break
       case 'quote': editor.chain().focus().toggleBlockquote().run(); break
       case 'callout': editor.chain().focus().insertContent({ type: 'callout', content: [{ type: 'text', text: ' ' }] }).run(); break
       case 'code': editor.chain().focus().toggleCodeBlock().run(); break
@@ -1237,6 +1240,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
             if (inHeading || inCodeBlock) editor.chain().focus().clearNodes().toggleTaskList().run()
             else if (inBlockquote) editor.chain().focus().toggleBlockquote().toggleTaskList().run()
             else editor.chain().focus().toggleTaskList().run()
+            setTimeout(() => editor.commands.focus(), 0)
           }} active={editor.isActive('taskList')} title='To-do list'>☑</FBtn>
           <FBtn onClick={() => {
             if (inHeading || inCodeBlock) editor.chain().focus().clearNodes().toggleBlockquote().run()
