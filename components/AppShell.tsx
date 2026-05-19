@@ -72,6 +72,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [moveToWsMenu, setMoveToWsMenu] = useState<string | null>(null)
   const [newWsModal, setNewWsModal] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const ZOOM_LEVELS = [0.8, 0.9, 1.0, 1.1, 1.2]
+  const [zoom, setZoom] = useState<number>(() => {
+    if (typeof window === 'undefined') return 1.0
+    const saved = parseFloat(localStorage.getItem('canopy_zoom') || '1')
+    return ZOOM_LEVELS.includes(saved) ? saved : 1.0
+  })
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [newWsName, setNewWsName] = useState('')
   const [newWsIcon, setNewWsIcon] = useState('🌿')
@@ -1169,6 +1175,32 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             ))}
           </div>
 
+          {/* Font zoom controls */}
+          {!isMobile && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1px', flexShrink: 0 }}>
+              <button
+                onClick={() => { const i = ZOOM_LEVELS.indexOf(zoom); if (i > 0) { const v = ZOOM_LEVELS[i-1]; setZoom(v); localStorage.setItem('canopy_zoom', String(v)) } }}
+                disabled={zoom === ZOOM_LEVELS[0]}
+                style={{ background: 'none', border: '1px solid var(--border)', cursor: zoom === ZOOM_LEVELS[0] ? 'default' : 'pointer', color: zoom === ZOOM_LEVELS[0] ? 'var(--text-tertiary)' : 'var(--text-secondary)', fontSize: '12px', fontWeight: 600, padding: '4px 7px', borderRadius: '5px 0 0 5px', fontFamily: 'var(--font-sans)', lineHeight: 1, borderRight: 'none' }}
+                onMouseEnter={e => { if (zoom !== ZOOM_LEVELS[0]) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
+                title="Smaller text">A−</button>
+              {zoom !== 1.0 && (
+                <button
+                  onClick={() => { setZoom(1.0); localStorage.setItem('canopy_zoom', '1') }}
+                  style={{ background: 'var(--accent-light)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--accent)', fontSize: '11px', fontWeight: 600, padding: '4px 5px', fontFamily: 'var(--font-sans)', lineHeight: 1, borderRight: 'none', borderLeft: 'none' }}
+                  title="Reset to 100%">{Math.round(zoom * 100)}%</button>
+              )}
+              <button
+                onClick={() => { const i = ZOOM_LEVELS.indexOf(zoom); if (i < ZOOM_LEVELS.length - 1) { const v = ZOOM_LEVELS[i+1]; setZoom(v); localStorage.setItem('canopy_zoom', String(v)) } }}
+                disabled={zoom === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+                style={{ background: 'none', border: '1px solid var(--border)', cursor: zoom === ZOOM_LEVELS[ZOOM_LEVELS.length-1] ? 'default' : 'pointer', color: zoom === ZOOM_LEVELS[ZOOM_LEVELS.length-1] ? 'var(--text-tertiary)' : 'var(--text-secondary)', fontSize: '12px', fontWeight: 600, padding: '4px 7px', borderRadius: '0 5px 5px 0', fontFamily: 'var(--font-sans)', lineHeight: 1 }}
+                onMouseEnter={e => { if (zoom !== ZOOM_LEVELS[ZOOM_LEVELS.length-1]) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
+                title="Larger text">A+</button>
+            </div>
+          )}
+
           {/* Cmd+K button */}
           <button
             onClick={() => setSearchOpen(true)}
@@ -1261,7 +1293,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           <div style={{ height: '2px', background: 'var(--accent)', position: 'absolute', top: '44px', left: sidebarOpen && !isMobile ? '260px' : '0', right: 0, zIndex: 10, animation: 'loadingBar 0.8s ease-out forwards' }} />
         )}
 
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', zoom }}>
           {instantPage
             ? <InstantPageView key={instantPage.page.id} data={instantPage} onNavigate={navigate} isFavorite={favoriteIds.has(instantPage.page.id)} onToggleFavorite={() => toggleFavorite(instantPage.page.id)} />
             : children}
