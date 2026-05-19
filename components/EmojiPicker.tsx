@@ -16,9 +16,11 @@ type Props = {
   onSelect: (emoji: string) => void
   onClose: () => void
   style?: React.CSSProperties
+  inline?: boolean
+  hideRemove?: boolean
 }
 
-export default function EmojiPicker({ onSelect, onClose, style }: Props) {
+export default function EmojiPicker({ onSelect, onClose, style, inline, hideRemove }: Props) {
   const [query, setQuery] = useState('')
   const [activeCategory, setActiveCategory] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -39,6 +41,48 @@ export default function EmojiPicker({ onSelect, onClose, style }: Props) {
   }
 
   const displayEmojis = filtered ?? CATEGORIES[activeCategory]?.emojis ?? []
+
+  if (inline) return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', width: '100%', overflow: 'hidden', ...style }}>
+      <div style={{ padding: '8px', borderBottom: '1px solid var(--border)' }}>
+        <input ref={inputRef} value={query} onChange={e => setQuery(e.target.value)}
+          placeholder="Search emoji…"
+          style={{ width: '100%', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '13px', fontFamily: 'var(--font-sans)', outline: 'none', background: 'var(--sidebar-bg)', color: 'var(--text)', boxSizing: 'border-box' }} />
+      </div>
+      {!query && (
+        <div style={{ display: 'flex', overflowX: 'auto', padding: '4px 6px', gap: '2px', borderBottom: '1px solid var(--border)', scrollbarWidth: 'none' }}>
+          {CATEGORIES.map((cat, i) => (
+            <button key={cat.label} onClick={() => selectCategory(i)} title={cat.label}
+              style={{ flexShrink: 0, background: i === activeCategory ? 'var(--accent-light)' : 'none', border: 'none', borderRadius: '5px', padding: '4px 6px', fontSize: '16px', cursor: 'pointer', lineHeight: 1 }}>
+              {cat.icon}
+            </button>
+          ))}
+        </div>
+      )}
+      <div ref={scrollRef} style={{ display: 'flex', flexWrap: 'wrap', gap: '2px', padding: '8px', maxHeight: '180px', overflowY: 'auto' }}>
+        {displayEmojis.length === 0
+          ? <div style={{ width: '100%', textAlign: 'center', padding: '20px', fontSize: '13px', color: 'var(--text-tertiary)' }}>No results</div>
+          : displayEmojis.map((em, i) => (
+            <button key={i} onClick={() => onSelect(em)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '20px', padding: '4px', borderRadius: '5px', lineHeight: 1 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+              {em}
+            </button>
+          ))}
+      </div>
+      {!hideRemove && (
+        <div style={{ borderTop: '1px solid var(--border)', padding: '4px 8px' }}>
+          <button onClick={() => onSelect('')}
+            style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-tertiary)', padding: '4px', borderRadius: '4px', fontFamily: 'var(--font-sans)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+            Remove icon
+          </button>
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <>
@@ -80,14 +124,14 @@ export default function EmojiPicker({ onSelect, onClose, style }: Props) {
         </div>
 
         {/* Remove icon option */}
-        <div style={{ borderTop: '1px solid var(--border)', padding: '4px 8px' }}>
+        {!hideRemove && <div style={{ borderTop: '1px solid var(--border)', padding: '4px 8px' }}>
           <button onClick={() => { onSelect(''); onClose() }}
             style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-tertiary)', padding: '4px', borderRadius: '4px', fontFamily: 'var(--font-sans)' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
             Remove icon
           </button>
-        </div>
+        </div>}
       </div>
     </>
   )

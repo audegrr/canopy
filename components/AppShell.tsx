@@ -70,7 +70,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [showDeleteAccount, setShowDeleteAccount] = useState(false)
   const [exportMenu, setExportMenu] = useState<{ x: number; y: number; pageId: string } | null>(null)
   const [moveToWsMenu, setMoveToWsMenu] = useState<string | null>(null)
-  const [showWsIconPicker, setShowWsIconPicker] = useState(false)
   const [newWsModal, setNewWsModal] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
@@ -922,27 +921,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', userSelect: 'none' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-            {/* Workspace icon — click to change, separate from workspace menu */}
-            <span style={{ fontSize: '22px', lineHeight: 1, cursor: 'pointer', borderRadius: '4px', padding: '1px' }}
-              onClick={e => { e.stopPropagation(); setShowWsIconPicker(o => !o) }}
-              title="Change icon"
-            >{currentWs.icon}</span>
-            {showWsIconPicker && (
-              <EmojiPicker
-                onSelect={async em => {
-                  if (em) {
-                    await supabase.from('workspaces').update({ icon: em }).eq('id', currentWs.id)
-                    const updated = workspaces.map(w => w.id === currentWs.id ? { ...w, icon: em } : w)
-                    setWorkspaces(updated)
-                    const updatedWs = updated.find(w => w.id === currentWs.id)
-                    if (updatedWs) switchWorkspace(updatedWs)
-                  }
-                  setShowWsIconPicker(false)
-                }}
-                onClose={() => setShowWsIconPicker(false)}
-                style={{ top: '90px', left: '8px' }}
-              />
-            )}
+            <span style={{ fontSize: '22px', lineHeight: 1, borderRadius: '4px', padding: '1px' }}>{currentWs.icon}</span>
             {renamingWs ? (
               <input autoFocus value={wsNameInput} onChange={e => setWsNameInput(e.target.value)}
                 onBlur={() => renameWorkspace(wsNameInput)}
@@ -2178,16 +2157,9 @@ function WsSettingsModal({ workspace, tab, members, owner, inviteEmail, inviteRo
           {tab === 'general' && (
             <div>
               <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>General</div>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '12px' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '50px', flexShrink: 0, paddingTop: '4px' }}>Icon</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                  {['🌿','🌲','🌳','🌴','🌵','🍀','🌱','🌾','🍁','🌸','🏔','🏠','💼','🚀','⭐','💡','🎯','📚','🎨','🔮','🦋','🧠','💎','🔑','🌍'].map(em => (
-                    <button key={em} onClick={() => onIconChange(em)}
-                      style={{ background: workspace.icon === em ? 'var(--accent-light)' : 'none', border: workspace.icon === em ? '2px solid var(--accent)' : '1px solid var(--border)', cursor: 'pointer', fontSize: '18px', padding: '3px 5px', borderRadius: '5px', lineHeight: 1 }}>
-                      {em}
-                    </button>
-                  ))}
-                </div>
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>Icon</div>
+                <EmojiPicker inline hideRemove onSelect={onIconChange} onClose={() => {}} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '50px', flexShrink: 0 }}>Name</div>
