@@ -113,7 +113,7 @@ html, body {
   outline-offset: 1px;
 }
 .tiptap hr { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
-.tiptap table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 0.9em; }
+.tiptap table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 1em; }
 .tiptap th { background: var(--sidebar-bg); font-weight: 500; }
 .tiptap th, .tiptap td { border: 1px solid var(--border); padding: 6px 10px; min-width: 80px; vertical-align: top; position: relative; }
 .tiptap td.selectedCell, .tiptap th.selectedCell { background: var(--accent-light); }
