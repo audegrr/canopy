@@ -69,7 +69,7 @@ html, body {
 .tiptap blockquote { border-left: 3px solid var(--text-tertiary); padding: 4px 16px; color: var(--text-secondary); margin: 6px 0; font-style: italic; }
 .tiptap code { background: rgba(135,131,120,.15); padding: 2px 5px; border-radius: 3px; font-family: 'Fira Code', 'Cascadia Code', monospace; font-size: 0.875em; color: #eb5757; }
 .tiptap pre { background: #1e1e2e; color: #cdd6f4; padding: 1rem; border-radius: var(--radius); overflow-x: auto; margin: 6px 0; }
-.tiptap pre code { background: none; color: inherit; padding: 0; font-size: 0.85rem; }
+.tiptap pre code { background: none; color: inherit; padding: 0; font-size: 0.85em; }
 .tiptap a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 .tiptap img {
   max-width: 100%;
@@ -112,7 +112,7 @@ html, body {
   outline-offset: 1px;
 }
 .tiptap hr { border: none; border-top: 1px solid var(--border); margin: 1rem 0; }
-.tiptap table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 0.9rem; }
+.tiptap table { width: 100%; border-collapse: collapse; margin: 6px 0; font-size: 0.9em; }
 .tiptap th { background: var(--sidebar-bg); font-weight: 500; }
 .tiptap th, .tiptap td { border: 1px solid var(--border); padding: 6px 10px; min-width: 80px; vertical-align: top; position: relative; }
 .tiptap td.selectedCell, .tiptap th.selectedCell { background: var(--accent-light); }
@@ -230,10 +230,10 @@ html, body {
 .floating-sep { width: 1px; height: 18px; background: rgba(255,255,255,0.2); margin: 0 2px; }
 
 /* ── DATABASE ───────────────────────────────────────────────── */
-.db-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.db-table { width: 100%; border-collapse: collapse; font-size: 0.87em; }
 .db-table th {
   background: var(--sidebar-bg);
-  font-weight: 500; font-size: 12px;
+  font-weight: 500; font-size: 0.92em;
   color: var(--text-secondary);
   text-align: left;
   padding: 7px 10px;
