@@ -343,14 +343,17 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   }, [page.id])
 
   // Sync editor content when page.content changes from outside (e.g. load() returns fresh data)
-  // Only apply if there are no unsaved local changes to avoid overwriting in-progress edits
+  // Only apply if there are no unsaved local changes to avoid overwriting in-progress edits.
+  // Also skip if the user has typed beyond the last save (localContentRef ahead of page.content)
+  // — that gap is a save-lag artefact and calling setContent would jump the cursor to the end.
   useEffect(() => {
     if (!editorRef.current || !editorReadyRef.current || !savedRef.current) return
     const editorJson = JSON.stringify(editorRef.current.getJSON())
     const propJson = JSON.stringify(page.content)
-    if (editorJson !== propJson) {
-      editorRef.current.commands.setContent(page.content || '', false)
-    }
+    if (editorJson === propJson) return
+    // If local (in-flight) content differs from page.content the user has typed ahead — skip.
+    if (JSON.stringify(localContentRef.current) !== propJson) return
+    editorRef.current.commands.setContent(page.content || '', false)
   }, [page.content])
 
   useEffect(() => {
