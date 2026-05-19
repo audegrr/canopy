@@ -1371,8 +1371,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           workspace={currentWs} tab={wsSettingsTab} members={wsMembers}
           owner={user} inviteEmail={inviteEmail} inviteRole={inviteRole}
           onTabChange={(tab) => { setWsSettingsTab(tab); if (tab === 'members') loadWsMembers() }}
-          onIconChange={async (em) => { await supabase.from('workspaces').update({ icon: em }).eq('id', currentWs.id); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, icon: em } : w)) }}
-          onNameBlur={async (name) => { await supabase.from('workspaces').update({ name }).eq('id', currentWs.id); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, name } : w)); showToastMsg('Saved!') }}
+          onIconChange={async (em) => { await supabase.from('workspaces').update({ icon: em }).eq('id', currentWs.id); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, icon: em } : w)); setCurrentWs(w => ({ ...w, icon: em })) }}
+          onNameSave={async (name) => { await supabase.from('workspaces').update({ name }).eq('id', currentWs.id); setCurrentWs(w => ({ ...w, name })); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, name } : w)); showToastMsg('Saved!') }}
           onAccentChange={async (color) => { await supabase.from('workspaces').update({ accent_color: color }).eq('id', currentWs.id); setCurrentWs(w => ({ ...w, accent_color: color })); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, accent_color: color } : w)) }}
           onRoleChange={async (memberId, role) => { await supabase.from('workspace_members').update({ role }).eq('id', memberId); loadWsMembers() }}
           onRemoveMember={removeMember}
@@ -2138,16 +2138,18 @@ function InviteLinkSection({ workspaceId }: { workspaceId: string }) {
 }
 
 // ── WORKSPACE SETTINGS MODAL ─────────────────────────────────
-function WsSettingsModal({ workspace, tab, members, owner, inviteEmail, inviteRole, onTabChange, onIconChange, onNameBlur, onAccentChange, onRoleChange, onRemoveMember, onInviteEmailChange, onInviteRoleChange, onInvite, onDelete, onClose }: {
+function WsSettingsModal({ workspace, tab, members, owner, inviteEmail, inviteRole, onTabChange, onIconChange, onNameSave, onAccentChange, onRoleChange, onRemoveMember, onInviteEmailChange, onInviteRoleChange, onInvite, onDelete, onClose }: {
   workspace: Workspace; tab: 'general' | 'members'; members: WsMember[]
   owner: User; inviteEmail: string; inviteRole: 'member' | 'viewer'
   onTabChange: (t: 'general' | 'members') => void
-  onIconChange: (em: string) => void; onNameBlur: (name: string) => void
+  onIconChange: (em: string) => void; onNameSave: (name: string) => void
   onAccentChange: (color: string) => void
   onRoleChange: (memberId: string, role: string) => void; onRemoveMember: (userId: string) => void
   onInviteEmailChange: (v: string) => void; onInviteRoleChange: (v: 'member' | 'viewer') => void
   onInvite: () => void; onDelete: () => void; onClose: () => void
 }) {
+  const [nameVal, setNameVal] = useState(workspace.name)
+  const nameDirty = nameVal.trim() !== workspace.name.trim()
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 2000 }} onClick={onClose} />
@@ -2189,7 +2191,17 @@ function WsSettingsModal({ workspace, tab, members, owner, inviteEmail, inviteRo
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '50px', flexShrink: 0 }}>Name</div>
-                <input defaultValue={workspace.name} onBlur={e => onNameBlur(e.target.value)} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }} onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }} />
+                <input value={nameVal} onChange={e => setNameVal(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && nameDirty) onNameSave(nameVal.trim()) }}
+                  style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }}
+                  onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }}
+                  onBlur={e => { (e.target as HTMLElement).style.borderColor = 'var(--border)' }} />
+                {nameDirty && (
+                  <button onClick={() => onNameSave(nameVal.trim())}
+                    style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '5px', padding: '5px 12px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500, flexShrink: 0 }}>
+                    Save
+                  </button>
+                )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '50px', flexShrink: 0 }}>Colour</div>
