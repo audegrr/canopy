@@ -1108,8 +1108,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                 onKeyDown={e => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
-                    const editorEl = document.querySelector('.tiptap') as HTMLElement
-                    editorEl?.focus()
+                    editorRef.current?.commands.focus('start')
                   }
                 }}
                 className='page-title' style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--text)', outline: 'none', marginBottom: '2px', lineHeight: 1.2, wordBreak: 'break-word', minHeight: '1.2em', fontFamily: 'var(--font-sans)' }}

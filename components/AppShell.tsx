@@ -49,7 +49,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<'profile'|'appearance'>('profile')
   const [wsSettingsOpen, setWsSettingsOpen] = useState(false)
-  const [wsSettingsTab, setWsSettingsTab] = useState<'general'|'members'>('general')
+  const [wsSettingsTab, setWsSettingsTab] = useState<'general'|'members'|'danger'>('general')
   const [sharedCollapsed, setSharedCollapsed] = useState(false)
   const { theme, setTheme } = useTheme()
   const [wsMembers, setWsMembers] = useState<WsMember[]>([])
@@ -186,7 +186,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             })))
           }
           setCurrentWs(found)
-          if (savedPage && savedPage !== '/app') {
+          if (savedPage && savedPage !== '/app' && pathname === '/app') {
             router.replace(savedPage)
           }
         })
@@ -1349,7 +1349,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         <WsSettingsModal
           workspace={currentWs} tab={wsSettingsTab} members={wsMembers}
           owner={user} inviteEmail={inviteEmail} inviteRole={inviteRole}
-          onTabChange={(tab) => { setWsSettingsTab(tab); if (tab === 'members') loadWsMembers() }}
+          onTabChange={(tab) => { setWsSettingsTab(tab as 'general'|'members'|'danger'); if (tab === 'members') loadWsMembers() }}
           onIconChange={async (em) => { await supabase.from('workspaces').update({ icon: em }).eq('id', currentWs.id); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, icon: em } : w)); setCurrentWs(w => ({ ...w, icon: em })) }}
           onNameSave={async (name) => { await supabase.from('workspaces').update({ name }).eq('id', currentWs.id); setCurrentWs(w => ({ ...w, name })); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, name } : w)); showToastMsg('Saved!') }}
           onAccentChange={async (color) => { await supabase.from('workspaces').update({ accent_color: color }).eq('id', currentWs.id); setCurrentWs(w => ({ ...w, accent_color: color })); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, accent_color: color } : w)) }}
@@ -2118,9 +2118,9 @@ function InviteLinkSection({ workspaceId }: { workspaceId: string }) {
 
 // ── WORKSPACE SETTINGS MODAL ─────────────────────────────────
 function WsSettingsModal({ workspace, tab, members, owner, inviteEmail, inviteRole, onTabChange, onIconChange, onNameSave, onAccentChange, onRoleChange, onRemoveMember, onInviteEmailChange, onInviteRoleChange, onInvite, onDelete, onClose }: {
-  workspace: Workspace; tab: 'general' | 'members'; members: WsMember[]
+  workspace: Workspace; tab: 'general' | 'members' | 'danger'; members: WsMember[]
   owner: User; inviteEmail: string; inviteRole: 'member' | 'viewer'
-  onTabChange: (t: 'general' | 'members') => void
+  onTabChange: (t: 'general' | 'members' | 'danger') => void
   onIconChange: (em: string) => void; onNameSave: (name: string) => void
   onAccentChange: (color: string) => void
   onRoleChange: (memberId: string, role: string) => void; onRemoveMember: (userId: string) => void
@@ -2137,12 +2137,12 @@ function WsSettingsModal({ workspace, tab, members, owner, inviteEmail, inviteRo
           <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0 6px 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {workspace.icon} {workspace.name}
           </div>
-          {(['general', 'members'] as const).map(t => (
+          {([['general','⚙️','General'],['members','👥','Members'],['danger','⚠️','Danger']] as const).map(([t, icon, label]) => (
             <div key={t} onClick={() => onTabChange(t)}
-              style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', fontWeight: tab === t ? 500 : 400, color: tab === t ? 'var(--text)' : 'var(--text-secondary)', background: tab === t ? 'var(--sidebar-active)' : 'none', marginBottom: '2px' }}
-              onMouseEnter={e => { if (tab !== t) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', fontWeight: tab === t ? 500 : 400, color: tab === t ? (t === 'danger' ? 'var(--red)' : 'var(--text)') : (t === 'danger' ? 'var(--red)' : 'var(--text-secondary)'), background: tab === t ? 'var(--sidebar-active)' : 'none', marginBottom: '2px', opacity: t === 'danger' ? 0.85 : 1 }}
+              onMouseEnter={e => { if (tab !== t) (e.currentTarget as HTMLElement).style.background = t === 'danger' ? '#fff0f0' : 'var(--sidebar-hover)' }}
               onMouseLeave={e => { if (tab !== t) (e.currentTarget as HTMLElement).style.background = 'none' }}>
-              {t === 'general' ? '⚙️' : '👥'} {t.charAt(0).toUpperCase() + t.slice(1)}
+              {icon} {label}
             </div>
           ))}
           <div style={{ borderTop: '1px solid var(--border)', position: 'absolute', bottom: '12px', width: '134px' }}>
@@ -2186,9 +2186,15 @@ function WsSettingsModal({ workspace, tab, members, owner, inviteEmail, inviteRo
                     style={{ width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--border)', cursor: 'pointer', padding: 0 }} title="Custom colour" />
                 </div>
               </div>
-              <div style={{ borderTop: '1px solid var(--border)', marginTop: '16px', paddingTop: '12px' }}>
-                <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Danger zone</div>
-                <button onClick={onDelete} style={{ border: '1px solid #fecaca', background: 'none', borderRadius: '5px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--red)' }}>Delete workspace</button>
+            </div>
+          )}
+          {tab === 'danger' && (
+            <div>
+              <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Danger zone</div>
+              <div style={{ background: '#fff5f5', border: '1px solid #fecaca', borderRadius: '8px', padding: '14px 16px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', marginBottom: '4px' }}>Delete this workspace</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px' }}>This will permanently delete the workspace and all its pages. This action cannot be undone.</div>
+                <button onClick={onDelete} style={{ border: 'none', background: 'var(--red)', borderRadius: '5px', padding: '6px 14px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500, color: '#fff' }}>Delete workspace</button>
               </div>
             </div>
           )}
