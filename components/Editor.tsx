@@ -848,6 +848,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   const [blockCtxMenu, setBlockCtxMenu] = useState<{ x: number; y: number; pos: number } | null>(null)
   const [bubbleMenuEnabled, setBubbleMenuEnabled] = useState(true)
   const bubbleMenuEnabledRef = useRef(true)
+  const [tableToolbarPos, setTableToolbarPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
   const editor = useEditor({
     extensions: [
@@ -1052,6 +1053,33 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
     if (!editor) return
     editor.setEditable(editable)
   }, [editor, editable])
+
+  useEffect(() => {
+    if (!editor) return
+    const updateTablePos = () => {
+      if (!editor.isActive('tableCell') && !editor.isActive('tableHeader')) {
+        setTableToolbarPos(null)
+        return
+      }
+      try {
+        const { from } = editor.state.selection
+        const domPos = editor.view.domAtPos(from)
+        let node = (domPos.node instanceof Text ? domPos.node.parentElement : domPos.node) as HTMLElement | null
+        while (node && node.tagName !== 'TABLE') node = node.parentElement
+        if (!node) { setTableToolbarPos(null); return }
+        const rect = node.getBoundingClientRect()
+        setTableToolbarPos({ top: rect.top, left: rect.left, width: rect.width })
+      } catch { setTableToolbarPos(null) }
+    }
+    editor.on('selectionUpdate', updateTablePos)
+    editor.on('update', updateTablePos)
+    window.addEventListener('scroll', updateTablePos, true)
+    return () => {
+      editor.off('selectionUpdate', updateTablePos)
+      editor.off('update', updateTablePos)
+      window.removeEventListener('scroll', updateTablePos, true)
+    }
+  }, [editor])
 
   useEffect(() => {
     if (!atMenu || !workspaceId) return
@@ -1419,31 +1447,27 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
         </div>
       </BubbleMenu>
 
-      {/* Table toolbar */}
-      <BubbleMenu
-        editor={editor}
-        tippyOptions={{ duration: 100, placement: 'top', interactive: true }}
-        shouldShow={({ editor: ed }) => ed.isActive('tableCell') || ed.isActive('tableHeader')}
-      >
-        {(() => {
-          const btnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px 7px', borderRadius: '4px', fontSize: '12px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap' }
-          const hoverIn = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }
-          const hoverOut = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'none' }
-          return (
-            <div style={{ display: 'flex', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '3px', boxShadow: 'var(--shadow-lg)', gap: '1px' }} onMouseDown={e => e.preventDefault()}>
-              <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().addRowBefore().run()} title="Add row above">↑ Row</button>
-              <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().addRowAfter().run()} title="Add row below">↓ Row</button>
-              <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().deleteRow().run()} title="Delete row" >✕ Row</button>
-              <div style={{ width: 1, background: 'var(--border)', margin: '2px 2px' }} />
-              <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().addColumnBefore().run()} title="Add column left">← Col</button>
-              <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().addColumnAfter().run()} title="Add column right">→ Col</button>
-              <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().deleteColumn().run()} title="Delete column">✕ Col</button>
-              <div style={{ width: 1, background: 'var(--border)', margin: '2px 2px' }} />
-              <button style={{ ...btnStyle, color: '#eb5757' }} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor.chain().focus().deleteTable().run()} title="Delete table">🗑 Table</button>
-            </div>
-          )
-        })()}
-      </BubbleMenu>
+      {/* Table toolbar — fixed above the active table */}
+      {tableToolbarPos && editable && (() => {
+        const btnStyle: React.CSSProperties = { background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '4px 7px', borderRadius: '4px', fontSize: '12px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '3px', whiteSpace: 'nowrap', flexShrink: 0 }
+        const hoverIn = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }
+        const hoverOut = (e: React.MouseEvent) => { (e.currentTarget as HTMLElement).style.background = 'none' }
+        const sep = <div style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch', margin: '3px 2px', flexShrink: 0 }} />
+        return (
+          <div onMouseDown={e => e.preventDefault()} style={{ position: 'fixed', top: Math.max(4, tableToolbarPos.top - 38), left: tableToolbarPos.left, width: tableToolbarPos.width, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', padding: '2px 4px', boxShadow: 'var(--shadow-lg)', zIndex: 50, display: 'flex', alignItems: 'center', gap: '1px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+            <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor!.chain().focus().addRowBefore().run()} title="Add row above">↑ Row</button>
+            <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor!.chain().focus().addRowAfter().run()} title="Add row below">↓ Row</button>
+            <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor!.chain().focus().deleteRow().run()} title="Delete row">✕ Row</button>
+            {sep}
+            <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor!.chain().focus().addColumnBefore().run()} title="Add column left">← Col</button>
+            <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor!.chain().focus().addColumnAfter().run()} title="Add column right">→ Col</button>
+            <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor!.chain().focus().deleteColumn().run()} title="Delete column">✕ Col</button>
+            <div style={{ flex: 1 }} />
+            {sep}
+            <button style={{ ...btnStyle, color: '#eb5757' }} onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff0f0' }} onMouseLeave={hoverOut} onClick={() => editor!.chain().focus().deleteTable().run()} title="Delete table">🗑 Delete table</button>
+          </div>
+        )
+      })()}
 
       <EditorContent editor={editor} />
 
