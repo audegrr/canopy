@@ -1100,6 +1100,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                 contentEditable
                 suppressContentEditableWarning
                 onInput={onTitleInput}
+                onPaste={e => {
+                  e.preventDefault()
+                  const text = e.clipboardData.getData('text/plain')
+                  document.execCommand('insertText', false, text)
+                }}
                 onKeyDown={e => {
                   if (e.key === 'Enter') {
                     e.preventDefault()
