@@ -15,6 +15,7 @@ import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import Image from '@tiptap/extension-image'
 import { Node, mergeAttributes } from '@tiptap/core'
+import { TextSelection } from '@tiptap/pm/state'
 import { createClient } from '@/lib/supabase/client'
 
 // ── Video node ─────────────────────────────────────────
@@ -931,6 +932,24 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       },
     editorProps: {
       handleDOMEvents: {
+        // When clicking below the last block (dead zone created by min-height),
+        // insert a trailing paragraph instead of placing the cursor inside the block.
+        click: (view, event) => {
+          if (!editable) return false
+          const { doc, schema } = view.state
+          const lastChild = doc.lastChild
+          if (!lastChild || lastChild.type.name === 'paragraph') return false
+          const lastOffset = doc.content.size - lastChild.nodeSize
+          const lastDom = view.nodeDOM(lastOffset) as Element | null
+          if (!lastDom) return false
+          if ((event as MouseEvent).clientY <= lastDom.getBoundingClientRect().bottom) return false
+          const insertPos = doc.content.size
+          view.dispatch(view.state.tr.insert(insertPos, schema.nodes.paragraph.create()))
+          const $end = view.state.doc.resolve(view.state.doc.content.size - 1)
+          view.dispatch(view.state.tr.setSelection(TextSelection.near($end)))
+          view.focus()
+          return true
+        },
         contextmenu: (view, event) => {
           if (!editable) return false
           event.preventDefault()

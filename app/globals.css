@@ -51,7 +51,8 @@ html, body {
 ::selection { background: rgba(35,131,226,0.2); }
 
 /* ── TIPTAP EDITOR ─────────────────────────────────────────── */
-.tiptap { outline: none; min-height: 200px; }
+.tiptap { outline: none; }
+.tiptap.is-editor-empty { min-height: 200px; }
 .tiptap p { margin: 2px 0; line-height: 1.65; }
 .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
