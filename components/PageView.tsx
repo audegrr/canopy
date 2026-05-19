@@ -181,16 +181,26 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       .then(({ data }) => setSubPages(data || []))
   }, [page.id])
 
-  // Sync sub-page title/icon updates from sidebar events
+  // Sync title/icon updates from sidebar events (rename, icon change)
   useEffect(() => {
     const handler = (e: Event) => {
       const { id, title, icon } = (e as CustomEvent).detail || {}
       if (!id) return
+      // Update sub-pages list
       setSubPages(sp => sp.map(p => p.id === id ? { ...p, ...(title !== undefined ? { title } : {}), ...(icon !== undefined ? { icon } : {}) } : p))
+      // Update the current page if it's the one being renamed
+      if (id === page.id) {
+        if (title !== undefined) {
+          setPage(p => ({ ...p, title }))
+          if (titleRef.current && titleRef.current.textContent !== title) titleRef.current.textContent = title
+          document.title = (title || 'Untitled') + ' — Canopy'
+        }
+        if (icon !== undefined) setPage(p => ({ ...p, icon }))
+      }
     }
     window.addEventListener('canopy:pageUpdate', handler)
     return () => window.removeEventListener('canopy:pageUpdate', handler)
-  }, [])
+  }, [page.id])
 
   // Realtime: live sync + presence
   useEffect(() => {
@@ -1074,7 +1084,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           )}
 
           {/* Page body */}
-          <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? '1200px' : '900px', margin: '0 auto', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 60px 80px') : (isMobile ? '32px 20px 60px' : '64px 60px 80px'), transition: 'max-width 0.3s ease' }}>
+          <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? '1200px' : '900px', margin: '0 auto', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 60px 80px') : (isMobile ? '32px 20px 60px' : '64px 60px 80px'), transition: 'max-width 0.3s ease', fontSize: 'calc(1rem * var(--content-zoom, 1))' }}>
 
             {/* Shared-by notice */}
             {!isOwner && ownerName && (
@@ -1151,11 +1161,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                     }
                   }
                 }}
-                className='page-title' style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--text)', outline: 'none', marginBottom: '2px', lineHeight: 1.2, wordBreak: 'break-word', minHeight: '1.2em', fontFamily: 'var(--font-sans)' }}
+                className='page-title' style={{ fontSize: '2.5em', fontWeight: 700, color: 'var(--text)', outline: 'none', marginBottom: '2px', lineHeight: 1.2, wordBreak: 'break-word', minHeight: '1.2em', fontFamily: 'var(--font-sans)' }}
                 data-placeholder="Untitled"
               />
             ) : (
-              <h1 style={{ fontSize: '2.5rem', fontWeight: 700, color: 'var(--text)', marginBottom: '2px', lineHeight: 1.2, fontFamily: 'var(--font-sans)' }}>
+              <h1 style={{ fontSize: '2.5em', fontWeight: 700, color: 'var(--text)', marginBottom: '2px', lineHeight: 1.2, fontFamily: 'var(--font-sans)' }}>
                 {page.title || 'Untitled'}
               </h1>
             )}

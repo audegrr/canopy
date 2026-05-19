@@ -118,6 +118,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }, [])
 
   useEffect(() => {
+    document.body.style.setProperty('--content-zoom', String(zoom))
+  }, [zoom])
+
+  useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement)?.tagName
       const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable
@@ -497,6 +501,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     if (error) { showError('Failed to rename page'); return }
     setPages(p => p.map(x => x.id === pageId ? { ...x, title } : x))
     setSharedPages(sp => sp.map(x => x.id === pageId ? { ...x, title } : x))
+    window.dispatchEvent(new CustomEvent('canopy:pageUpdate', { detail: { id: pageId, title } }))
     setRenamingPageId(null)
   }
 
@@ -1177,27 +1182,25 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
           {/* Font zoom controls */}
           {!isMobile && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden' }}>
               <button
                 onClick={() => { const i = ZOOM_LEVELS.indexOf(zoom); if (i > 0) { const v = ZOOM_LEVELS[i-1]; setZoom(v); localStorage.setItem('canopy_zoom', String(v)) } }}
                 disabled={zoom === ZOOM_LEVELS[0]}
-                style={{ background: 'none', border: '1px solid var(--border)', cursor: zoom === ZOOM_LEVELS[0] ? 'default' : 'pointer', color: zoom === ZOOM_LEVELS[0] ? 'var(--text-tertiary)' : 'var(--text-secondary)', fontSize: '12px', fontWeight: 600, padding: '4px 7px', borderRadius: '5px 0 0 5px', fontFamily: 'var(--font-sans)', lineHeight: 1, borderRight: 'none' }}
+                style={{ background: 'none', border: 'none', cursor: zoom === ZOOM_LEVELS[0] ? 'default' : 'pointer', color: zoom === ZOOM_LEVELS[0] ? 'var(--text-tertiary)' : 'var(--text-secondary)', fontSize: '14px', fontWeight: 400, padding: '4px 8px', fontFamily: 'var(--font-sans)', lineHeight: 1, borderRight: '1px solid var(--border)' }}
                 onMouseEnter={e => { if (zoom !== ZOOM_LEVELS[0]) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
-                title="Smaller text">A−</button>
-              {zoom !== 1.0 && (
-                <button
-                  onClick={() => { setZoom(1.0); localStorage.setItem('canopy_zoom', '1') }}
-                  style={{ background: 'var(--accent-light)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--accent)', fontSize: '11px', fontWeight: 600, padding: '4px 5px', fontFamily: 'var(--font-sans)', lineHeight: 1, borderRight: 'none', borderLeft: 'none' }}
-                  title="Reset to 100%">{Math.round(zoom * 100)}%</button>
-              )}
+                title="Smaller text">−</button>
+              <button
+                onClick={() => { setZoom(1.0); localStorage.setItem('canopy_zoom', '1') }}
+                style={{ background: zoom !== 1.0 ? 'var(--accent-light)' : 'none', border: 'none', cursor: zoom !== 1.0 ? 'pointer' : 'default', color: zoom !== 1.0 ? 'var(--accent)' : 'var(--text-tertiary)', fontSize: '11px', fontWeight: 500, padding: '4px 6px', fontFamily: 'var(--font-sans)', lineHeight: 1, minWidth: '34px', textAlign: 'center' }}
+                title={zoom !== 1.0 ? 'Reset to 100%' : 'Text size'}>{Math.round(zoom * 100)}%</button>
               <button
                 onClick={() => { const i = ZOOM_LEVELS.indexOf(zoom); if (i < ZOOM_LEVELS.length - 1) { const v = ZOOM_LEVELS[i+1]; setZoom(v); localStorage.setItem('canopy_zoom', String(v)) } }}
                 disabled={zoom === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
-                style={{ background: 'none', border: '1px solid var(--border)', cursor: zoom === ZOOM_LEVELS[ZOOM_LEVELS.length-1] ? 'default' : 'pointer', color: zoom === ZOOM_LEVELS[ZOOM_LEVELS.length-1] ? 'var(--text-tertiary)' : 'var(--text-secondary)', fontSize: '12px', fontWeight: 600, padding: '4px 7px', borderRadius: '0 5px 5px 0', fontFamily: 'var(--font-sans)', lineHeight: 1 }}
+                style={{ background: 'none', border: 'none', cursor: zoom === ZOOM_LEVELS[ZOOM_LEVELS.length-1] ? 'default' : 'pointer', color: zoom === ZOOM_LEVELS[ZOOM_LEVELS.length-1] ? 'var(--text-tertiary)' : 'var(--text-secondary)', fontSize: '14px', fontWeight: 400, padding: '4px 8px', fontFamily: 'var(--font-sans)', lineHeight: 1, borderLeft: '1px solid var(--border)' }}
                 onMouseEnter={e => { if (zoom !== ZOOM_LEVELS[ZOOM_LEVELS.length-1]) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
-                title="Larger text">A+</button>
+                title="Larger text">+</button>
             </div>
           )}
 
@@ -1293,7 +1296,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           <div style={{ height: '2px', background: 'var(--accent)', position: 'absolute', top: '44px', left: sidebarOpen && !isMobile ? '260px' : '0', right: 0, zIndex: 10, animation: 'loadingBar 0.8s ease-out forwards' }} />
         )}
 
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', zoom }}>
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
           {instantPage
             ? <InstantPageView key={instantPage.page.id} data={instantPage} onNavigate={navigate} isFavorite={favoriteIds.has(instantPage.page.id)} onToggleFavorite={() => toggleFavorite(instantPage.page.id)} />
             : children}
