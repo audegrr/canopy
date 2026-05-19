@@ -39,6 +39,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   const [subpageList, setSubpageList] = useState<any[]>([])
   const [isUploadingCover, setIsUploadingCover] = useState(false)
   const saveTimer = useRef<any>(null)
+  const pendingSaveRef = useRef<Partial<Page> | null>(null)
   const [editorInstance, setEditorInstance] = useState<any>(null)
   const [remoteConflict, setRemoteConflict] = useState<{ content: any; title: string } | null>(null)
   const [presenceUsers, setPresenceUsers] = useState<{ userId: string; name: string; color: string; section?: string }[]>([])
@@ -81,6 +82,19 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     check()
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
+  }, [])
+
+  // Flush any pending debounced save immediately on unmount (prevents data loss on navigation)
+  useEffect(() => {
+    const pageId = page.id
+    return () => {
+      if (saveTimer.current && pendingSaveRef.current) {
+        clearTimeout(saveTimer.current)
+        const data = pendingSaveRef.current
+        pendingSaveRef.current = null
+        supabase.from('pages').update({ ...data, updated_at: new Date().toISOString() }).eq('id', pageId).then(() => {})
+      }
+    }
   }, [])
 
   useEffect(() => {
@@ -318,6 +332,17 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     }
   }, [page.id])
 
+  // Sync editor content when page.content changes from outside (e.g. load() returns fresh data)
+  // Only apply if there are no unsaved local changes to avoid overwriting in-progress edits
+  useEffect(() => {
+    if (!editorRef.current || !editorReadyRef.current || !savedRef.current) return
+    const editorJson = JSON.stringify(editorRef.current.getJSON())
+    const propJson = JSON.stringify(page.content)
+    if (editorJson !== propJson) {
+      editorRef.current.commands.setContent(page.content || '', false)
+    }
+  }, [page.content])
+
   useEffect(() => {
     if (!isOwner && page.owner_id) {
       supabase.from('profiles').select('full_name, email').eq('id', page.owner_id).single()
@@ -350,18 +375,21 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
 
   function scheduleSave(updates: Partial<Page>) {
     if (!editorReadyRef.current) return  // suppress TipTap init-time onUpdate calls
+    pendingSaveRef.current = { ...(pendingSaveRef.current ?? {}), ...updates }
     setSaved(false)
     savedRef.current = false
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(async () => {
+      const pending = pendingSaveRef.current ?? updates
+      pendingSaveRef.current = null
       const ts = new Date().toISOString()
       const normTs = (t: string) => { try { return new Date(t).toISOString() } catch { return t } }
       lastSaveTimestamp.current = ts
       saveTimestamps.current.add(normTs(ts))
       // Track saved content to suppress false conflicts from our own realtime echoes
-      const contentStr = JSON.stringify(updates.content)
-      if (updates.content) savedContents.current.add(contentStr)
-      await supabase.from('pages').update({ ...updates, updated_at: ts }).eq('id', page.id)
+      const contentStr = JSON.stringify(pending.content ?? updates.content)
+      if (pending.content ?? updates.content) savedContents.current.add(contentStr)
+      await supabase.from('pages').update({ ...pending, updated_at: ts }).eq('id', page.id)
       // Keep timestamp in the set for 20s so delayed realtime events are recognised as ours
       setTimeout(() => saveTimestamps.current.delete(normTs(ts)), 20_000)
       if (updates.content) setTimeout(() => savedContents.current.delete(contentStr), 20_000)
@@ -380,11 +408,16 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     }, 800)
   }
 
+  function updatePageCache(patch: Partial<Page>) {
+    const wc = (window as any).__pageCache
+    if (wc?.has(page.id)) wc.set(page.id, { ...wc.get(page.id), page: { ...wc.get(page.id).page, ...patch } })
+  }
+
   function onTitleInput(e: React.FormEvent<HTMLDivElement>) {
     const title = (e.target as HTMLDivElement).textContent || ''
     setPage(p => ({ ...p, title }) as Page)
     scheduleSave({ title })
-    // Immediately update sidebar
+    updatePageCache({ title })
     window.dispatchEvent(new CustomEvent('canopy:pageUpdate', { detail: { id: page.id, title } }))
     document.title = (title || 'Untitled') + ' — Canopy'
   }
@@ -394,6 +427,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     // Don't call setPage(content) on every keystroke — reduces re-renders and cursor jumps.
     // page.content is updated in scheduleSave after the debounced write completes.
     scheduleSave({ content })
+    updatePageCache({ content })
     // Deep traversal for headings — matches querySelectorAll DOM order
     const topNodes: any[] = Array.isArray(content) ? content : (content?.content || [])
     const hs: { level: number; text: string; idx: number }[] = []
