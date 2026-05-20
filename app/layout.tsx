@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     title: 'Canopy',
   },
   icons: {
-    icon: '/favicon.ico',
+    icon: '/canopy_favicon_no_bg.ico',
     apple: '/favicon.ico',
   },
 }

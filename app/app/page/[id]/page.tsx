@@ -119,7 +119,7 @@ export default function PageRoute() {
 
   if (error) return (
     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12 }}>
-      <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 48, height: 48, objectFit: 'contain' }} />
+      <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 72, height: 72, objectFit: 'contain' }} />
       <p style={{ color: 'var(--text-secondary)', fontSize: 15 }}>Page not found or access denied.</p>
       <button onClick={() => router.push('/app')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 14 }}>← Back to home</button>
     </div>
