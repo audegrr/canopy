@@ -13,10 +13,9 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: '/canopy_logo@2x.png', type: 'image/png' },
-      { url: '/favicon.ico' },
+      { url: '/canopy_favicon_no_bg.ico' },
     ],
-    apple: '/canopy_logo@2x.png',
+    apple: '/canopy_favicon_no_bg.ico',
   },
 }
 

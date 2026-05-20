@@ -927,8 +927,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 10px 10px', fontFamily: 'var(--font-sans)' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.75' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}>
-            <img src="/canopy_logo@2x.png" alt="Canopy" style={{ width: 28, height: 28, objectFit: 'contain', flexShrink: 0 }} />
-            <span style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' }}>Canopy</span>
+            <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 38, height: 38, objectFit: 'contain', flexShrink: 0 }} />
+            <span style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' }}>Canopy</span>
           </button>
           <div onClick={() => setWsMenuOpen(o => !o)}
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', userSelect: 'none' }}
