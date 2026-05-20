@@ -12,10 +12,8 @@ export const metadata: Metadata = {
     title: 'Canopy',
   },
   icons: {
-    icon: [
-      { url: '/canopy_favicon_no_bg.ico' },
-    ],
-    apple: '/canopy_favicon_no_bg.ico',
+    icon: '/favicon.ico',
+    apple: '/favicon.ico',
   },
 }
 
