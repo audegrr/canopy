@@ -931,7 +931,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 38, height: 38, objectFit: 'contain', flexShrink: 0 }} />
             <span style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' }}>Canopy</span>
           </button>
-          <div style={{ height: '1px', background: 'var(--border)', margin: '0 4px 4px' }} />
+          <div style={{ height: '1px', background: 'var(--text-tertiary)', margin: '0 4px 4px', opacity: 0.3 }} />
           <div onClick={() => setWsMenuOpen(o => !o)}
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', userSelect: 'none' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; setWsRowHovered(true) }}
@@ -997,6 +997,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             </div>
           )}
         </div>
+        <div style={{ height: '1px', background: 'var(--text-tertiary)', margin: '0 12px', opacity: 0.3 }} />
 
         {/* Quick actions */}
         <div style={{ padding: '2px 10px 8px', display: 'flex', gap: '4px', flexShrink: 0 }}>
