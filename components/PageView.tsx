@@ -387,7 +387,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   }
 
   function scheduleSave(updates: Partial<Page>) {
-    if (!editorReadyRef.current) return  // suppress TipTap init-time onUpdate calls
+    if (updates.content && !editorReadyRef.current) return  // suppress TipTap init-time onUpdate calls
     pendingSaveRef.current = { ...(pendingSaveRef.current ?? {}), ...updates }
     setSaved(false)
     savedRef.current = false
