@@ -925,7 +925,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         <div style={{ padding: '10px 8px 4px', flexShrink: 0, position: 'relative' }}>
           {/* Home button */}
           <button onClick={() => navigate('/app')}
-            style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 10px 28px', fontFamily: 'var(--font-sans)' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 10px 28px', fontFamily: 'var(--font-sans)' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.75' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}>
             <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 38, height: 38, objectFit: 'contain', flexShrink: 0 }} />
