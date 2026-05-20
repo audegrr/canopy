@@ -473,8 +473,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   function setIcon(icon: string) {
     setPage(p => ({ ...p, icon }) as Page)
     scheduleSave({ icon })
+    updatePageCache({ icon })
     setShowIconPicker(false)
-    // Immediately update sidebar
     window.dispatchEvent(new CustomEvent('canopy:pageUpdate', { detail: { id: page.id, icon } }))
   }
 
@@ -498,6 +498,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       const url = data.publicUrl
       setPage(p => ({ ...p, cover_url: url }) as Page)
       scheduleSave({ cover_url: url })
+      updatePageCache({ cover_url: url })
     } else {
       showToast('Upload failed')
     }
@@ -507,6 +508,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   async function removeCover() {
     setPage(p => ({ ...p, cover_url: '' }) as Page)
     scheduleSave({ cover_url: '' })
+    updatePageCache({ cover_url: '' })
   }
 
   async function inviteUser() {
