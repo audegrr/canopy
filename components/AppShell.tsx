@@ -1150,11 +1150,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                   <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '2px' }}>{user.name}</div>
                   <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{user.email}</div>
                 </div>
-                <MenuItem onClick={() => { setUserMenuOpen(false); setSettingsTab('profile'); setSettingsOpen(true) }}>👤 Profile & settings</MenuItem>
-                <MenuItem onClick={() => { setUserMenuOpen(false); setSettingsTab('appearance'); setSettingsOpen(true) }}>🎨 Appearance</MenuItem>
+                <MenuItem onClick={() => { setUserMenuOpen(false); setSettingsTab('profile'); setSettingsOpen(true) }}>⚙️ Settings</MenuItem>
                 <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
                 <MenuItem onClick={() => { handleSignOut(); setUserMenuOpen(false) }}>🚪 Sign out</MenuItem>
-                <MenuItem danger onClick={() => { setShowDeleteAccount(true); setUserMenuOpen(false) }}>🗑️ Delete account</MenuItem>
               </div>
             </>
           )}
