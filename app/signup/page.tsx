@@ -27,7 +27,7 @@ export default function SignupPage() {
   if (done) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '48px', marginBottom: '16px' }}>🌿</div>
+        <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 56, height: 56, objectFit: 'contain', marginBottom: '16px' }} />
         <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '8px', color: '#37352f' }}>Check your email</h2>
         <p style={{ color: '#787774', fontSize: '14px' }}>We sent a confirmation link to <strong>{email}</strong></p>
         <Link href="/login" style={{ display: 'inline-block', marginTop: '20px', color: '#2383e2', fontSize: '14px' }}>Back to login</Link>
@@ -39,7 +39,7 @@ export default function SignupPage() {
     <div style={{ minHeight: '100vh', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
       <div style={{ width: '100%', maxWidth: '380px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ fontSize: '36px', marginBottom: '8px' }}>🌿</div>
+          <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 48, height: 48, objectFit: 'contain', marginBottom: '8px' }} />
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#37352f', marginBottom: '4px' }}>Canopy</h1>
           <p style={{ color: '#787774', fontSize: '14px' }}>Create your account</p>
         </div>
