@@ -1001,7 +1001,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         <div style={{ height: '1px', background: 'var(--text-tertiary)', margin: '0 12px', opacity: 0.3 }} />
 
         {/* Quick actions */}
-        <div style={{ padding: '2px 10px 8px', display: 'flex', gap: '4px', flexShrink: 0 }}>
+        <div style={{ padding: '8px 10px 8px', display: 'flex', gap: '4px', flexShrink: 0 }}>
           <QuickBtn onClick={() => createPage(null)} title="New page" flex>
             <span style={{ fontSize: '15px' }}>📄</span>
             <span style={{ fontSize: '12.5px' }}>New page</span>
