@@ -611,9 +611,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     })))
 
     setNavigating(false)
-    // Don't navigate — just update the sidebar, user stays where they are
-    setInstantPage(null)
-    router.replace('/app')
+    navigate('/app')
   }
 
 
