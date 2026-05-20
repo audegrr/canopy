@@ -58,6 +58,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [profileName, setProfileName] = useState(user.name)
   const [renamingWs, setRenamingWs] = useState(false)
   const [wsNameInput, setWsNameInput] = useState('')
+  const [wsRowHovered, setWsRowHovered] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; pageId: string } | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
@@ -930,10 +931,11 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 38, height: 38, objectFit: 'contain', flexShrink: 0 }} />
             <span style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.01em' }}>Canopy</span>
           </button>
+          <div style={{ height: '1px', background: 'var(--border)', margin: '0 4px 4px' }} />
           <div onClick={() => setWsMenuOpen(o => !o)}
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', userSelect: 'none' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; setWsRowHovered(true) }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; setWsRowHovered(false) }}>
             <span style={{ fontSize: '22px', lineHeight: 1, borderRadius: '4px', padding: '1px' }}>{currentWs.icon}</span>
             {renamingWs ? (
               <input autoFocus value={wsNameInput} onChange={e => setWsNameInput(e.target.value)}
@@ -944,11 +946,13 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             ) : (
               <span style={{ flex: 1, fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentWs.name}</span>
             )}
-            <button onClick={e => { e.stopPropagation(); setWsSettingsTab('general'); setWsSettingsOpen(true); setWsMenuOpen(false); loadWsMembers() }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '18px', padding: '2px 5px', borderRadius: '4px', flexShrink: 0, opacity: 0, transition: 'opacity 0.1s, background 0.1s', lineHeight: 1 }}
-              className="ws-gear-btn" title="Workspace settings"
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>⚙</button>
+            {wsRowHovered && (
+              <button onClick={e => { e.stopPropagation(); setWsSettingsTab('general'); setWsSettingsOpen(true); setWsMenuOpen(false); loadWsMembers() }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '18px', padding: '2px 5px', borderRadius: '4px', flexShrink: 0, lineHeight: 1 }}
+                title="Workspace settings"
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>⚙</button>
+            )}
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: '1px' }} xmlns="http://www.w3.org/2000/svg">
               <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
