@@ -299,6 +299,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   function navigate(path: string) {
     // Persist last page for refresh restore
     if (path.startsWith('/app')) localStorage.setItem('canopy_last_page', path)
+    // Already on this path — clear any overlay but don't trigger loading state
+    if (path === pathname) { setInstantPage(null); return }
     const pageId = path.match(/\/app\/page\/([^?]+)/)?.[1]
     if (pageId) {
       const cached = (window as any).__pageCache?.get(pageId)
