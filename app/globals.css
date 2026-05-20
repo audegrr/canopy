@@ -273,11 +273,13 @@ html, body {
 @keyframes fadeIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes slideInLeft { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes scaleIn { from { opacity: 0; transform: scale(0.97) translateY(-2px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@keyframes scaleInCenter { from { opacity: 0; transform: translate(-50%, -50%) scale(0.97); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
 @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 @keyframes loadingBar { from { width: 0; } to { width: 100%; opacity: 0; } }
 .fade-in { animation: fadeIn 0.13s ease; }
 .slide-in { animation: slideInLeft 0.13s ease; }
 .scale-in { animation: scaleIn 0.12s cubic-bezier(0.16, 1, 0.3, 1); }
+.scale-in-center { animation: scaleInCenter 0.12s cubic-bezier(0.16, 1, 0.3, 1); }
 
 /* ── GLOBAL POLISH ──────────────────────────────────────────── */
 
