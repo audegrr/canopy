@@ -772,13 +772,30 @@ export default function DatabaseView({ page, canEdit }: Props) {
 
         {view === 'gallery' && (
           <div style={{ padding: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
               {displayRecords.map(rec => (
-                <div key={rec.id} className="db-board-card" onClick={() => setDetailRecId(rec.id)} style={{ cursor: 'pointer' }}>
-                  {visibleFields.slice(0, 3).map(f => (
-                    <div key={f.id} style={{ marginBottom: 4, fontSize: 13 }}>
-                      <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 1 }}>{f.name}</div>
-                      <CellValue rec={rec} field={f} />
+                <div key={rec.id} className="db-board-card" style={{ cursor: 'default', position: 'relative' }}>
+                  {/* Open detail button */}
+                  <button
+                    onClick={() => setDetailRecId(rec.id)}
+                    title="Open full record"
+                    style={{ position: 'absolute', top: 8, right: 8, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 13, padding: '2px 4px', borderRadius: 4, lineHeight: 1 }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}
+                  >↗</button>
+                  {/* Editable fields */}
+                  {visibleFields.slice(0, 5).map(f => (
+                    <div key={f.id} style={{ marginBottom: 8, fontSize: 13 }}>
+                      <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{f.name}</div>
+                      <div
+                        data-cell={`${rec.id}-${f.id}`}
+                        onClick={e => { e.stopPropagation(); if (canEdit) setEditingCell({ recId: rec.id, fieldId: f.id }) }}
+                        style={{ border: '1px solid var(--border)', borderRadius: 5, padding: '5px 8px', minHeight: 30, background: 'var(--surface)', cursor: canEdit ? 'text' : 'default', transition: 'border-color 0.15s' }}
+                        onMouseEnter={e => { if (canEdit) (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
+                      >
+                        <CellValue rec={rec} field={f} />
+                      </div>
                     </div>
                   ))}
                 </div>
