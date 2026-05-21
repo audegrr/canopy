@@ -277,7 +277,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       setPages(p => p.map(x => x.id === id ? { ...x, ...(title !== undefined ? { title } : {}), ...(icon !== undefined ? { icon } : {}) } : x))
     }
     window.addEventListener('canopy:pageUpdate', onPageUpdate)
-    return () => window.removeEventListener('canopy:pageUpdate', onPageUpdate)
+    const onNavigate = (e: Event) => navigate((e as CustomEvent).detail.path)
+    window.addEventListener('canopy:navigate', onNavigate)
+    return () => {
+      window.removeEventListener('canopy:pageUpdate', onPageUpdate)
+      window.removeEventListener('canopy:navigate', onNavigate)
+    }
   }, [])
 
 
