@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Workspace, Page, SharedPage, User, MemberWorkspace, WsMember } from '@/lib/types'
@@ -967,6 +968,20 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           onTouchEnd={() => setSidebarOpen(false)}
         />
       )}
+      {isMobile && sidebarOpen && createPortal(
+        <button
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: 'fixed', top: 10, left: 218, zIndex: 50,
+            width: 36, height: 36, borderRadius: '50%',
+            background: 'var(--sidebar-bg)', border: '1px solid var(--border)',
+            cursor: 'pointer', fontSize: '20px', lineHeight: '36px',
+            textAlign: 'center', touchAction: 'manipulation',
+            color: 'var(--text-secondary)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          }}
+        >×</button>,
+        document.body
+      )}
 
       {/* SIDEBAR */}
       <aside
@@ -994,12 +1009,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 32, height: 32, objectFit: 'contain', flexShrink: 0 }} />
               <span style={{ fontSize: '18px', fontWeight: 500, color: 'var(--text)', letterSpacing: '-0.01em' }}>Canopy</span>
             </button>
-            {isMobile && (
-              <button
-                onPointerUp={e => { e.stopPropagation(); setSidebarOpen(false) }}
-                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '22px', lineHeight: 1, padding: '6px 10px', borderRadius: '6px' }}
-              >×</button>
-            )}
+            {isMobile && <div style={{ width: 36, flexShrink: 0 }} />}
           </div>
           <div style={{ height: '1px', background: 'var(--text-tertiary)', margin: '0 4px 4px', opacity: 0.3 }} />
           <div onClick={() => setWsMenuOpen(o => !o)}
