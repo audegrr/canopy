@@ -980,23 +980,24 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         }}
       >
         {/* Home + Workspace switcher */}
-        <div style={{ padding: '10px 8px 4px', flexShrink: 0, position: 'relative' }}>
-          {/* Mobile close button */}
-          {isMobile && (
-            <button onClick={() => setSidebarOpen(false)}
-              style={{ position: 'absolute', top: 10, right: 8, zIndex: 2, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '20px', lineHeight: 1, padding: '4px 8px', borderRadius: '6px' }}>
-              ×
+        <div style={{ padding: '10px 8px 4px', flexShrink: 0 }}>
+          {/* Logo row — with inline close button on mobile */}
+          <div style={{ display: 'flex', alignItems: 'center', padding: '8px 10px 12px' }}>
+            <button onClick={() => navigate('/app')}
+              style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', minWidth: 0 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.75' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}>
+              <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 32, height: 32, objectFit: 'contain', flexShrink: 0 }} />
+              <span style={{ fontSize: '18px', fontWeight: 500, color: 'var(--text)', letterSpacing: '-0.01em' }}>Canopy</span>
             </button>
-          )}
-          {/* Home button */}
-          <button onClick={() => navigate('/app')}
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 10px 28px', fontFamily: 'var(--font-sans)' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.75' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}>
-            <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 38, height: 38, objectFit: 'contain', flexShrink: 0 }} />
-            <span style={{ fontSize: '20px', fontWeight: 400, color: 'var(--text)', letterSpacing: '-0.01em' }}>Canopy</span>
-            <span style={{ width: 38, flexShrink: 0 }} />
-          </button>
+            {isMobile && (
+              <button
+                onClick={() => setSidebarOpen(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '22px', lineHeight: 1, padding: '6px', borderRadius: '6px', flexShrink: 0 }}>
+                ×
+              </button>
+            )}
+          </div>
           <div style={{ height: '1px', background: 'var(--text-tertiary)', margin: '0 4px 4px', opacity: 0.3 }} />
           <div onClick={() => setWsMenuOpen(o => !o)}
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', userSelect: 'none' }}
