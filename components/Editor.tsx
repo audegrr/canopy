@@ -1005,7 +1005,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       ResizableImage,
       VideoNode,
       FileNode,
-      Link.configure({ openOnClick: true, autolink: true }),
+      Link.configure({ openOnClick: true, autolink: true, HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' } }),
       Youtube.configure({ controls: true, width: 640, height: 360 }),
       HorizontalRule,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),

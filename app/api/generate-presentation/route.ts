@@ -78,46 +78,51 @@ export async function POST(req: NextRequest) {
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'llama-3.3-70b-versatile',
-      max_tokens: 3000,
+      max_tokens: 4096,
       response_format: { type: 'json_object' },
       messages: [
         {
           role: 'system',
-          content: `You are an expert presentation designer. Transform document content into a rich, varied slide deck with different layouts.
+          content: `You are an expert presentation designer and storyteller. Transform document content into a compelling, professional slide deck with varied layouts and rich content.
 
 Return ONLY a JSON object:
 {
   "slides": [ ... ]
 }
 
-Available slide types — use a good mix of them:
+Available slide types — use a diverse mix:
 
 1. Title slide (always first):
-{ "type": "title", "title": "...", "subtitle": "One compelling sentence summarizing the document" }
+{ "type": "title", "title": "...", "subtitle": "One compelling sentence summarizing the core message" }
 
-2. Section divider:
-{ "type": "section", "title": "Section name", "subtitle": "Optional short description" }
+2. Section divider (use to break major themes):
+{ "type": "section", "title": "Section name", "subtitle": "One sentence teasing what this section covers" }
 
-3. Bullets (numbered, 3-5 items, each item should be a FULL SENTENCE, at least 10 words):
-{ "type": "bullets", "title": "...", "bullets": ["Complete sentence explaining the first point in detail.", "Another full sentence with specific information."] }
+3. Bullets (numbered list, 3-5 items):
+{ "type": "bullets", "title": "...", "bullets": ["Full sentence of at least 12 words with specific, actionable content.", "Another sentence with concrete details or data."] }
 
-4. Two columns (compare or contrast two aspects, 2-3 points each):
-{ "type": "two-col", "title": "...", "col1": { "heading": "Left heading", "points": ["Point with details.", "Another point."] }, "col2": { "heading": "Right heading", "points": ["Point with details.", "Another point."] } }
+4. Two columns (compare, contrast, or show two perspectives):
+{ "type": "two-col", "title": "...", "col1": { "heading": "Left heading", "points": ["Detailed point with context.", "Another substantive point."] }, "col2": { "heading": "Right heading", "points": ["Detailed point with context.", "Another substantive point."] } }
 
-5. Large quote:
-{ "type": "quote", "quote": "A memorable or important sentence from the document, at least 15 words long.", "source": "Context or author" }
+5. Large quote (highlight a key insight or memorable phrase):
+{ "type": "quote", "quote": "A memorable, thought-provoking sentence from the document, at least 15 words.", "source": "Context, author, or chapter" }
 
-6. Key stats / numbers (2-3 stats):
-{ "type": "stats", "title": "...", "stats": [{ "value": "42%", "label": "Short explanation" }, { "value": "3x", "label": "Short explanation" }] }
+6. Key stats / numbers (2-3 impactful metrics):
+{ "type": "stats", "title": "Key Figures", "stats": [{ "value": "42%", "label": "Clear explanation of what this means" }, { "value": "3x", "label": "Clear explanation" }] }
+
+7. Conclusion slide (always last):
+{ "type": "conclusion", "title": "Key Takeaways", "points": ["Most important insight from the document.", "Second actionable takeaway.", "Final call to action or next step."] }
 
 Rules:
-- 7 to 12 slides total
-- Use AT LEAST one two-col slide and one stats or quote slide
-- Bullets must be FULL SENTENCES (not just keywords)
+- 8 to 12 slides total
+- ALWAYS start with "title" and end with "conclusion"
+- Use AT LEAST: one "section", one "two-col", one "quote" or "stats"
+- Bullets and conclusion points MUST be full sentences (15+ words), never just keywords
+- Extract real insights, data, and arguments from the document — do not invent facts
 - Keep the original document's language (French if French, English if English)
-- Notes field (optional): one sentence of speaker notes on any slide type`,
+- notes field (optional): brief speaker note on any slide`,
         },
-        { role: 'user', content: `Title: ${title || 'Untitled'}\n\n${pageText.slice(0, 5000)}` },
+        { role: 'user', content: `Title: ${title || 'Untitled'}\n\n${pageText.slice(0, 6000)}` },
       ],
     }),
   })
@@ -198,6 +203,19 @@ Rules:
       if (slide.source) {
         s.addText(`— ${slide.source}`, { x: 0.85, y: 4.1, w: 8.0, h: 0.5, fontSize: 14, color: t.accentColor, bold: true, fontFace: t.font, align: 'left' })
       }
+
+    } else if (slide.type === 'conclusion') {
+      s.background = { color: t.titleSlide.bg }
+      s.addShape('rect', { x: 0, y: 0, w: '100%', h: 0.08, fill: { color: t.accentColor }, line: { color: t.accentColor } })
+      s.addShape('rect', { x: 0, y: 4.9, w: '100%', h: 0.08, fill: { color: t.accentColor }, line: { color: t.accentColor } })
+      s.addText(slide.title || 'Key Takeaways', { x: 0.5, y: 0.25, w: 9.0, h: 0.8, fontSize: 28, bold: true, color: t.titleSlide.titleColor, fontFace: t.font, align: 'center' })
+      const pts: string[] = slide.points || []
+      pts.slice(0, 4).forEach((pt: string, i: number) => {
+        addCard(s, 0.35, 1.2 + i * 0.9, 9.3, 0.78, t)
+        s.addShape('ellipse', { x: 0.42, y: 1.26 + i * 0.9, w: 0.36, h: 0.36, fill: { color: t.accentColor }, line: { color: t.accentColor } })
+        s.addText(String(i + 1), { x: 0.42, y: 1.26 + i * 0.9, w: 0.36, h: 0.36, fontSize: 13, bold: true, color: 'FFFFFF', fontFace: t.font, align: 'center', valign: 'middle' })
+        s.addText(pt, { x: 0.9, y: 1.26 + i * 0.9, w: 8.6, h: 0.36, fontSize: 15, color: t.titleSlide.subtitleColor, fontFace: t.font, valign: 'middle' })
+      })
 
     } else if (slide.type === 'stats') {
       s.background = { color: t.bg }

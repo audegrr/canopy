@@ -993,6 +993,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             {isMobile && (
               <button
                 onClick={() => setSidebarOpen(false)}
+                onTouchEnd={e => { e.stopPropagation(); setSidebarOpen(false) }}
                 style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '20px', lineHeight: 1, padding: '4px 6px', borderRadius: '6px' }}
               >×</button>
             )}
