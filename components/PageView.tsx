@@ -820,23 +820,19 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   }
 
   async function loadComments() {
-    // anchor_id column may not exist yet if migration hasn't run — fall back gracefully
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('page_comments')
-      .select('id, body, created_at, user_id, anchor_id, profile:profiles(full_name, email)')
+      .select('id, body, created_at, user_id, anchor_id')
       .eq('page_id', page.id)
       .order('created_at', { ascending: true })
-    if (error) {
-      // anchor_id column missing: retry without it
-      const { data: fallback } = await supabase
-        .from('page_comments')
-        .select('id, body, created_at, user_id, profile:profiles(full_name, email)')
-        .eq('page_id', page.id)
-        .order('created_at', { ascending: true })
-      setComments((fallback as any) || [])
-    } else {
-      setComments((data as any) || [])
-    }
+    if (!data?.length) { setComments([]); return }
+    const userIds = [...new Set(data.map(c => c.user_id))]
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', userIds)
+    const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]))
+    setComments(data.map(c => ({ ...c, profile: profileMap[c.user_id] || null })) as any)
   }
 
   async function addComment() {
@@ -849,7 +845,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     const { data, error } = await supabase
       .from('page_comments')
       .insert(payload)
-      .select('id, body, created_at, user_id, anchor_id, profile:profiles(full_name, email)')
+      .select('id, body, created_at, user_id, anchor_id')
       .single()
     if (error) {
       console.error('[addComment] Supabase error:', error)
@@ -858,7 +854,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       return
     }
     if (!error && data) {
-      setComments(c => [...c, data as any])
+      const profile = myPresenceRef.current.name
+        ? { full_name: myPresenceRef.current.name, email: '' }
+        : null
+      setComments(c => [...c, { ...data, profile } as any])
       setNewComment('')
       setPendingAnchorId(null)
       setPendingAnchorText('')
