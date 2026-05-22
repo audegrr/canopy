@@ -219,9 +219,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     let active = true
     let channelInstance: ReturnType<typeof supabase.channel> | null = null
 
-    supabase.from('profiles').select('full_name, email, avatar_url').eq('id', userId).single().then(({ data: profileData }) => {
+    supabase.from('profiles').select('full_name, email, avatar_url').eq('id', userId).single().then(({ data: profileData, error: profileError }) => {
       if (!active) return
-      const name = profileData?.full_name || profileData?.email?.split('@')[0] || 'User'
+      if (profileError) console.warn('presence profile fetch failed:', profileError.message)
+      const name = profileData?.full_name || profileData?.email?.split('@')[0] || 'Unknown'
       myPresenceRef.current = { ...myPresenceRef.current, name, color: myColor, avatarUrl: profileData?.avatar_url || '' }
 
       const channel = supabase.channel(`page:${page.id}`, { config: { presence: { key: userId } } })
