@@ -109,7 +109,12 @@ const FileNode = Node.create({
 })
 import SubpageBlock from './SubpageBlock'
 import DatabaseBlock from './DatabaseBlock'
-import Link from '@tiptap/extension-link'
+import LinkBase from '@tiptap/extension-link'
+const Link = LinkBase.extend({
+  addAttributes() {
+    return { ...this.parent?.(), target: { default: '_blank' }, rel: { default: 'noopener noreferrer' } }
+  },
+})
 import Youtube from '@tiptap/extension-youtube'
 import HorizontalRule from '@tiptap/extension-horizontal-rule'
 import TextAlign from '@tiptap/extension-text-align'
@@ -1005,7 +1010,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       ResizableImage,
       VideoNode,
       FileNode,
-      Link.configure({ openOnClick: true, autolink: true, HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' } }),
+      Link.configure({ openOnClick: true, autolink: true }),
       Youtube.configure({ controls: true, width: 640, height: 360 }),
       HorizontalRule,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),

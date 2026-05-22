@@ -961,7 +961,11 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
       {isMobile && sidebarOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 39, backdropFilter: 'blur(2px)' }} onClick={() => setSidebarOpen(false)} />
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 39, backdropFilter: 'blur(2px)', cursor: 'pointer' }}
+          onClick={() => setSidebarOpen(false)}
+          onTouchEnd={() => setSidebarOpen(false)}
+        />
       )}
 
       {/* SIDEBAR */}
@@ -992,9 +996,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             </button>
             {isMobile && (
               <button
-                onClick={() => setSidebarOpen(false)}
-                onTouchEnd={e => { e.stopPropagation(); setSidebarOpen(false) }}
-                style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '20px', lineHeight: 1, padding: '4px 6px', borderRadius: '6px' }}
+                onPointerUp={e => { e.stopPropagation(); setSidebarOpen(false) }}
+                style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '22px', lineHeight: 1, padding: '6px 10px', borderRadius: '6px' }}
               >×</button>
             )}
           </div>
