@@ -216,16 +216,20 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     const PRESENCE_COLORS = ['#e07b39','#0b6e99','#0f7b6c','#6940a5','#ad1a72','#d9730d']
     const myColor = PRESENCE_COLORS[parseInt(userId.slice(-2), 16) % PRESENCE_COLORS.length]
 
-    // Fetch profile BEFORE subscribing so name/avatar are ready when we track presence
-    const { data: profileData } = await supabase.from('profiles').select('full_name, email, avatar_url').eq('id', userId).single()
-    const name = profileData?.full_name || profileData?.email?.split('@')[0] || 'User'
-    myPresenceRef.current = { ...myPresenceRef.current, name, color: myColor, avatarUrl: profileData?.avatar_url || '' }
+    let active = true
+    let channelInstance: ReturnType<typeof supabase.channel> | null = null
 
-    const channel = supabase.channel(`page:${page.id}`, { config: { presence: { key: userId } } })
-    presenceChannelRef.current = channel
+    supabase.from('profiles').select('full_name, email, avatar_url').eq('id', userId).single().then(({ data: profileData }) => {
+      if (!active) return
+      const name = profileData?.full_name || profileData?.email?.split('@')[0] || 'User'
+      myPresenceRef.current = { ...myPresenceRef.current, name, color: myColor, avatarUrl: profileData?.avatar_url || '' }
 
-    channel
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pages', filter: `id=eq.${page.id}` }, payload => {
+      const channel = supabase.channel(`page:${page.id}`, { config: { presence: { key: userId } } })
+      channelInstance = channel
+      presenceChannelRef.current = channel
+
+      channel
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pages', filter: `id=eq.${page.id}` }, payload => {
         const remote = payload.new as any
         // Normalise timestamp to ISO so JS and PostgreSQL formats compare correctly
         const normTs = (t: string | null) => { try { return t ? new Date(t).toISOString() : '' } catch { return t ?? '' } }
@@ -268,8 +272,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           await channel.track({ ...myPresenceRef.current })
         }
       })
+    })
 
-    return () => { presenceChannelRef.current = null; supabase.removeChannel(channel) }
+    return () => { active = false; presenceChannelRef.current = null; if (channelInstance) supabase.removeChannel(channelInstance) }
   }, [page.id, userId])
 
   // Listen for subpage picker request from editor
