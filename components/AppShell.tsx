@@ -961,13 +961,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   return (
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
       {isMobile && sidebarOpen && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 39, backdropFilter: 'blur(2px)' }} onClick={() => setSidebarOpen(false)} />
-          <button
-            onClick={() => setSidebarOpen(false)}
-            style={{ position: 'fixed', top: 10, left: 220, zIndex: 50, background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '50%', width: 32, height: 32, fontSize: 18, lineHeight: 1, cursor: 'pointer', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
-          >×</button>
-        </>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 39, backdropFilter: 'blur(2px)' }} onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* SIDEBAR */}
@@ -996,6 +990,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 32, height: 32, objectFit: 'contain', flexShrink: 0 }} />
               <span style={{ fontSize: '18px', fontWeight: 500, color: 'var(--text)', letterSpacing: '-0.01em' }}>Canopy</span>
             </button>
+            {isMobile && (
+              <button
+                onClick={() => setSidebarOpen(false)}
+                style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '20px', lineHeight: 1, padding: '4px 6px', borderRadius: '6px' }}
+              >×</button>
+            )}
           </div>
           <div style={{ height: '1px', background: 'var(--text-tertiary)', margin: '0 4px 4px', opacity: 0.3 }} />
           <div onClick={() => setWsMenuOpen(o => !o)}

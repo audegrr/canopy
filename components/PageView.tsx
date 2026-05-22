@@ -814,8 +814,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         body: JSON.stringify({ content: page.content, title: page.title, theme: presentationTheme }),
       })
       if (!res.ok) {
-        const err = await res.json()
-        showToast(`Error: ${err.error || 'Generation failed'}`)
+        let errMsg = 'Generation failed'
+        try { const err = await res.json(); errMsg = err.error || errMsg } catch {}
+        showToast(`Error: ${errMsg}`)
         return
       }
       const blob = await res.blob()
