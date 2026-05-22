@@ -114,6 +114,28 @@ const Link = LinkBase.extend({
   addAttributes() {
     return { ...this.parent?.(), target: { default: '_blank' }, rel: { default: 'noopener noreferrer' } }
   },
+  addProseMirrorPlugins() {
+    return [
+      ...(this.parent?.() ?? []),
+      new Plugin({
+        key: new PluginKey('linkOpenTab'),
+        props: {
+          handleClick(_view, _pos, event) {
+            if (event.button !== 0) return false
+            const anchor = (event.target as HTMLElement).closest('a')
+            if (!anchor?.href) return false
+            // Simulate <a> click so browser opens a tab, not a PWA popup window
+            const a = document.createElement('a')
+            a.href = anchor.href
+            a.target = '_blank'
+            a.rel = 'noopener noreferrer'
+            a.click()
+            return true
+          },
+        },
+      }),
+    ]
+  },
 })
 import Youtube from '@tiptap/extension-youtube'
 import HorizontalRule from '@tiptap/extension-horizontal-rule'
@@ -1010,7 +1032,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       ResizableImage,
       VideoNode,
       FileNode,
-      Link.configure({ openOnClick: true, autolink: true }),
+      Link.configure({ openOnClick: false, autolink: true }),
       Youtube.configure({ controls: true, width: 640, height: 360 }),
       HorizontalRule,
       TextAlign.configure({ types: ['heading', 'paragraph'] }),
