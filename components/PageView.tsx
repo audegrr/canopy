@@ -820,12 +820,23 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   }
 
   async function loadComments() {
-    const { data } = await supabase
+    // anchor_id column may not exist yet if migration hasn't run — fall back gracefully
+    const { data, error } = await supabase
       .from('page_comments')
       .select('id, body, created_at, user_id, anchor_id, profile:profiles(full_name, email)')
       .eq('page_id', page.id)
       .order('created_at', { ascending: true })
-    setComments((data as any) || [])
+    if (error) {
+      // anchor_id column missing: retry without it
+      const { data: fallback } = await supabase
+        .from('page_comments')
+        .select('id, body, created_at, user_id, profile:profiles(full_name, email)')
+        .eq('page_id', page.id)
+        .order('created_at', { ascending: true })
+      setComments((fallback as any) || [])
+    } else {
+      setComments((data as any) || [])
+    }
   }
 
   async function addComment() {
@@ -833,11 +844,19 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     setCommentLoading(true)
     const body = newComment.trim()
     const anchor_id = pendingAnchorId || null
+    const payload: Record<string, unknown> = { page_id: page.id, user_id: userId, body }
+    if (anchor_id) payload.anchor_id = anchor_id
     const { data, error } = await supabase
       .from('page_comments')
-      .insert({ page_id: page.id, user_id: userId, body, anchor_id })
+      .insert(payload)
       .select('id, body, created_at, user_id, anchor_id, profile:profiles(full_name, email)')
       .single()
+    if (error) {
+      console.error('[addComment] Supabase error:', error)
+      showToast(`Comment error: ${error.message}`)
+      setCommentLoading(false)
+      return
+    }
     if (!error && data) {
       setComments(c => [...c, data as any])
       setNewComment('')
