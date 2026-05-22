@@ -99,7 +99,7 @@ export default function CommandPalette({ workspaceId, onCreatePage, onCreateData
 
   return (
     <>
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 4999, backdropFilter: 'blur(2px)' }}
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 4999 }}
         onClick={() => setOpen(false)} />
       <div className="cmd-palette fade-in">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0 16px', borderBottom: '1px solid var(--border)' }}>

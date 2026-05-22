@@ -42,6 +42,9 @@ html, body {
   -webkit-font-smoothing: antialiased;
   line-height: 1.5;
   height: 100%;
+  /* Eliminate iOS 300ms tap delay globally */
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
@@ -333,7 +336,7 @@ textarea:focus, select:focus {
 .btn-secondary:hover { background: var(--sidebar-hover); border-color: var(--text-tertiary); color: var(--text); }
 
 /* Modals — consistent shadow + backdrop */
-.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.22); backdrop-filter: blur(2px); z-index: 2000; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.28); z-index: 2000; }
 .modal-box {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -368,9 +371,8 @@ tr:hover .delete-row-btn { opacity: 1; color: var(--red) !important; }
 
   .sidebar-mobile-overlay {
     position: fixed; inset: 0;
-    background: rgba(0,0,0,0.4);
+    background: rgba(0,0,0,0.45);
     z-index: 39;
-    backdrop-filter: blur(2px);
   }
 
   .sidebar-mobile {

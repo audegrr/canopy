@@ -115,7 +115,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       el.removeEventListener('touchstart', close)
       el.removeEventListener('click', close)
     }
-  })
+  }, [isMobile])
 
   useEffect(() => {
     const onEnter = () => setSidebarOpen(false)
@@ -975,7 +975,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
       {isMobile && sidebarOpen && (
         <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 39, backdropFilter: 'blur(2px)', cursor: 'pointer' }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 39, cursor: 'pointer' }}
           onClick={() => setSidebarOpen(false)}
           onTouchEnd={() => setSidebarOpen(false)}
         />
