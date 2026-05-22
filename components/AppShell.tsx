@@ -245,6 +245,34 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     return () => { channel.unsubscribe() }
   }, [currentWs.id])
 
+  // Remove pages from "Shared with me" when the owner revokes access or deletes the page
+  useEffect(() => {
+    const sharesChannel = supabase
+      .channel(`my_shares_${user.id}`)
+      .on('postgres_changes', {
+        event: 'DELETE', schema: 'public', table: 'page_shares',
+        filter: `user_id=eq.${user.id}`,
+      }, (payload: any) => {
+        const removedPageId: string = payload.old?.page_id
+        if (!removedPageId) return
+        setSharedPages(sp => {
+          const toRemove = new Set<string>([removedPageId])
+          let changed = true
+          while (changed) {
+            changed = false
+            for (const p of sp) {
+              if (p.parent_id && toRemove.has(p.parent_id) && !toRemove.has(p.id)) {
+                toRemove.add(p.id); changed = true
+              }
+            }
+          }
+          return sp.filter(x => !toRemove.has(x.id))
+        })
+      })
+      .subscribe()
+    return () => { sharesChannel.unsubscribe() }
+  }, [user.id])
+
   useEffect(() => {
     if (!currentPageId) return
     const ancestors = new Set<string>()
@@ -472,6 +500,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     }
     setPages(p => p.filter(x => !toRemove.has(x.id)))
     if (currentPageId && toRemove.has(currentPageId)) navigate('/app')
+    // Remove shares for all deleted pages — this triggers realtime DELETE on page_shares
+    // for every user who had access, removing the page from their "Shared with me"
+    supabase.from('page_shares').delete().in('page_id', [...toRemove]).then(() => {})
     setContextMenu(null)
     showToastMsg('Page moved to trash')
   }
