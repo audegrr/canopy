@@ -1,6 +1,5 @@
 'use client'
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { createPortal } from 'react-dom'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Workspace, Page, SharedPage, User, MemberWorkspace, WsMember } from '@/lib/types'
@@ -92,6 +91,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [favoritesCollapsed, setFavoritesCollapsed] = useState(false)
   const [keyFocusId, setKeyFocusId] = useState<string | null>(null)
   const sidebarTreeRef = useRef<HTMLDivElement>(null)
+  const mobileCloseRef = useRef<HTMLButtonElement>(null)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -104,6 +104,18 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
+
+  useEffect(() => {
+    const el = mobileCloseRef.current
+    if (!el) return
+    const close = () => setSidebarOpen(false)
+    el.addEventListener('touchstart', close, { passive: true })
+    el.addEventListener('click', close)
+    return () => {
+      el.removeEventListener('touchstart', close)
+      el.removeEventListener('click', close)
+    }
+  })
 
   useEffect(() => {
     const onEnter = () => setSidebarOpen(false)
@@ -968,21 +980,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           onTouchEnd={() => setSidebarOpen(false)}
         />
       )}
-      {isMobile && sidebarOpen && createPortal(
-        <button
-          onClick={() => setSidebarOpen(false)}
-          style={{
-            position: 'fixed', top: 10, left: 218, zIndex: 50,
-            width: 36, height: 36, borderRadius: '50%',
-            background: 'var(--sidebar-bg)', border: '1px solid var(--border)',
-            cursor: 'pointer', fontSize: '20px', lineHeight: '36px',
-            textAlign: 'center', touchAction: 'manipulation',
-            color: 'var(--text-secondary)', boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-          }}
-        >×</button>,
-        document.body
-      )}
-
       {/* SIDEBAR */}
       <aside
         style={{
@@ -992,15 +989,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           transition: 'width 0.2s, min-width 0.2s', flexShrink: 0,
           ...(isMobile ? { position: 'fixed', left: 0, top: 0, bottom: 0, zIndex: 40, boxShadow: '4px 0 24px rgba(0,0,0,0.15)' } : {}),
         }}
-        onTouchStart={e => { (e.currentTarget as any)._touchStartX = e.touches[0].clientX }}
-        onTouchEnd={e => {
-          const startX = (e.currentTarget as any)._touchStartX ?? 0
-          if (startX - e.changedTouches[0].clientX > 60) setSidebarOpen(false)
-        }}
       >
         {/* Home + Workspace switcher */}
         <div style={{ padding: '10px 8px 4px', flexShrink: 0 }}>
-          {/* Logo row — with inline close button on mobile */}
+          {/* Logo row */}
           <div style={{ display: 'flex', alignItems: 'center', padding: '8px 10px 12px' }}>
             <button onClick={() => navigate('/app')}
               style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', minWidth: 0 }}
@@ -1009,7 +1001,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 32, height: 32, objectFit: 'contain', flexShrink: 0 }} />
               <span style={{ fontSize: '18px', fontWeight: 500, color: 'var(--text)', letterSpacing: '-0.01em' }}>Canopy</span>
             </button>
-            {isMobile && <div style={{ width: 36, flexShrink: 0 }} />}
+            {isMobile && (
+              <button
+                ref={mobileCloseRef}
+                style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '22px', lineHeight: 1, padding: '6px 10px', borderRadius: '6px', touchAction: 'manipulation' }}
+              >×</button>
+            )}
           </div>
           <div style={{ height: '1px', background: 'var(--text-tertiary)', margin: '0 4px 4px', opacity: 0.3 }} />
           <div onClick={() => setWsMenuOpen(o => !o)}
