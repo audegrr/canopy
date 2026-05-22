@@ -38,6 +38,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   const [subpagePickerCallback, setSubpagePickerCallback] = useState<((id: string) => void) | null>(null)
   const [subpageList, setSubpageList] = useState<any[]>([])
   const [isUploadingCover, setIsUploadingCover] = useState(false)
+  const [isRepositioning, setIsRepositioning] = useState(false)
   const saveTimer = useRef<any>(null)
   const pendingSaveRef = useRef<Partial<Page> | null>(null)
   const [editorInstance, setEditorInstance] = useState<any>(null)
@@ -1091,21 +1092,42 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
 
           {/* Cover */}
           {page.cover_url && (
-            <div style={{ position: 'relative', height: '240px', overflow: 'hidden', background: '#f0ede8' }}>
-              {isCssBackground(page.cover_url)
-                ? <div style={{ width: '100%', height: '100%', background: page.cover_url }} />
-                : <img src={page.cover_url} alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              }
-              {canEdit && (
-                <div style={{ position: 'absolute', bottom: '12px', right: '16px', display: 'flex', gap: '6px' }}>
-                  <button onClick={() => setShowCoverGallery(true)}
-                    style={{ background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(4px)', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
-                    Change cover
-                  </button>
-                  <button onClick={removeCover} style={{ background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(4px)', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Remove</button>
+            isRepositioning && !isCssBackground(page.cover_url)
+              ? <CoverReposition
+                  coverUrl={page.cover_url}
+                  initialPosition={parseCoverPos(page.cover_position)}
+                  onSave={pos => {
+                    const val = JSON.stringify(pos)
+                    setPage(p => ({ ...p, cover_position: val }) as Page)
+                    scheduleSave({ cover_position: val })
+                    setIsRepositioning(false)
+                  }}
+                  onCancel={() => setIsRepositioning(false)}
+                />
+              : <div style={{ position: 'relative', height: '240px', overflow: 'hidden', background: '#f0ede8' }}>
+                  {isCssBackground(page.cover_url)
+                    ? <div style={{ width: '100%', height: '100%', background: page.cover_url }} />
+                    : (() => {
+                        const p = parseCoverPos(page.cover_position)
+                        return <img src={page.cover_url} alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${p.x}% ${p.y}%`, transform: `scale(${p.scale})`, transformOrigin: `${p.x}% ${p.y}%` }} />
+                      })()
+                  }
+                  {canEdit && (
+                    <div style={{ position: 'absolute', bottom: '12px', right: '16px', display: 'flex', gap: '6px' }}>
+                      {!isCssBackground(page.cover_url) && (
+                        <button onClick={() => setIsRepositioning(true)}
+                          style={{ background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(4px)', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
+                          Reposition
+                        </button>
+                      )}
+                      <button onClick={() => setShowCoverGallery(true)}
+                        style={{ background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(4px)', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }}>
+                        Change cover
+                      </button>
+                      <button onClick={removeCover} style={{ background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(4px)', border: 'none', padding: '4px 12px', borderRadius: '5px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>Remove</button>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
           )}
 
           {/* Page body */}
@@ -1819,6 +1841,116 @@ const COVER_COLORS = [
   '#2d3748','#1a202c','#744210','#276749','#1a365d',
   '#c05621','#822727','#553c9a','#2c7a7b','#2b6cb0',
 ]
+
+// ── Cover position helpers ────────────────────────────────────────────────────
+type CoverPos = { x: number; y: number; scale: number }
+function parseCoverPos(raw?: string | null): CoverPos {
+  try { if (raw) return { x: 50, y: 30, scale: 1, ...JSON.parse(raw) } } catch {}
+  return { x: 50, y: 30, scale: 1 }
+}
+
+function CoverReposition({ coverUrl, initialPosition, onSave, onCancel }: {
+  coverUrl: string
+  initialPosition: CoverPos
+  onSave: (pos: CoverPos) => void
+  onCancel: () => void
+}) {
+  const [pos, setPos] = useState<CoverPos>(initialPosition)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const dragging = useRef(false)
+  const lastMouse = useRef({ x: 0, y: 0 })
+
+  function onMouseDown(e: React.MouseEvent) {
+    dragging.current = true
+    lastMouse.current = { x: e.clientX, y: e.clientY }
+    e.preventDefault()
+  }
+  function onMouseMove(e: React.MouseEvent) {
+    if (!dragging.current || !containerRef.current) return
+    const { offsetWidth, offsetHeight } = containerRef.current
+    const dx = e.clientX - lastMouse.current.x
+    const dy = e.clientY - lastMouse.current.y
+    lastMouse.current = { x: e.clientX, y: e.clientY }
+    setPos(p => ({
+      ...p,
+      x: Math.max(0, Math.min(100, p.x - (dx / offsetWidth) * 100 / p.scale)),
+      y: Math.max(0, Math.min(100, p.y - (dy / offsetHeight) * 100 / p.scale)),
+    }))
+  }
+  function onMouseUp() { dragging.current = false }
+
+  function onWheel(e: React.WheelEvent) {
+    e.preventDefault()
+    setPos(p => ({ ...p, scale: Math.max(1, Math.min(3, p.scale - e.deltaY * 0.002)) }))
+  }
+
+  // Touch support
+  const lastTouch = useRef<{ x: number; y: number; dist?: number } | null>(null)
+  function onTouchStart(e: React.TouchEvent) {
+    if (e.touches.length === 1) lastTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    else if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      lastTouch.current = { x: 0, y: 0, dist: Math.hypot(dx, dy) }
+    }
+  }
+  function onTouchMove(e: React.TouchEvent) {
+    if (!containerRef.current || !lastTouch.current) return
+    e.preventDefault()
+    const { offsetWidth, offsetHeight } = containerRef.current
+    if (e.touches.length === 1) {
+      const dx = e.touches[0].clientX - lastTouch.current.x
+      const dy = e.touches[0].clientY - lastTouch.current.y
+      lastTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+      setPos(p => ({
+        ...p,
+        x: Math.max(0, Math.min(100, p.x - (dx / offsetWidth) * 100 / p.scale)),
+        y: Math.max(0, Math.min(100, p.y - (dy / offsetHeight) * 100 / p.scale)),
+      }))
+    } else if (e.touches.length === 2 && lastTouch.current.dist != null) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const dist = Math.hypot(dx, dy)
+      const ratio = dist / lastTouch.current.dist
+      lastTouch.current.dist = dist
+      setPos(p => ({ ...p, scale: Math.max(1, Math.min(3, p.scale * ratio)) }))
+    }
+  }
+
+  const btnStyle: React.CSSProperties = { border: 'none', padding: '6px 16px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }
+
+  return (
+    <div ref={containerRef}
+      style={{ position: 'relative', height: '240px', overflow: 'hidden', background: '#111', cursor: dragging.current ? 'grabbing' : 'grab', userSelect: 'none', touchAction: 'none' }}
+      onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
+      onWheel={onWheel} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={() => { lastTouch.current = null }}>
+      <img src={coverUrl} alt="cover" draggable={false}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${pos.x}% ${pos.y}%`, transform: `scale(${pos.scale})`, transformOrigin: `${pos.x}% ${pos.y}%`, pointerEvents: 'none', userSelect: 'none' }} />
+      {/* Gradient overlay + controls */}
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 55%, rgba(0,0,0,0.55))', pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8, pointerEvents: 'none' }}>
+        <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: 'var(--font-sans)', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
+          Drag to reposition · Scroll or pinch to zoom
+        </div>
+        {/* Zoom slider */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'all' }}>
+          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', flexShrink: 0, lineHeight: 1 }}>−</span>
+          <input type="range" min={100} max={300} step={1}
+            value={Math.round(pos.scale * 100)}
+            onChange={e => setPos(p => ({ ...p, scale: Number(e.target.value) / 100 }))}
+            style={{ flex: 1, accentColor: '#fff', height: 4, cursor: 'pointer' }} />
+          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', flexShrink: 0, lineHeight: 1 }}>+</span>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', minWidth: 38, textAlign: 'right' }}>{Math.round(pos.scale * 100)}%</span>
+        </div>
+        {/* Action buttons */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, pointerEvents: 'all' }}>
+          <button onClick={onCancel} style={{ ...btnStyle, background: 'rgba(255,255,255,0.88)', color: '#333' }}>Cancel</button>
+          <button onClick={() => onSave(pos)} style={{ ...btnStyle, background: 'var(--accent)', color: '#fff' }}>Save position</button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function CoverGallery({ onSelect, onUpload, onClose }: { onSelect: (v: string) => void; onUpload: (f: File) => void; onClose: () => void }) {
   const [tab, setTab] = useState<'gallery'|'upload'|'url'>('gallery')

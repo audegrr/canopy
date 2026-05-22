@@ -29,6 +29,7 @@ export type Page = {
   title: string
   icon: string
   cover_url: string
+  cover_position?: string | null
   content: TiptapContent
   position: number
   is_database: boolean
