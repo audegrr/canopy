@@ -934,15 +934,29 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       )}
 
       {/* SIDEBAR */}
-      <aside style={{
-        width: sidebarOpen ? '260px' : '0', minWidth: sidebarOpen ? '260px' : '0',
-        background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)',
-        display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden',
-        transition: 'width 0.2s, min-width 0.2s', flexShrink: 0,
-        ...(isMobile ? { position: 'fixed', left: 0, top: 0, bottom: 0, zIndex: 40, boxShadow: '4px 0 24px rgba(0,0,0,0.15)' } : {}),
-      }}>
+      <aside
+        style={{
+          width: sidebarOpen ? '260px' : '0', minWidth: sidebarOpen ? '260px' : '0',
+          background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)',
+          display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden',
+          transition: 'width 0.2s, min-width 0.2s', flexShrink: 0,
+          ...(isMobile ? { position: 'fixed', left: 0, top: 0, bottom: 0, zIndex: 40, boxShadow: '4px 0 24px rgba(0,0,0,0.15)' } : {}),
+        }}
+        onTouchStart={e => { (e.currentTarget as any)._touchStartX = e.touches[0].clientX }}
+        onTouchEnd={e => {
+          const startX = (e.currentTarget as any)._touchStartX ?? 0
+          if (startX - e.changedTouches[0].clientX > 60) setSidebarOpen(false)
+        }}
+      >
         {/* Home + Workspace switcher */}
         <div style={{ padding: '10px 8px 4px', flexShrink: 0, position: 'relative' }}>
+          {/* Mobile close button */}
+          {isMobile && (
+            <button onClick={() => setSidebarOpen(false)}
+              style={{ position: 'absolute', top: 10, right: 8, zIndex: 2, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '20px', lineHeight: 1, padding: '4px 8px', borderRadius: '6px' }}>
+              ×
+            </button>
+          )}
           {/* Home button */}
           <button onClick={() => navigate('/app')}
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: '8px 10px 28px', fontFamily: 'var(--font-sans)' }}
@@ -1181,7 +1195,14 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       </aside>
 
       {/* MAIN */}
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+      <main
+        style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}
+        onTouchStart={e => { (e.currentTarget as any)._touchStartX = e.touches[0].clientX }}
+        onTouchEnd={e => {
+          const startX = (e.currentTarget as any)._touchStartX ?? 999
+          if (isMobile && !sidebarOpen && startX < 24 && e.changedTouches[0].clientX - startX > 60) setSidebarOpen(true)
+        }}
+      >
         {/* Top bar */}
         <div style={{ height: '48px', padding: '0 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <button onClick={() => setSidebarOpen(o => !o)}
