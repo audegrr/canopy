@@ -43,7 +43,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   const pendingSaveRef = useRef<Partial<Page> | null>(null)
   const [editorInstance, setEditorInstance] = useState<any>(null)
   const [remoteConflict, setRemoteConflict] = useState<{ content: any; title: string } | null>(null)
-  const [presenceUsers, setPresenceUsers] = useState<{ userId: string; name: string; color: string; section?: string }[]>([])
+  const [presenceUsers, setPresenceUsers] = useState<{ userId: string; name: string; color: string; avatarUrl?: string; section?: string }[]>([])
   const savedRef = useRef(true)
   const lastSaveTimestamp = useRef<string | null>(null)
   const saveTimestamps = useRef(new Set<string>())
@@ -54,7 +54,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   const saveCountRef = useRef(0)
   const importFileRef = useRef<HTMLInputElement>(null)
   const presenceChannelRef = useRef<any>(null)
-  const myPresenceRef = useRef<{ name: string; color: string; section: string }>({ name: 'User', color: '#999', section: '' })
+  const myPresenceRef = useRef<{ name: string; color: string; section: string; avatarUrl?: string }>({ name: 'User', color: '#999', section: '' })
   const [historyOpen, setHistoryOpen] = useState(false)
   const [snapshots, setSnapshots] = useState<{ id: string; title: string; content: any; created_at: string }[]>([])
   const [snapshotLoading, setSnapshotLoading] = useState(false)
@@ -216,10 +216,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     const PRESENCE_COLORS = ['#e07b39','#0b6e99','#0f7b6c','#6940a5','#ad1a72','#d9730d']
     const myColor = PRESENCE_COLORS[parseInt(userId.slice(-2), 16) % PRESENCE_COLORS.length]
 
-    // Fetch display name for presence
-    supabase.from('profiles').select('full_name, email').eq('id', userId).single().then(({ data }) => {
+    // Fetch display name + avatar for presence
+    supabase.from('profiles').select('full_name, email, avatar_url').eq('id', userId).single().then(({ data }) => {
       const name = data?.full_name || data?.email?.split('@')[0] || 'User'
-      myPresenceRef.current = { ...myPresenceRef.current, name, color: myColor }
+      myPresenceRef.current = { ...myPresenceRef.current, name, color: myColor, avatarUrl: data?.avatar_url || '' }
     })
 
     const channel = supabase.channel(`page:${page.id}`, { config: { presence: { key: userId } } })
@@ -257,10 +257,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         }
       })
       .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState<{ name: string; color: string; section?: string }>()
+        const state = channel.presenceState<{ name: string; color: string; avatarUrl?: string; section?: string }>()
         const others = Object.entries(state)
           .filter(([key]) => key !== userId)
-          .flatMap(([key, presences]) => presences.map(p => ({ userId: key, name: p.name || 'Someone', color: p.color || '#999', section: p.section || '' })))
+          .flatMap(([key, presences]) => presences.map(p => ({ userId: key, name: p.name || 'Someone', color: p.color || '#999', avatarUrl: p.avatarUrl || '', section: p.section || '' })))
         setPresenceUsers(others)
       })
       .subscribe(async status => {
@@ -993,17 +993,23 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         {/* Presence avatars, saving indicator, action buttons — hidden for public share */}
         {!isPublicShare && presenceUsers.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-            {presenceUsers.slice(0, isMobile ? 2 : 4).map(u => (
-              <div key={u.userId} title={u.section ? `${u.name} — ${u.section}` : u.name}
-                style={{ position: 'relative', width: 24, height: 24, borderRadius: '50%', background: u.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#fff', border: '2px solid var(--surface)', marginLeft: -4, flexShrink: 0, cursor: 'default' }}>
-                {u.name.charAt(0).toUpperCase()}
-                {u.section && (
-                  <span style={{ position: 'absolute', bottom: -18, left: '50%', transform: 'translateX(-50%)', background: u.color, color: '#fff', fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 4, whiteSpace: 'nowrap', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', pointerEvents: 'none', zIndex: 10 }}>
-                    {u.section}
-                  </span>
-                )}
-              </div>
-            ))}
+            {presenceUsers.slice(0, isMobile ? 2 : 4).map(u => {
+              const initials = u.name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('')
+              return (
+                <div key={u.userId} title={u.section ? `${u.name} — ${u.section}` : u.name}
+                  style={{ position: 'relative', width: 28, height: 28, borderRadius: '50%', background: u.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 600, color: '#fff', border: '2px solid var(--surface)', marginLeft: -6, flexShrink: 0, cursor: 'default', overflow: 'hidden' }}>
+                  {u.avatarUrl
+                    ? <img src={u.avatarUrl} alt={u.name} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                    : <span style={{ fontSize: initials.length > 1 ? 10 : 12 }}>{initials}</span>
+                  }
+                  {u.section && (
+                    <span style={{ position: 'absolute', bottom: -18, left: '50%', transform: 'translateX(-50%)', background: u.color, color: '#fff', fontSize: 9, fontWeight: 600, padding: '1px 5px', borderRadius: 4, whiteSpace: 'nowrap', maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', pointerEvents: 'none', zIndex: 10 }}>
+                      {u.section}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
             {presenceUsers.length > (isMobile ? 2 : 4) && (
               <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'var(--text-secondary)', border: '2px solid var(--surface)', marginLeft: -4 }}>
                 +{presenceUsers.length - (isMobile ? 2 : 4)}
