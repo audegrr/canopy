@@ -1048,9 +1048,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen} iconOnly title="Comments">
             💬{comments.length > 0 ? comments.length : ''}
           </TopBarBtn>
-          <TopBarBtn onClick={() => { setFocusMode(f => { window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus')); return !f }) }} iconOnly active={focusMode} title="Focus mode (⌘⇧F)">
-            <TbIcon d={focusMode ? TB_ICONS.focusOut : TB_ICONS.focusIn} />
-          </TopBarBtn>
+          <TopBarBtn onClick={() => { setFocusMode(f => { window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus')); return !f }) }} iconOnly active={focusMode} title="Focus mode (⌘⇧F)">🎯</TopBarBtn>
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           {onToggleFavorite && (
             <TopBarBtn onClick={onToggleFavorite} iconOnly title={isFavorite ? 'Remove from favorites' : 'Add to favorites'} active={!!isFavorite}>
@@ -1101,7 +1099,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           onClick={() => { setFocusMode(false); window.dispatchEvent(new CustomEvent('canopy:exitFocus')) }}
           title="Exit focus mode (Esc)"
           style={{ position: 'fixed', top: remoteConflict ? 112 : 64, right: 12, zIndex: 500, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)', boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: 5 }}>
-          <TbIcon d={TB_ICONS.focusOut} size={13} /> Exit focus
+          🎯 Exit focus
         </button>
       )}
 
