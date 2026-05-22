@@ -1481,6 +1481,37 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
             <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor!.chain().focus().addColumnBefore().run()} title="Add column left">← Col</button>
             <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor!.chain().focus().addColumnAfter().run()} title="Add column right">→ Col</button>
             <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => editor!.chain().focus().deleteColumn().run()} title="Delete column">✕ Col</button>
+            {sep}
+            <button style={btnStyle} onMouseEnter={hoverIn} onMouseLeave={hoverOut} onClick={() => {
+              const { state } = editor!.view
+              const { selection } = state
+              const tr = state.tr
+              let tableNode: any = null
+              let tableStart = 0
+              for (let d = selection.$from.depth; d > 0; d--) {
+                const n = selection.$from.node(d)
+                if (n.type.name === 'table') { tableNode = n; tableStart = selection.$from.before(d); break }
+              }
+              if (!tableNode) return
+              const firstRow = tableNode.firstChild
+              if (!firstRow) return
+              let numCols = 0; let totalWidth = 0
+              firstRow.forEach((cell: any) => {
+                const colspan = cell.attrs.colspan || 1
+                numCols += colspan
+                const w = cell.attrs.colwidth?.[0]
+                if (w) totalWidth += w * colspan
+              })
+              if (totalWidth === 0) totalWidth = numCols * 150
+              const equalWidth = Math.round(totalWidth / numCols)
+              state.doc.nodesBetween(tableStart, tableStart + tableNode.nodeSize, (node: any, pos: number) => {
+                if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
+                  const colspan = node.attrs.colspan || 1
+                  tr.setNodeMarkup(pos, undefined, { ...node.attrs, colwidth: Array(colspan).fill(equalWidth) })
+                }
+              })
+              editor!.view.dispatch(tr)
+            }} title="Equalize column widths">⇔ Equalize</button>
             <div style={{ flex: 1 }} />
             {sep}
             <button style={{ ...btnStyle, color: '#eb5757' }} onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff0f0' }} onMouseLeave={hoverOut} onClick={() => editor!.chain().focus().deleteTable().run()} title="Delete table">🗑 Delete table</button>
