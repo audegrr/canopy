@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import pptxgen from 'pptxgenjs'
 
 const THEMES = {
   minimal: {
@@ -33,6 +32,7 @@ const THEMES = {
 } as const
 
 type ThemeKey = keyof typeof THEMES
+type Theme = typeof THEMES[ThemeKey]
 
 function tiptapToText(node: any): string {
   if (!node) return ''
@@ -51,39 +51,17 @@ function tiptapToText(node: any): string {
   }
 }
 
-// Draw a colored circle with a number inside (for numbered bullets)
-function addNumberedBullets(s: pptxgen.Slide, items: string[], x: number, y: number, w: number, t: typeof THEMES[ThemeKey]) {
+function addNumberedBullets(s: any, items: string[], x: number, y: number, w: number, t: Theme) {
   items.forEach((item, i) => {
     const cy = y + i * 0.72
-    // Circle background
-    s.addShape('ellipse' as any, {
-      x, y: cy, w: 0.32, h: 0.32,
-      fill: { color: t.accentColor },
-      line: { color: t.accentColor },
-    })
-    // Number in circle
-    s.addText(String(i + 1), {
-      x, y: cy + 0.01, w: 0.32, h: 0.32,
-      fontSize: 11, bold: true, color: 'FFFFFF',
-      fontFace: t.font, align: 'center', valign: 'middle',
-    })
-    // Bullet text
-    s.addText(item, {
-      x: x + 0.42, y: cy, w: w - 0.42, h: 0.34,
-      fontSize: 16, color: t.textColor,
-      fontFace: t.font, valign: 'middle',
-    })
+    s.addShape('ellipse', { x, y: cy, w: 0.32, h: 0.32, fill: { color: t.accentColor }, line: { color: t.accentColor } })
+    s.addText(String(i + 1), { x, y: cy + 0.01, w: 0.32, h: 0.32, fontSize: 11, bold: true, color: 'FFFFFF', fontFace: t.font, align: 'center', valign: 'middle' })
+    s.addText(item, { x: x + 0.42, y: cy, w: w - 0.42, h: 0.34, fontSize: 16, color: t.textColor, fontFace: t.font, valign: 'middle' })
   })
 }
 
-// Rounded content card with subtle background
-function addCard(s: pptxgen.Slide, x: number, y: number, w: number, h: number, t: typeof THEMES[ThemeKey]) {
-  s.addShape(pptxgen.ShapeType.roundRect, {
-    x, y, w, h,
-    fill: { color: t.accentLight },
-    line: { color: t.accentLight },
-    rectRadius: 0.12,
-  })
+function addCard(s: any, x: number, y: number, w: number, h: number, t: Theme) {
+  s.addShape('roundRect', { x, y, w, h, fill: { color: t.accentLight }, line: { color: t.accentLight }, rectRadius: 0.12 })
 }
 
 export async function POST(req: NextRequest) {
@@ -139,10 +117,7 @@ Rules:
 - Keep the original document's language (French if French, English if English)
 - Notes field (optional): one sentence of speaker notes on any slide type`,
         },
-        {
-          role: 'user',
-          content: `Title: ${title || 'Untitled'}\n\n${pageText.slice(0, 5000)}`,
-        },
+        { role: 'user', content: `Title: ${title || 'Untitled'}\n\n${pageText.slice(0, 5000)}` },
       ],
     }),
   })
@@ -162,177 +137,86 @@ Rules:
     return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 })
   }
 
-  // 2. Build .pptx
-  const prs = new pptxgen()
-  prs.layout = 'LAYOUT_WIDE' // 10 x 5.625 inches
+  // 2. Build .pptx — dynamic import avoids bundling Node.js internals at build time
+  const PptxGenJS = (await import('pptxgenjs')).default
+  const prs = new PptxGenJS()
+  prs.layout = 'LAYOUT_WIDE'
 
   for (const slide of slides) {
     const s = prs.addSlide()
 
-    // ── TITLE SLIDE ──────────────────────────────────────────────
     if (slide.type === 'title') {
       s.background = { color: t.titleSlide.bg }
-      // Left accent bar (full height)
-      s.addShape(pptxgen.ShapeType.rect, { x: 0, y: 0, w: 0.18, h: '100%', fill: { color: t.accentColor }, line: { color: t.accentColor } })
-      // Decorative circle top-right
-      s.addShape('ellipse' as any, { x: 8.2, y: -0.8, w: 2.8, h: 2.8, fill: { color: t.accentColor }, line: { color: t.accentColor } })
-      s.addShape('ellipse' as any, { x: 8.6, y: -0.4, w: 2.2, h: 2.2, fill: { color: t.titleSlide.bg }, line: { color: t.titleSlide.bg } })
-
-      s.addText(slide.title || '', {
-        x: 0.55, y: 1.4, w: 8.0, h: 1.8,
-        fontSize: 42, bold: true, color: t.titleSlide.titleColor,
-        fontFace: t.font, align: 'left', valign: 'middle',
-      })
+      s.addShape('rect', { x: 0, y: 0, w: 0.18, h: '100%', fill: { color: t.accentColor }, line: { color: t.accentColor } })
+      s.addShape('ellipse', { x: 8.2, y: -0.8, w: 2.8, h: 2.8, fill: { color: t.accentColor }, line: { color: t.accentColor } })
+      s.addShape('ellipse', { x: 8.6, y: -0.4, w: 2.2, h: 2.2, fill: { color: t.titleSlide.bg }, line: { color: t.titleSlide.bg } })
+      s.addText(slide.title || '', { x: 0.55, y: 1.4, w: 8.0, h: 1.8, fontSize: 42, bold: true, color: t.titleSlide.titleColor, fontFace: t.font, align: 'left', valign: 'middle' })
       if (slide.subtitle) {
-        s.addShape(pptxgen.ShapeType.rect, { x: 0.55, y: 3.35, w: 1.2, h: 0.06, fill: { color: t.accentColor }, line: { color: t.accentColor } })
-        s.addText(slide.subtitle, {
-          x: 0.55, y: 3.55, w: 7.5, h: 1.2,
-          fontSize: 19, color: t.titleSlide.subtitleColor,
-          fontFace: t.font, align: 'left',
-        })
+        s.addShape('rect', { x: 0.55, y: 3.35, w: 1.2, h: 0.06, fill: { color: t.accentColor }, line: { color: t.accentColor } })
+        s.addText(slide.subtitle, { x: 0.55, y: 3.55, w: 7.5, h: 1.2, fontSize: 19, color: t.titleSlide.subtitleColor, fontFace: t.font, align: 'left' })
       }
 
-    // ── SECTION ──────────────────────────────────────────────────
     } else if (slide.type === 'section') {
       s.background = { color: t.sectionBg }
-      // Decorative large number / circle
-      s.addShape('ellipse' as any, { x: 6.5, y: 0.3, w: 4.5, h: 4.5, fill: { color: 'FFFFFF' }, line: { color: 'FFFFFF' } })
-      // Clip with another circle to make a crescent-like shape
-      s.addShape('ellipse' as any, { x: 7.2, y: -0.2, w: 4.5, h: 4.5, fill: { color: t.sectionBg }, line: { color: t.sectionBg } })
-
-      s.addText(slide.title || '', {
-        x: 0.6, y: 1.5, w: 6.5, h: 1.6,
-        fontSize: 36, bold: true, color: t.sectionText,
-        fontFace: t.font, align: 'left', valign: 'middle',
-      })
+      s.addShape('ellipse', { x: 6.5, y: 0.3, w: 4.5, h: 4.5, fill: { color: 'FFFFFF' }, line: { color: 'FFFFFF' } })
+      s.addShape('ellipse', { x: 7.2, y: -0.2, w: 4.5, h: 4.5, fill: { color: t.sectionBg }, line: { color: t.sectionBg } })
+      s.addText(slide.title || '', { x: 0.6, y: 1.5, w: 6.5, h: 1.6, fontSize: 36, bold: true, color: t.sectionText, fontFace: t.font, align: 'left', valign: 'middle' })
       if (slide.subtitle) {
-        s.addText(slide.subtitle, {
-          x: 0.6, y: 3.3, w: 6.0, h: 1.0,
-          fontSize: 17, color: t.sectionText, fontFace: t.font, align: 'left',
-        })
+        s.addText(slide.subtitle, { x: 0.6, y: 3.3, w: 6.0, h: 1.0, fontSize: 17, color: t.sectionText, fontFace: t.font, align: 'left' })
       }
 
-    // ── BULLETS (numbered) ───────────────────────────────────────
     } else if (slide.type === 'bullets') {
       s.background = { color: t.bg }
-      // Title bar
-      s.addShape(pptxgen.ShapeType.rect, { x: 0, y: 0, w: '100%', h: 1.1, fill: { color: t.accentColor }, line: { color: t.accentColor } })
-      s.addText(slide.title || '', {
-        x: 0.5, y: 0.1, w: 9.0, h: 0.9,
-        fontSize: 26, bold: true, color: 'FFFFFF',
-        fontFace: t.font, align: 'left', valign: 'middle',
-      })
-      const bullets: string[] = slide.bullets || []
-      addNumberedBullets(s, bullets, 0.5, 1.3, 9.2, t)
+      s.addShape('rect', { x: 0, y: 0, w: '100%', h: 1.1, fill: { color: t.accentColor }, line: { color: t.accentColor } })
+      s.addText(slide.title || '', { x: 0.5, y: 0.1, w: 9.0, h: 0.9, fontSize: 26, bold: true, color: 'FFFFFF', fontFace: t.font, align: 'left', valign: 'middle' })
+      addNumberedBullets(s, slide.bullets || [], 0.5, 1.3, 9.2, t)
 
-    // ── TWO COLUMNS ──────────────────────────────────────────────
     } else if (slide.type === 'two-col') {
       s.background = { color: t.bg }
-      // Slide title
-      s.addText(slide.title || '', {
-        x: 0.4, y: 0.2, w: 9.2, h: 0.7,
-        fontSize: 24, bold: true, color: t.titleColor,
-        fontFace: t.font, align: 'left',
-      })
-      s.addShape(pptxgen.ShapeType.rect, { x: 0.4, y: 0.95, w: 9.2, h: 0.04, fill: { color: t.accentColor }, line: { color: t.accentColor } })
-
+      s.addText(slide.title || '', { x: 0.4, y: 0.2, w: 9.2, h: 0.7, fontSize: 24, bold: true, color: t.titleColor, fontFace: t.font, align: 'left' })
+      s.addShape('rect', { x: 0.4, y: 0.95, w: 9.2, h: 0.04, fill: { color: t.accentColor }, line: { color: t.accentColor } })
       const col1 = slide.col1 || {}
       const col2 = slide.col2 || {}
-
-      // Left card
       addCard(s, 0.3, 1.1, 4.5, 4.2, t)
-      s.addShape(pptxgen.ShapeType.rect, { x: 0.3, y: 1.1, w: 4.5, h: 0.52, fill: { color: t.accentColor }, line: { color: t.accentColor }, rectRadius: 0.12 } as any)
-      s.addText(col1.heading || '', {
-        x: 0.45, y: 1.1, w: 4.2, h: 0.52,
-        fontSize: 15, bold: true, color: 'FFFFFF',
-        fontFace: t.font, align: 'left', valign: 'middle',
+      s.addShape('rect', { x: 0.3, y: 1.1, w: 4.5, h: 0.52, fill: { color: t.accentColor }, line: { color: t.accentColor } })
+      s.addText(col1.heading || '', { x: 0.45, y: 1.1, w: 4.2, h: 0.52, fontSize: 15, bold: true, color: 'FFFFFF', fontFace: t.font, align: 'left', valign: 'middle' })
+      ;(col1.points || []).forEach((pt: string, i: number) => {
+        s.addText(`• ${pt}`, { x: 0.45, y: 1.75 + i * 0.85, w: 4.1, h: 0.75, fontSize: 14, color: t.textColor, fontFace: t.font, valign: 'top', wrap: true })
       })
-      const points1: string[] = col1.points || []
-      points1.forEach((pt: string, i: number) => {
-        s.addText(`• ${pt}`, {
-          x: 0.45, y: 1.75 + i * 0.85, w: 4.1, h: 0.75,
-          fontSize: 14, color: t.textColor, fontFace: t.font,
-          valign: 'top', wrap: true,
-        })
-      })
-
-      // Right card
       addCard(s, 5.2, 1.1, 4.5, 4.2, t)
-      s.addShape(pptxgen.ShapeType.rect, { x: 5.2, y: 1.1, w: 4.5, h: 0.52, fill: { color: t.accentColor }, line: { color: t.accentColor }, rectRadius: 0.12 } as any)
-      s.addText(col2.heading || '', {
-        x: 5.35, y: 1.1, w: 4.2, h: 0.52,
-        fontSize: 15, bold: true, color: 'FFFFFF',
-        fontFace: t.font, align: 'left', valign: 'middle',
-      })
-      const points2: string[] = col2.points || []
-      points2.forEach((pt: string, i: number) => {
-        s.addText(`• ${pt}`, {
-          x: 5.35, y: 1.75 + i * 0.85, w: 4.1, h: 0.75,
-          fontSize: 14, color: t.textColor, fontFace: t.font,
-          valign: 'top', wrap: true,
-        })
+      s.addShape('rect', { x: 5.2, y: 1.1, w: 4.5, h: 0.52, fill: { color: t.accentColor }, line: { color: t.accentColor } })
+      s.addText(col2.heading || '', { x: 5.35, y: 1.1, w: 4.2, h: 0.52, fontSize: 15, bold: true, color: 'FFFFFF', fontFace: t.font, align: 'left', valign: 'middle' })
+      ;(col2.points || []).forEach((pt: string, i: number) => {
+        s.addText(`• ${pt}`, { x: 5.35, y: 1.75 + i * 0.85, w: 4.1, h: 0.75, fontSize: 14, color: t.textColor, fontFace: t.font, valign: 'top', wrap: true })
       })
 
-    // ── QUOTE ────────────────────────────────────────────────────
     } else if (slide.type === 'quote') {
       s.background = { color: t.bg }
-      // Big decorative quotation mark
-      s.addText('“', {
-        x: 0.3, y: -0.3, w: 2.5, h: 2.5,
-        fontSize: 180, color: t.accentLight,
-        fontFace: t.font, align: 'left',
-      })
-      // Accent left bar
-      s.addShape(pptxgen.ShapeType.rect, { x: 0.55, y: 1.1, w: 0.1, h: 2.8, fill: { color: t.accentColor }, line: { color: t.accentColor } })
-      s.addText(slide.quote || '', {
-        x: 0.85, y: 1.0, w: 8.0, h: 3.0,
-        fontSize: 22, italic: true, color: t.titleColor,
-        fontFace: t.font, align: 'left', valign: 'middle',
-      })
+      s.addText('“', { x: 0.3, y: -0.3, w: 2.5, h: 2.5, fontSize: 180, color: t.accentLight, fontFace: t.font, align: 'left' })
+      s.addShape('rect', { x: 0.55, y: 1.1, w: 0.1, h: 2.8, fill: { color: t.accentColor }, line: { color: t.accentColor } })
+      s.addText(slide.quote || '', { x: 0.85, y: 1.0, w: 8.0, h: 3.0, fontSize: 22, italic: true, color: t.titleColor, fontFace: t.font, align: 'left', valign: 'middle' })
       if (slide.source) {
-        s.addText(`— ${slide.source}`, {
-          x: 0.85, y: 4.1, w: 8.0, h: 0.5,
-          fontSize: 14, color: t.accentColor, bold: true,
-          fontFace: t.font, align: 'left',
-        })
+        s.addText(`— ${slide.source}`, { x: 0.85, y: 4.1, w: 8.0, h: 0.5, fontSize: 14, color: t.accentColor, bold: true, fontFace: t.font, align: 'left' })
       }
 
-    // ── STATS ────────────────────────────────────────────────────
     } else if (slide.type === 'stats') {
       s.background = { color: t.bg }
-      s.addText(slide.title || '', {
-        x: 0.4, y: 0.2, w: 9.2, h: 0.7,
-        fontSize: 26, bold: true, color: t.titleColor,
-        fontFace: t.font, align: 'center',
-      })
-      s.addShape(pptxgen.ShapeType.rect, { x: 3.5, y: 0.95, w: 3.0, h: 0.04, fill: { color: t.accentColor }, line: { color: t.accentColor } })
-
+      s.addText(slide.title || '', { x: 0.4, y: 0.2, w: 9.2, h: 0.7, fontSize: 26, bold: true, color: t.titleColor, fontFace: t.font, align: 'center' })
+      s.addShape('rect', { x: 3.5, y: 0.95, w: 3.0, h: 0.04, fill: { color: t.accentColor }, line: { color: t.accentColor } })
       const stats: { value: string; label: string }[] = slide.stats || []
       const count = Math.min(stats.length, 3)
       const cardW = count === 2 ? 4.2 : 2.9
       const startX = count === 2 ? 0.75 : 0.35
       const gap = count === 2 ? 4.6 : 3.15
-
       stats.slice(0, count).forEach((st, i) => {
         const cx = startX + i * gap
         addCard(s, cx, 1.2, cardW, 3.5, t)
-        // Big number
-        s.addText(st.value, {
-          x: cx + 0.1, y: 1.5, w: cardW - 0.2, h: 1.8,
-          fontSize: 64, bold: true, color: t.statColor,
-          fontFace: t.font, align: 'center', valign: 'middle',
-        })
-        // Label
-        s.addShape(pptxgen.ShapeType.rect, { x: cx + cardW / 2 - 0.6, y: 3.3, w: 1.2, h: 0.05, fill: { color: t.accentColor }, line: { color: t.accentColor } })
-        s.addText(st.label, {
-          x: cx + 0.1, y: 3.45, w: cardW - 0.2, h: 0.9,
-          fontSize: 14, color: t.textColor,
-          fontFace: t.font, align: 'center', valign: 'top', wrap: true,
-        })
+        s.addText(st.value, { x: cx + 0.1, y: 1.5, w: cardW - 0.2, h: 1.8, fontSize: 64, bold: true, color: t.statColor, fontFace: t.font, align: 'center', valign: 'middle' })
+        s.addShape('rect', { x: cx + cardW / 2 - 0.6, y: 3.3, w: 1.2, h: 0.05, fill: { color: t.accentColor }, line: { color: t.accentColor } })
+        s.addText(st.label, { x: cx + 0.1, y: 3.45, w: cardW - 0.2, h: 0.9, fontSize: 14, color: t.textColor, fontFace: t.font, align: 'center', valign: 'top', wrap: true })
       })
     }
 
-    // Speaker notes on any slide
     if (slide.notes) s.addNotes(slide.notes)
   }
 
