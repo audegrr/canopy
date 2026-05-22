@@ -61,9 +61,12 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   const [backlinks, setBacklinks] = useState<{ id: string; title: string; icon: string }[]>([])
   const [backlinksLoaded, setBacklinksLoaded] = useState(false)
   const [commentsOpen, setCommentsOpen] = useState(false)
-  const [comments, setComments] = useState<{ id: string; body: string; created_at: string; user_id: string; profile?: { full_name: string | null; email: string } | null }[]>([])
+  const [comments, setComments] = useState<{ id: string; body: string; created_at: string; user_id: string; anchor_id?: string | null; profile?: { full_name: string | null; email: string } | null }[]>([])
   const [newComment, setNewComment] = useState('')
   const [commentLoading, setCommentLoading] = useState(false)
+  const [pendingAnchorId, setPendingAnchorId] = useState<string | null>(null)
+  const [pendingAnchorText, setPendingAnchorText] = useState('')
+  const commentInputRef = useRef<HTMLTextAreaElement>(null)
   const [tocOpen, setTocOpen] = useState(false)
   const [headings, setHeadings] = useState<{ level: number; text: string; idx: number }[]>([])
   const [wordCount, setWordCount] = useState(0)
@@ -333,6 +336,20 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       window.removeEventListener('canopy:showFilePicker', onFilePicker)
       window.removeEventListener('canopy:uploadFile', onUploadFile)
     }
+  }, [])
+
+  // Open comment panel when editor requests an inline comment
+  useEffect(() => {
+    function onAddComment(e: Event) {
+      const { anchorId, text } = (e as CustomEvent).detail
+      setPendingAnchorId(anchorId)
+      setPendingAnchorText(text)
+      setCommentsOpen(true)
+      loadComments()
+      setTimeout(() => commentInputRef.current?.focus(), 150)
+    }
+    window.addEventListener('canopy:addComment', onAddComment)
+    return () => window.removeEventListener('canopy:addComment', onAddComment)
   }, [])
 
   // Sync title display
@@ -804,7 +821,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   async function loadComments() {
     const { data } = await supabase
       .from('page_comments')
-      .select('id, body, created_at, user_id, profile:profiles(full_name, email)')
+      .select('id, body, created_at, user_id, anchor_id, profile:profiles(full_name, email)')
       .eq('page_id', page.id)
       .order('created_at', { ascending: true })
     setComments((data as any) || [])
@@ -814,14 +831,17 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     if (!newComment.trim() || commentLoading) return
     setCommentLoading(true)
     const body = newComment.trim()
+    const anchor_id = pendingAnchorId || null
     const { data, error } = await supabase
       .from('page_comments')
-      .insert({ page_id: page.id, user_id: userId, body })
-      .select('id, body, created_at, user_id, profile:profiles(full_name, email)')
+      .insert({ page_id: page.id, user_id: userId, body, anchor_id })
+      .select('id, body, created_at, user_id, anchor_id, profile:profiles(full_name, email)')
       .single()
     if (!error && data) {
       setComments(c => [...c, data as any])
       setNewComment('')
+      setPendingAnchorId(null)
+      setPendingAnchorText('')
       const commenterName = myPresenceRef.current.name || 'Someone'
       // Notify the page owner if they're not the commenter
       if (page.owner_id && page.owner_id !== userId) {
@@ -1363,6 +1383,17 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                 const isOwn = c.user_id === userId
                 return (
                   <div key={c.id} style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {c.anchor_id && (
+                      <div onClick={() => {
+                        const el = document.querySelector(`mark[data-comment-id="${c.anchor_id}"]`)
+                        el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                        ;(el as HTMLElement)?.classList.add('comment-anchor-flash')
+                        setTimeout(() => (el as HTMLElement)?.classList.remove('comment-anchor-flash'), 1200)
+                      }} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--accent)', cursor: 'pointer', fontStyle: 'italic', overflow: 'hidden' }}>
+                        <span>📌</span>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Anchored text</span>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, color: '#fff', flexShrink: 0 }}>{initial}</div>
                       <div style={{ flex: 1, minWidth: 0 }}>
@@ -1382,7 +1413,15 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
               })}
             </div>
             <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {pendingAnchorText && (
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: 4, padding: '4px 8px', display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                  <span style={{ flexShrink: 0 }}>📌</span>
+                  <span style={{ fontStyle: 'italic', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>"{pendingAnchorText}"</span>
+                  <button onClick={() => { setPendingAnchorId(null); setPendingAnchorText('') }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, flexShrink: 0 }}>✕</button>
+                </div>
+              )}
               <textarea
+                ref={commentInputRef}
                 value={newComment}
                 onChange={e => setNewComment(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addComment() }}

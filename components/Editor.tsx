@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useMemo } from 'react'
 import { useEditor, EditorContent, BubbleMenu, NodeViewWrapper, NodeViewContent, ReactNodeViewRenderer } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -14,8 +14,12 @@ import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import Image from '@tiptap/extension-image'
-import { Node, mergeAttributes } from '@tiptap/core'
-import { TextSelection } from '@tiptap/pm/state'
+import { Node, Mark, mergeAttributes } from '@tiptap/core'
+import { TextSelection, Plugin, PluginKey } from '@tiptap/pm/state'
+import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { createLowlight, all as allLangs } from 'lowlight'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
 import { createClient } from '@/lib/supabase/client'
 
 // ── Video node ─────────────────────────────────────────
@@ -556,6 +560,8 @@ const SLASH_ITEMS = [
   { id: 'database', label: 'Database', hint: 'Embed a database', icon: '🗄️', section: 'Advanced' },
   { id: 'columns2', label: '2 Columns', hint: 'Side-by-side layout', icon: '⫿', section: 'Layout' },
   { id: 'columns3', label: '3 Columns', hint: 'Three-column layout', icon: '⫽', section: 'Layout' },
+  { id: 'math', label: 'Inline math', hint: 'LaTeX inline formula', icon: '∑', section: 'Advanced' },
+  { id: 'math-block', label: 'Math block', hint: 'LaTeX display formula', icon: '∫', section: 'Advanced' },
 ]
 
 const COLORS = [
@@ -578,6 +584,135 @@ const HIGHLIGHTS = [
   { label: 'Pink', value: '#fce4ec' },
   { label: 'Orange', value: '#fce5cd' },
 ]
+
+// ── SYNTAX HIGHLIGHTING ──────────────────────────────────────────────────────
+const lowlight = createLowlight(allLangs)
+
+function flattenHast(node: any, inherited: string[] = []): { text: string; classes: string[] }[] {
+  const out: { text: string; classes: string[] }[] = []
+  for (const child of node.children ?? []) {
+    const cls = [...inherited, ...(child.properties?.className ?? [])]
+    if (child.type === 'text') out.push({ text: child.value, classes: cls })
+    else out.push(...flattenHast(child, cls))
+  }
+  return out
+}
+
+function buildDecorations(doc: any): DecorationSet {
+  const decos: Decoration[] = []
+  doc.descendants((node: any, pos: number) => {
+    if (node.type.name !== 'codeBlock') return
+    const lang = node.attrs.language || ''
+    const code = node.textContent
+    if (!code) return
+    let result: any
+    try { result = lang ? lowlight.highlight(lang, code) : lowlight.highlightAuto(code) }
+    catch { return }
+    let offset = pos + 1
+    for (const token of flattenHast(result)) {
+      const to = offset + token.text.length
+      if (token.classes.length) decos.push(Decoration.inline(offset, to, { class: token.classes.join(' ') }))
+      offset = to
+    }
+  })
+  return DecorationSet.create(doc, decos)
+}
+
+const lowlightKey = new PluginKey('lowlight')
+const lowlightPlugin = new Plugin({
+  key: lowlightKey,
+  state: {
+    init(_, { doc }) { return buildDecorations(doc) },
+    apply(tr, old) { return tr.docChanged ? buildDecorations(tr.doc) : old },
+  },
+  props: { decorations(state) { return this.getState(state) } },
+})
+
+// ── MATH NODES ───────────────────────────────────────────────────────────────
+function renderLatex(latex: string, display: boolean): string {
+  if (!latex) return ''
+  try { return katex.renderToString(latex, { throwOnError: false, displayMode: display }) }
+  catch { return '<span style="color:#eb5757">Invalid LaTeX</span>' }
+}
+
+function MathInlineView({ node, updateAttributes, editor }: any) {
+  const [editing, setEditing] = useState(!node.attrs.latex)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const latex = node.attrs.latex || ''
+  const rendered = useMemo(() => renderLatex(latex, false), [latex])
+  useEffect(() => { if (editing) setTimeout(() => inputRef.current?.select(), 0) }, [editing])
+  return (
+    <NodeViewWrapper as="span" style={{ display: 'inline-block', verticalAlign: 'middle', cursor: 'pointer' }}>
+      {editing ? (
+        <input ref={inputRef} value={latex}
+          onChange={e => updateAttributes({ latex: e.target.value })}
+          onBlur={() => setEditing(false)}
+          onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); setEditing(false) } }}
+          placeholder="LaTeX…"
+          style={{ border: '1px solid var(--accent)', borderRadius: 4, padding: '1px 6px', fontFamily: 'monospace', fontSize: 13, outline: 'none', background: 'var(--sidebar-bg)', color: 'var(--text)', minWidth: 120 }} />
+      ) : (
+        <span onClick={() => editor?.isEditable && setEditing(true)}
+          dangerouslySetInnerHTML={{ __html: rendered || '<span style="color:var(--text-tertiary)">$LaTeX$</span>' }}
+          style={{ padding: '0 2px' }} />
+      )}
+    </NodeViewWrapper>
+  )
+}
+
+const MathInlineNode = Node.create({
+  name: 'mathInline', group: 'inline', inline: true, atom: true,
+  addAttributes() { return { latex: { default: '' } } },
+  parseHTML() { return [{ tag: 'span[data-math-inline]' }] },
+  renderHTML({ HTMLAttributes }) { return ['span', mergeAttributes(HTMLAttributes, { 'data-math-inline': '' }), 0] },
+  addNodeView() { return ReactNodeViewRenderer(MathInlineView) },
+})
+
+function MathBlockView({ node, updateAttributes, editor }: any) {
+  const [editing, setEditing] = useState(!node.attrs.latex)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const latex = node.attrs.latex || ''
+  const rendered = useMemo(() => renderLatex(latex, true), [latex])
+  useEffect(() => { if (editing) setTimeout(() => textareaRef.current?.focus(), 0) }, [editing])
+  return (
+    <NodeViewWrapper>
+      <div contentEditable={false} style={{ margin: '8px 0', padding: '16px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--sidebar-bg)', textAlign: 'center' }}>
+        {editing ? (
+          <div>
+            <textarea ref={textareaRef} value={latex} rows={3}
+              onChange={e => updateAttributes({ latex: e.target.value })}
+              onBlur={() => setEditing(false)}
+              onKeyDown={e => { if (e.key === 'Escape' || (e.key === 'Enter' && e.metaKey)) { e.preventDefault(); setEditing(false) } }}
+              placeholder="Enter LaTeX expression…"
+              style={{ width: '100%', border: '1px solid var(--accent)', borderRadius: 4, padding: 8, fontFamily: 'monospace', fontSize: 13, outline: 'none', background: 'var(--sidebar-bg)', color: 'var(--text)', resize: 'vertical' }} />
+            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>Esc or ⌘↩ to close</div>
+          </div>
+        ) : (
+          <div onClick={() => editor?.isEditable && setEditing(true)}
+            dangerouslySetInnerHTML={{ __html: rendered || '<span style="color:var(--text-tertiary)">Click to enter LaTeX…</span>' }}
+            style={{ cursor: editor?.isEditable ? 'pointer' : 'default', minHeight: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }} />
+        )}
+      </div>
+    </NodeViewWrapper>
+  )
+}
+
+const MathBlockNode = Node.create({
+  name: 'mathBlock', group: 'block',
+  addAttributes() { return { latex: { default: '' } } },
+  parseHTML() { return [{ tag: 'div[data-math-block]' }] },
+  renderHTML({ HTMLAttributes }) { return ['div', mergeAttributes(HTMLAttributes, { 'data-math-block': '' }), 0] },
+  addNodeView() { return ReactNodeViewRenderer(MathBlockView) },
+})
+
+// ── COMMENT MARK ─────────────────────────────────────────────────────────────
+const CommentMark = Mark.create({
+  name: 'comment',
+  addAttributes() {
+    return { commentId: { default: null, parseHTML: el => el.getAttribute('data-comment-id'), renderHTML: a => a.commentId ? { 'data-comment-id': a.commentId } : {} } }
+  },
+  parseHTML() { return [{ tag: 'mark[data-comment-id]' }] },
+  renderHTML({ HTMLAttributes }) { return ['mark', mergeAttributes(HTMLAttributes, { class: 'comment-anchor' }), 0] },
+})
 
 // ── CUSTOM CODE BLOCK ─────────────────────────────────────────────────────────
 const CODE_LANGUAGES = ['bash','css','go','html','java','javascript','json','markdown','mermaid','python','rust','sql','svg','typescript','xml','yaml']
@@ -798,6 +933,7 @@ const CustomCodeBlock = Node.create({
       },
     }
   },
+  addProseMirrorPlugins() { return [lowlightPlugin] },
   addNodeView() { return ReactNodeViewRenderer(CodeBlockComponent) },
 })
 
@@ -883,6 +1019,9 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       ColumnsNode,
       EmbedNode,
       BookmarkNode,
+      MathInlineNode,
+      MathBlockNode,
+      CommentMark,
     ],
     content: content || '',
     editable,
@@ -1259,6 +1398,12 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
         if (bookmarkUrl?.trim()) insertBookmark(bookmarkUrl.trim())
         break
       }
+      case 'math':
+        editor.chain().focus().insertContent({ type: 'mathInline', attrs: { latex: '' } }).run()
+        break
+      case 'math-block':
+        editor.chain().focus().insertContent({ type: 'mathBlock', attrs: { latex: '' } }).run()
+        break
     }
   }
 
@@ -1461,6 +1606,15 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
               }} active={showAiMenu} title='AI rewrite' disabled={aiLoading}>
                 {aiLoading ? '…' : '✨ AI'}
               </FBtn>
+            {editable && !editor.state.selection.empty && !inCodeBlock && (
+              <FBtn onClick={() => {
+                const anchorId = crypto.randomUUID()
+                editor.chain().focus().setMark('comment', { commentId: anchorId }).run()
+                const { from, to } = editor.state.selection
+                const text = editor.state.doc.textBetween(from, to)
+                window.dispatchEvent(new CustomEvent('canopy:addComment', { detail: { anchorId, text } }))
+              }} active={editor.isActive('comment')} title='Add comment'>💬</FBtn>
+            )}
           </>
           </>}
         </div>
