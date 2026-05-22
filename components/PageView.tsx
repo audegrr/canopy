@@ -1018,7 +1018,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         {!isPublicShare && !isMobile && <>
           {/* Separator */}
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
-          <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onXLSX={page.is_database ? exportXLSX : undefined} onMarkdown={exportMarkdown} onPresentation={() => setPresentationOpen(true)} isDatabase={!!page.is_database} />
+          <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onXLSX={page.is_database ? exportXLSX : undefined} onMarkdown={exportMarkdown} isDatabase={!!page.is_database} />
+          {!page.is_database && <TopBarBtn onClick={() => setPresentationOpen(true)} iconOnly title="Generate Slides">🎤</TopBarBtn>}
           <TopBarBtn onClick={exportPDF} iconOnly title="Print / Save as PDF">🖨️</TopBarBtn>
           {canEdit && !page.is_database && <TopBarBtn onClick={triggerMarkdownImport} iconOnly title="Import from Markdown">⬇️</TopBarBtn>}
           {canEdit && !page.is_database && <TopBarBtn onClick={saveAsTemplate} iconOnly title="Save as template">📋</TopBarBtn>}
@@ -2145,7 +2146,6 @@ function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, onPresentation, 
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpen(false)} />
           <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 100, minWidth: '190px' }} className="scale-in">
-            {!isDatabase && onPresentation && item('🎤 Generate Slides (.pptx)', onPresentation)}
             {item('📄 Export as PDF', onPDF)}
             {isDatabase ? (
               <>
