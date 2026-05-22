@@ -53,6 +53,7 @@
     "lowlight": "^3.3.0",
     "marked": "^18.0.0",
     "next": "16.2.3",
+    "pptxgenjs": "^4.0.1",
     "prosemirror-state": "^1.4.4",
     "prosemirror-transform": "^1.12.0",
     "prosemirror-view": "^1.41.8",

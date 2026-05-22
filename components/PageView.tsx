@@ -75,6 +75,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   const [showCoverGallery, setShowCoverGallery] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [presentationOpen, setPresentationOpen] = useState(false)
+  const [presentationTheme, setPresentationTheme] = useState<'minimal' | 'corporate' | 'dark' | 'colorful'>('minimal')
+  const [presentationLoading, setPresentationLoading] = useState(false)
   const [subPages, setSubPages] = useState<{ id: string; title: string; icon: string; is_database: boolean }[]>([])
   const [ownerName, setOwnerName] = useState<string | null>(null)
   const titleRef = useRef<HTMLDivElement>(null)
@@ -802,6 +805,35 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     showToast('Link copied!')
   }
 
+  async function generatePresentation() {
+    setPresentationLoading(true)
+    try {
+      const res = await fetch('/api/generate-presentation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: page.content, title: page.title, theme: presentationTheme }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        showToast(`Error: ${err.error || 'Generation failed'}`)
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${(page.title || 'presentation').replace(/[^a-z0-9]/gi, '_')}.pptx`
+      a.click()
+      URL.revokeObjectURL(url)
+      setPresentationOpen(false)
+      showToast('Presentation downloaded!')
+    } catch {
+      showToast('Generation failed — please try again')
+    } finally {
+      setPresentationLoading(false)
+    }
+  }
+
   function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2500) }
   function isCssBackground(v: string) { return v.startsWith('linear-gradient') || v.startsWith('radial-gradient') || (v.startsWith('#') && v.length <= 9) }
 
@@ -986,7 +1018,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         {!isPublicShare && !isMobile && <>
           {/* Separator */}
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
-          <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onXLSX={page.is_database ? exportXLSX : undefined} onMarkdown={exportMarkdown} isDatabase={!!page.is_database} />
+          <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onXLSX={page.is_database ? exportXLSX : undefined} onMarkdown={exportMarkdown} onPresentation={() => setPresentationOpen(true)} isDatabase={!!page.is_database} />
           <TopBarBtn onClick={exportPDF} iconOnly title="Print / Save as PDF">🖨️</TopBarBtn>
           {canEdit && !page.is_database && <TopBarBtn onClick={triggerMarkdownImport} iconOnly title="Import from Markdown">⬇️</TopBarBtn>}
           {canEdit && !page.is_database && <TopBarBtn onClick={saveAsTemplate} iconOnly title="Save as template">📋</TopBarBtn>}
@@ -1033,6 +1065,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
               <>
                 <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setMobileMenuOpen(false)} />
                 <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 6, boxShadow: 'var(--shadow-lg)', zIndex: 200, minWidth: 180 }} className="scale-in">
+                  <MobileMenuItem onClick={() => { setPresentationOpen(true); setMobileMenuOpen(false) }}>🎤 Generate Slides</MobileMenuItem>
                   <MobileMenuItem onClick={() => { exportPDF(); setMobileMenuOpen(false) }}>📄 Export PDF</MobileMenuItem>
                   {!page.is_database && <MobileMenuItem onClick={() => { exportMarkdown(); setMobileMenuOpen(false) }}>⬆️ Export Markdown</MobileMenuItem>}
                   {canEdit && !page.is_database && <MobileMenuItem onClick={() => { triggerMarkdownImport(); setMobileMenuOpen(false) }}>⬇️ Import Markdown</MobileMenuItem>}
@@ -1709,6 +1742,57 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           {toast}
         </div>
       )}
+
+      {presentationOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setPresentationOpen(false) }}>
+          <div style={{ background: 'var(--surface)', borderRadius: 12, padding: '28px 32px', width: 420, maxWidth: '92vw', boxShadow: 'var(--shadow-lg)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <span style={{ fontWeight: 600, fontSize: 16 }}>🎤 Generate Slides</span>
+              <button onClick={() => setPresentationOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text-tertiary)', lineHeight: 1 }}>×</button>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20, lineHeight: 1.5 }}>
+              AI will structure <strong>"{page.title || 'Untitled'}"</strong> into a PowerPoint presentation. Pick a visual theme:
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 24 }}>
+              {([
+                { key: 'minimal',   label: 'Minimal',   bg: '#F9FAFB', accent: '#6366F1', text: '#111827' },
+                { key: 'corporate', label: 'Corporate',  bg: '#1E3A5F', accent: '#A0BDD8', text: '#FFFFFF' },
+                { key: 'dark',      label: 'Dark',       bg: '#1E1E2E', accent: '#89B4FA', text: '#CDD6F4' },
+                { key: 'colorful',  label: 'Colorful',   bg: '#7C3AED', accent: '#F59E0B', text: '#FFFFFF' },
+              ] as const).map(th => (
+                <button key={th.key} onClick={() => setPresentationTheme(th.key)}
+                  style={{
+                    border: presentationTheme === th.key ? '2.5px solid var(--accent)' : '2px solid var(--border)',
+                    borderRadius: 8, padding: '12px 10px', cursor: 'pointer',
+                    background: th.bg, transition: 'border-color 0.15s',
+                    display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6,
+                  }}>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <div style={{ width: 20, height: 4, borderRadius: 2, background: th.text, opacity: 0.9 }} />
+                    <div style={{ width: 10, height: 4, borderRadius: 2, background: th.text, opacity: 0.4 }} />
+                  </div>
+                  <div style={{ width: '100%', height: 2, borderRadius: 1, background: th.accent }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 3, width: '100%' }}>
+                    {[70, 55, 45].map((w, i) => <div key={i} style={{ width: `${w}%`, height: 3, borderRadius: 1, background: th.text, opacity: 0.25 }} />)}
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: th.text, opacity: 0.85, marginTop: 2 }}>{th.label}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={generatePresentation}
+              disabled={presentationLoading}
+              style={{
+                width: '100%', padding: '10px 0', borderRadius: 8, border: 'none',
+                background: presentationLoading ? 'var(--text-tertiary)' : 'var(--accent)',
+                color: '#fff', fontWeight: 600, fontSize: 14, cursor: presentationLoading ? 'not-allowed' : 'pointer',
+                transition: 'background 0.15s',
+              }}>
+              {presentationLoading ? '⏳ Generating…' : '✨ Generate & Download'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2042,7 +2126,7 @@ function CoverGallery({ onSelect, onUpload, onClose }: { onSelect: (v: string) =
   )
 }
 
-function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, isDatabase }: { onPDF: () => void; onWord: () => void; onCSV?: () => void; onXLSX?: () => void; onMarkdown?: () => void; isDatabase?: boolean }) {
+function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, onPresentation, isDatabase }: { onPDF: () => void; onWord: () => void; onCSV?: () => void; onXLSX?: () => void; onMarkdown?: () => void; onPresentation?: () => void; isDatabase?: boolean }) {
   const [open, setOpen] = useState(false)
   const item = (label: string, fn: () => void) => (
     <div onClick={() => { fn(); setOpen(false) }}
@@ -2061,6 +2145,7 @@ function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, isDatabase }: { 
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpen(false)} />
           <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 100, minWidth: '190px' }} className="scale-in">
+            {!isDatabase && onPresentation && item('🎤 Generate Slides (.pptx)', onPresentation)}
             {item('📄 Export as PDF', onPDF)}
             {isDatabase ? (
               <>
