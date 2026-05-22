@@ -15,6 +15,7 @@ export default async function AppLayout({ children }) {
     supabase.from('pages')
       .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
       .eq('owner_id', user.id)
+      .is('deleted_at', null)
       .order('position'),
     supabase.rpc('get_shared_pages', { user_uuid: user.id }),
     supabase.from('workspace_members').select('workspace_id, role').eq('user_id', user.id)

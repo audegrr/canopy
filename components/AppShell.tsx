@@ -231,6 +231,11 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           }]
         })
       })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pages' }, (payload: any) => {
+        const p = payload.new
+        if (p.workspace_id !== currentWs.id) return
+        if (p.deleted_at) setPages(prev => prev.filter(x => x.id !== p.id))
+      })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pages' }, (payload: any) => {
         const p = payload.old
         if (p.workspace_id !== currentWs.id) return
@@ -453,8 +458,20 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   async function deletePage(pageId: string) {
     const { error } = await supabase.from('pages').update({ deleted_at: new Date().toISOString() }).eq('id', pageId)
     if (error) { showError('Failed to delete page'); setContextMenu(null); return }
-    setPages(p => p.filter(x => x.id !== pageId))
-    if (currentPageId === pageId) navigate('/app')
+    // Collect all descendant IDs to remove from state
+    const toRemove = new Set<string>([pageId])
+    let prev = pages
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const p of prev) {
+        if (p.parent_id && toRemove.has(p.parent_id) && !toRemove.has(p.id)) {
+          toRemove.add(p.id); changed = true
+        }
+      }
+    }
+    setPages(p => p.filter(x => !toRemove.has(x.id)))
+    if (currentPageId && toRemove.has(currentPageId)) navigate('/app')
     setContextMenu(null)
     showToastMsg('Page moved to trash')
   }
