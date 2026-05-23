@@ -3,23 +3,29 @@ import { NextRequest, NextResponse } from 'next/server'
 // Slide canvas: 13.33" × 7.5" (LAYOUT_WIDE)
 const W = 13.33
 const H = 7.5
-const PAD = 0.55
 
+// Contrast contract (never break these):
+//   • text on dark gradient bg   → titleSlide.titleColor / titleSlide.subtitleColor
+//   • text on accentColor bg     → onAccent
+//   • text on accentLight bg     → textColor (body) or titleColor (heading)
+//   • content-slide header band  → headerGrad1/2 (always dark) + 'FFFFFF'
+//   • NEVER append hex digits ('1A', '55') for transparency — use the transparency: N property
 const THEMES = {
   minimal: {
     bg: 'FFFFFF',
     titleColor: '111827',
     textColor: '374151',
-    accentColor: '4F46E5',   // indigo — dark enough for white text
-    onAccent: 'FFFFFF',      // text color ON accentColor backgrounds
-    accentLight: 'EEF2FF',   // very light, use dark text
+    accentColor: '4F46E5',   // dark indigo — white text safe on it
+    onAccent: 'FFFFFF',
+    accentLight: 'EEF2FF',   // very light — dark text only
     accentMid: 'C7D2FE',
-    titleSlide: { bg: '111827', titleColor: 'FFFFFF', subtitleColor: 'A5B4FC' },
+    decoColor: '312E81',     // muted accent for large decorative text on dark bg
+    titleSlide: { titleColor: 'FFFFFF', subtitleColor: 'A5B4FC' },
     sectionText: 'FFFFFF',
     font: 'Calibri',
     statColor: '4F46E5',
     gradStop1: '1E1B4B', gradStop2: '111827',
-    headerGrad1: '1E1B4B', headerGrad2: '312E81', // always dark → safe with white text
+    headerGrad1: '1E1B4B', headerGrad2: '312E81',
   },
   corporate: {
     bg: 'F8FAFC',
@@ -29,7 +35,8 @@ const THEMES = {
     onAccent: 'FFFFFF',
     accentLight: 'E0F2FE',
     accentMid: 'BAE6FD',
-    titleSlide: { bg: '0C1A28', titleColor: 'FFFFFF', subtitleColor: '7DD3FC' },
+    decoColor: '075985',
+    titleSlide: { titleColor: 'FFFFFF', subtitleColor: '7DD3FC' },
     sectionText: 'FFFFFF',
     font: 'Calibri',
     statColor: '0369A1',
@@ -40,16 +47,17 @@ const THEMES = {
     bg: '1E1E2E',
     titleColor: 'CDD6F4',
     textColor: 'BAC2DE',
-    accentColor: '89B4FA',   // LIGHT blue — cannot use white text on this
+    accentColor: '89B4FA',   // LIGHT pastel blue — NEVER use as bg with white text
     onAccent: '11111B',      // dark text ON light-blue accent backgrounds
-    accentLight: '313244',   // dark card bg — use light text
+    accentLight: '313244',   // dark card bg — light text only
     accentMid: '45475A',
-    titleSlide: { bg: '11111B', titleColor: 'CDD6F4', subtitleColor: '89B4FA' },
+    decoColor: '45475A',     // subtle muted color for decorative elements on dark bg
+    titleSlide: { titleColor: 'CDD6F4', subtitleColor: '89B4FA' },
     sectionText: 'CDD6F4',
     font: 'Calibri',
-    statColor: '89B4FA',
+    statColor: '89B4FA',     // light on dark accentLight card ✓
     gradStop1: '11111B', gradStop2: '1E1E2E',
-    headerGrad1: '11111B', headerGrad2: '181825', // always dark → safe with white text
+    headerGrad1: '11111B', headerGrad2: '181825',
   },
   colorful: {
     bg: 'FDFCFF',
@@ -59,7 +67,8 @@ const THEMES = {
     onAccent: 'FFFFFF',
     accentLight: 'EDE9FE',
     accentMid: 'C4B5FD',
-    titleSlide: { bg: '3B0764', titleColor: 'FFFFFF', subtitleColor: 'DDD6FE' },
+    decoColor: '6D28D9',
+    titleSlide: { titleColor: 'FFFFFF', subtitleColor: 'DDD6FE' },
     sectionText: 'FFFFFF',
     font: 'Calibri',
     statColor: '7C3AED',
@@ -91,8 +100,13 @@ function tiptapToText(node: any): string {
 function gradRect(s: any, x: number | string, y: number | string, w: number | string, h: number | string, c1: string, c2: string, angle = 135) {
   s.addShape('rect', { x, y, w, h,
     fill: { type: 'gradient', gradientType: 'linear', angle, stops: [{ position: 0, color: c1 }, { position: 100, color: c2 }] },
-    line: { color: c1 },
+    line: { color: c1, transparency: 100 },
   })
+}
+
+// Left accent stripe used consistently on all dark full-bleed slides
+function leftStripe(s: any, color: string) {
+  s.addShape('rect', { x: 0, y: 0, w: 0.22, h: H, fill: { color }, line: { color, transparency: 100 } })
 }
 
 export async function POST(req: NextRequest) {
@@ -117,40 +131,40 @@ export async function POST(req: NextRequest) {
 
 Return ONLY a JSON object: { "slides": [...] }
 
-Slide types — use a diverse mix, in this exact order of preference:
+Slide types — use a diverse mix:
 
 1. TITLE (always first):
-{ "type": "title", "title": "Punchy title, max 8 words", "subtitle": "One compelling sentence that captures the core message and makes the audience want to keep reading" }
+{ "type": "title", "title": "Punchy title, max 8 words", "subtitle": "One compelling sentence capturing the core message" }
 
-2. BIG-IDEA (1-2 times, for the most important insight):
-{ "type": "big-idea", "statement": "A single bold, memorable insight or argument — direct, impactful, 10-20 words", "context": "One sentence providing the supporting evidence or explanation for this claim" }
+2. BIG-IDEA (1-2 times, most important insight):
+{ "type": "big-idea", "title": "3-5 word label for this insight", "statement": "A bold memorable insight — direct, impactful, 10-20 words", "context": "One sentence with supporting evidence or explanation" }
 
 3. SECTION (between major topics):
-{ "type": "section", "title": "Section title — 3-5 words", "subtitle": "Brief teaser of what's in this section" }
+{ "type": "section", "title": "Section title — 3-5 words", "subtitle": "Brief teaser of what follows" }
 
-4. BULLETS (for lists of points, 3-5 items):
-{ "type": "bullets", "title": "Clear slide title", "bullets": ["Full sentence with specific detail and clear meaning (15+ words).", "Another complete thought that stands alone without context."] }
+4. BULLETS (3-5 points):
+{ "type": "bullets", "title": "Clear slide title", "bullets": ["Full sentence with specific detail (15+ words).", "Another complete thought that stands alone."] }
 
 5. TWO-COL (compare, contrast, before/after, pros/cons):
-{ "type": "two-col", "title": "Comparison title", "col1": { "heading": "Left label", "points": ["Specific point.", "Another point."] }, "col2": { "heading": "Right label", "points": ["Specific point.", "Another point."] } }
+{ "type": "two-col", "title": "Comparison title", "col1": { "heading": "Left label", "points": ["Point.", "Point."] }, "col2": { "heading": "Right label", "points": ["Point.", "Point."] } }
 
-6. QUOTE (for a striking phrase or key statement):
-{ "type": "quote", "quote": "A memorable, striking statement — direct speech or key finding, at least 15 words", "source": "Source, context, or chapter title" }
+6. QUOTE (striking phrase or key statement):
+{ "type": "quote", "title": "Topic or theme of this quote", "quote": "Memorable striking statement at least 15 words", "source": "Source or context" }
 
-7. STATS (for 2-3 key numbers/metrics):
-{ "type": "stats", "title": "What these numbers mean", "stats": [{ "value": "73%", "label": "Precise explanation of what this percentage represents" }, { "value": "2.4×", "label": "What this multiplier means in practice" }] }
+7. STATS (2-3 key numbers):
+{ "type": "stats", "title": "What these numbers mean", "stats": [{ "value": "73%", "label": "What this represents" }, { "value": "2.4×", "label": "What this means" }] }
 
 8. CONCLUSION (always last):
-{ "type": "conclusion", "title": "Key Takeaways", "points": ["The single most important thing to remember from this presentation.", "The key action the audience should take based on what they learned.", "The broader implication or consequence of this topic."] }
+{ "type": "conclusion", "title": "Key Takeaways", "points": ["Most important thing to remember.", "Key action to take.", "Broader implication."] }
 
 RULES:
 - 9 to 13 slides total
 - Start: title. End: conclusion.
 - Use AT LEAST: one big-idea, one section, one two-col, one quote or stats
-- Every text must be a COMPLETE SENTENCE — never isolated keywords
-- Extract only real information from the document — do not invent facts
+- Every text field must be a COMPLETE SENTENCE — never isolated keywords
+- Extract only real information — do not invent facts
 - Match the document's language exactly (French → French, English → English)
-- notes (optional): one-sentence speaker note on any slide`,
+- notes (optional): one-sentence speaker note`,
         },
         { role: 'user', content: `Title: ${title || 'Untitled'}\n\n${pageText.slice(0, 6500)}` },
       ],
@@ -182,96 +196,96 @@ RULES:
     // ── TITLE ────────────────────────────────────────────────────────────────
     if (slide.type === 'title') {
       gradRect(s, 0, 0, '100%', '100%', t.gradStop1, t.gradStop2, 135)
-      // Left accent stripe
-      s.addShape('rect', { x: 0, y: 0, w: 0.22, h: H,
-        fill: { color: t.accentColor }, line: { color: t.accentColor } })
-      // Decorative circles top-right (semi-transparent)
-      s.addShape('ellipse', { x: 10.1, y: -1.8, w: 5.2, h: 5.2,
-        fill: { color: t.accentColor, transparency: 60 }, line: { color: t.accentColor, transparency: 80 } })
-      s.addShape('ellipse', { x: 11.0, y: -0.9, w: 3.6, h: 3.6,
-        fill: { color: t.gradStop2, transparency: 20 }, line: { color: t.gradStop2, transparency: 30 } })
-      // Small circle bottom-right
-      s.addShape('ellipse', { x: 11.4, y: 5.2, w: 2.4, h: 2.4,
-        fill: { color: t.accentColor, transparency: 55 }, line: { color: t.accentColor, transparency: 70 } })
-      // Title
+      leftStripe(s, t.accentColor)
+      // Decorative circles top-right — transparency: N (correct API, not hex suffix)
+      s.addShape('ellipse', { x: 10.0, y: -1.9, w: 5.4, h: 5.4,
+        fill: { color: t.accentColor, transparency: 62 }, line: { color: t.accentColor, transparency: 100 } })
+      s.addShape('ellipse', { x: 10.9, y: -1.0, w: 3.8, h: 3.8,
+        fill: { color: t.gradStop1, transparency: 0 }, line: { color: t.gradStop1, transparency: 100 } })
+      s.addShape('ellipse', { x: 11.3, y: 5.1, w: 2.6, h: 2.6,
+        fill: { color: t.accentColor, transparency: 57 }, line: { color: t.accentColor, transparency: 100 } })
+      // Title text — titleSlide.titleColor always readable on dark gradient
       s.addText(slide.title || '', {
-        x: PAD + 0.3, y: 1.5, w: 9.8, h: 2.3,
-        fontSize: 48, bold: true,
-        color: t.titleSlide.titleColor, fontFace: t.font,
-        align: 'left', valign: 'middle', charSpacing: -0.5,
+        x: 0.9, y: 1.5, w: 9.8, h: 2.3,
+        fontSize: 48, bold: true, color: t.titleSlide.titleColor,
+        fontFace: t.font, align: 'left', valign: 'middle', charSpacing: -0.5,
       })
-      // Accent divider
-      s.addShape('rect', { x: PAD + 0.3, y: 3.9, w: 2.5, h: 0.07,
-        fill: { color: t.accentColor }, line: { color: t.accentColor } })
+      s.addShape('rect', { x: 0.9, y: 3.92, w: 2.6, h: 0.07,
+        fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
       if (slide.subtitle) {
         s.addText(slide.subtitle, {
-          x: PAD + 0.3, y: 4.1, w: 9.8, h: 1.5,
+          x: 0.9, y: 4.12, w: 9.8, h: 1.5,
           fontSize: 19, color: t.titleSlide.subtitleColor,
           fontFace: t.font, align: 'left', lineSpacingMultiple: 1.35,
         })
       }
 
     // ── BIG-IDEA ─────────────────────────────────────────────────────────────
-    // Full dark gradient for maximum impact — text always on dark bg
     } else if (slide.type === 'big-idea') {
       gradRect(s, 0, 0, '100%', '100%', t.gradStop1, t.gradStop2, 145)
-      // Large decorative arc right
-      s.addShape('ellipse', { x: 9.2, y: 0.8, w: 5.8, h: 5.8,
-        fill: { color: t.accentColor, transparency: 80 }, line: { color: t.accentColor, transparency: 85 } })
-      s.addShape('ellipse', { x: 9.9, y: 1.5, w: 4.4, h: 4.4,
-        fill: { color: t.gradStop1, transparency: 0 }, line: { color: t.gradStop1 } })
-      // "KEY INSIGHT" pill — t.onAccent ensures readable text on accentColor bg
-      s.addShape('roundRect', { x: PAD + 0.3, y: 1.2, w: 2.0, h: 0.38,
-        fill: { color: t.accentColor }, line: { color: t.accentColor }, rectRadius: 0.19 })
+      leftStripe(s, t.accentColor)
+      // Decorative arc right
+      s.addShape('ellipse', { x: 9.0, y: 0.6, w: 6.2, h: 6.2,
+        fill: { color: t.accentColor, transparency: 82 }, line: { color: t.accentColor, transparency: 100 } })
+      s.addShape('ellipse', { x: 9.8, y: 1.4, w: 4.6, h: 4.6,
+        fill: { color: t.gradStop1, transparency: 0 }, line: { color: t.gradStop1, transparency: 100 } })
+      // Slide title (small, at top) — always present since AI prompt requires it
+      if (slide.title) {
+        s.addText(slide.title.toUpperCase(), {
+          x: 0.9, y: 0.28, w: 10.0, h: 0.4,
+          fontSize: 11, color: t.titleSlide.subtitleColor,
+          fontFace: t.font, align: 'left', charSpacing: 2.5,
+        })
+        s.addShape('rect', { x: 0.9, y: 0.68, w: 1.6, h: 0.04,
+          fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
+      }
+      // "KEY INSIGHT" pill — onAccent is the correct text color on accentColor bg
+      s.addShape('roundRect', { x: 0.9, y: 1.0, w: 2.05, h: 0.38,
+        fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 }, rectRadius: 0.19 })
       s.addText('KEY INSIGHT', {
-        x: PAD + 0.3, y: 1.2, w: 2.0, h: 0.38,
+        x: 0.9, y: 1.0, w: 2.05, h: 0.38,
         fontSize: 10, bold: true, color: t.onAccent,
         fontFace: t.font, align: 'center', valign: 'middle', charSpacing: 1.8,
       })
-      // Main statement — titleSlide.titleColor is always readable on dark gradient
+      // Main statement
       s.addText(slide.statement || '', {
-        x: PAD + 0.3, y: 1.75, w: 10.8, h: 3.5,
-        fontSize: 34, bold: true,
-        color: t.titleSlide.titleColor, fontFace: t.font,
-        align: 'left', valign: 'middle', lineSpacingMultiple: 1.28,
+        x: 0.9, y: 1.55, w: 10.5, h: 3.6,
+        fontSize: 34, bold: true, color: t.titleSlide.titleColor,
+        fontFace: t.font, align: 'left', valign: 'middle', lineSpacingMultiple: 1.28,
       })
       // Separator + context
-      s.addShape('rect', { x: PAD + 0.3, y: 5.45, w: 3.2, h: 0.06,
-        fill: { color: t.accentColor }, line: { color: t.accentColor } })
+      s.addShape('rect', { x: 0.9, y: 5.38, w: 3.2, h: 0.06,
+        fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
       if (slide.context) {
         s.addText(slide.context, {
-          x: PAD + 0.3, y: 5.62, w: 10.8, h: 1.0,
-          fontSize: 16, italic: true,
-          color: t.titleSlide.subtitleColor, fontFace: t.font, align: 'left',
+          x: 0.9, y: 5.55, w: 10.5, h: 1.05,
+          fontSize: 16, italic: true, color: t.titleSlide.subtitleColor,
+          fontFace: t.font, align: 'left',
         })
       }
 
     // ── SECTION ──────────────────────────────────────────────────────────────
     } else if (slide.type === 'section') {
       gradRect(s, 0, 0, '100%', '100%', t.gradStop1, t.gradStop2, 145)
-      // Decorative geometry
-      s.addShape('ellipse', { x: 8.8, y: -1.0, w: 7.0, h: 7.0,
-        fill: { color: t.accentColor, transparency: 70 }, line: { color: t.accentColor, transparency: 80 } })
-      s.addShape('ellipse', { x: 9.8, y: -0.2, w: 5.5, h: 5.5,
-        fill: { color: t.gradStop1, transparency: 0 }, line: { color: t.gradStop1 } })
-      s.addShape('ellipse', { x: -1.8, y: 5.0, w: 5.0, h: 5.0,
-        fill: { color: t.accentColor, transparency: 70 }, line: { color: t.accentColor, transparency: 80 } })
-      // Section number / label strip
-      s.addShape('rect', { x: PAD, y: 1.3, w: 0.08, h: 1.9,
-        fill: { color: t.accentColor }, line: { color: t.accentColor } })
-      // Title — sectionText is always set for readability on dark bg
+      s.addShape('ellipse', { x: 8.6, y: -1.2, w: 7.2, h: 7.2,
+        fill: { color: t.accentColor, transparency: 72 }, line: { color: t.accentColor, transparency: 100 } })
+      s.addShape('ellipse', { x: 9.6, y: -0.3, w: 5.6, h: 5.6,
+        fill: { color: t.gradStop1, transparency: 0 }, line: { color: t.gradStop1, transparency: 100 } })
+      s.addShape('ellipse', { x: -2.0, y: 4.9, w: 5.2, h: 5.2,
+        fill: { color: t.accentColor, transparency: 72 }, line: { color: t.accentColor, transparency: 100 } })
+      // Left vertical accent bar
+      s.addShape('rect', { x: 0.55, y: 1.2, w: 0.09, h: 2.1,
+        fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
       s.addText(slide.title || '', {
-        x: PAD + 0.28, y: 1.2, w: 8.8, h: 2.1,
-        fontSize: 46, bold: true,
-        color: t.sectionText, fontFace: t.font,
-        align: 'left', valign: 'middle', charSpacing: -0.3,
+        x: 0.85, y: 1.1, w: 8.8, h: 2.3,
+        fontSize: 46, bold: true, color: t.sectionText,
+        fontFace: t.font, align: 'left', valign: 'middle', charSpacing: -0.3,
       })
-      // Separator
-      s.addShape('rect', { x: PAD + 0.28, y: 3.45, w: 2.8, h: 0.07,
-        fill: { color: t.accentColor }, line: { color: t.accentColor } })
+      s.addShape('rect', { x: 0.85, y: 3.52, w: 2.8, h: 0.07,
+        fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
       if (slide.subtitle) {
         s.addText(slide.subtitle, {
-          x: PAD + 0.28, y: 3.65, w: 8.5, h: 1.2,
+          x: 0.85, y: 3.72, w: 8.5, h: 1.2,
           fontSize: 19, color: t.titleSlide.subtitleColor,
           fontFace: t.font, align: 'left',
         })
@@ -280,39 +294,38 @@ RULES:
     // ── BULLETS ──────────────────────────────────────────────────────────────
     } else if (slide.type === 'bullets') {
       s.background = { color: t.bg }
-      // Header — uses headerGrad (always dark) so white text is always safe
-      gradRect(s, 0, 0, '100%', 1.18, t.headerGrad1, t.headerGrad2, 90)
-      // Accent bar at header bottom
-      s.addShape('rect', { x: 0, y: 1.18, w: '100%', h: 0.07,
-        fill: { color: t.accentColor }, line: { color: t.accentColor } })
+      // Left accent sidebar (consistent with dark slides)
+      s.addShape('rect', { x: 0, y: 0, w: 0.2, h: H,
+        fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
+      // Header band — headerGrad (always dark) → white text always safe
+      gradRect(s, 0.2, 0, W - 0.2, 1.2, t.headerGrad1, t.headerGrad2, 90)
+      s.addShape('rect', { x: 0.2, y: 1.2, w: W - 0.2, h: 0.07,
+        fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
       s.addText(slide.title || '', {
-        x: PAD, y: 0.1, w: W - 1.1, h: 1.0,
-        fontSize: 28, bold: true, color: 'FFFFFF',
+        x: 0.45, y: 0.1, w: W - 0.65, h: 1.0,
+        fontSize: 27, bold: true, color: 'FFFFFF',
         fontFace: t.font, align: 'left', valign: 'middle',
       })
-      // Bullets
+      // Bullet rows
       const bullets: string[] = (slide.bullets || []).slice(0, 5)
       bullets.forEach((item: string, i: number) => {
-        const y = 1.42 + i * 1.1
-        // Alternating row tint
+        const y = 1.44 + i * 1.1
+        // Alternating tint row — textColor always contrasts with accentLight
         if (i % 2 === 0) {
-          s.addShape('rect', { x: PAD, y: y - 0.08, w: W - 1.1, h: 0.96,
-            fill: { color: t.accentLight }, line: { color: t.accentLight } })
+          s.addShape('rect', { x: 0.4, y: y - 0.08, w: W - 0.55, h: 0.96,
+            fill: { color: t.accentLight }, line: { color: t.accentLight, transparency: 100 } })
         }
-        // Left accent bar per row
-        s.addShape('rect', { x: PAD, y: y + 0.02, w: 0.06, h: 0.72,
-          fill: { color: t.accentColor }, line: { color: t.accentColor } })
-        // Number badge — t.onAccent for text on accentColor background
-        s.addShape('ellipse', { x: PAD + 0.14, y: y + 0.13, w: 0.36, h: 0.36,
-          fill: { color: t.accentColor }, line: { color: t.accentColor } })
+        // Number badge — onAccent is correct text color on accentColor background
+        s.addShape('ellipse', { x: 0.42, y: y + 0.12, w: 0.38, h: 0.38,
+          fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
         s.addText(String(i + 1), {
-          x: PAD + 0.14, y: y + 0.13, w: 0.36, h: 0.36,
+          x: 0.42, y: y + 0.12, w: 0.38, h: 0.38,
           fontSize: 12, bold: true, color: t.onAccent,
           fontFace: t.font, align: 'center', valign: 'middle',
         })
-        // Bullet text — textColor always contrasts with bg (dark on light, light on dark)
+        // Bullet text — textColor always contrasts with both bg and accentLight
         s.addText(item, {
-          x: PAD + 0.62, y: y, w: W - 1.82, h: 0.82,
+          x: 0.92, y: y, w: W - 1.1, h: 0.82,
           fontSize: 17, color: t.textColor,
           fontFace: t.font, valign: 'middle', wrap: true,
         })
@@ -321,131 +334,129 @@ RULES:
     // ── TWO-COL ──────────────────────────────────────────────────────────────
     } else if (slide.type === 'two-col') {
       s.background = { color: t.bg }
-      // Slide title
+      // Left accent sidebar
+      s.addShape('rect', { x: 0, y: 0, w: 0.2, h: H,
+        fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
+      // Header band — same pattern as bullets/stats
+      gradRect(s, 0.2, 0, W - 0.2, 1.1, t.headerGrad1, t.headerGrad2, 90)
+      s.addShape('rect', { x: 0.2, y: 1.1, w: W - 0.2, h: 0.07,
+        fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
       s.addText(slide.title || '', {
-        x: PAD, y: 0.22, w: W - 1.1, h: 0.75,
-        fontSize: 26, bold: true, color: t.titleColor,
-        fontFace: t.font, align: 'left',
+        x: 0.45, y: 0.1, w: W - 0.65, h: 0.92,
+        fontSize: 26, bold: true, color: 'FFFFFF',
+        fontFace: t.font, align: 'left', valign: 'middle',
       })
-      // Accent divider under title
-      s.addShape('rect', { x: PAD, y: 1.02, w: W - 1.1, h: 0.05,
-        fill: { color: t.accentColor }, line: { color: t.accentColor } })
+      // Two column cards
       const col1 = slide.col1 || {}
       const col2 = slide.col2 || {}
-      const colW = (W - 1.4) / 2
-      const col1X = PAD
-      const col2X = PAD + colW + 0.3
-      const colH = H - 1.55
-      const colY = 1.15
+      const colY = 1.25
+      const colH = H - colY - 0.18
+      const colW = (W - 0.2 - 0.4 - 0.25) / 2  // = 6.09
+      const col1X = 0.4
+      const col2X = col1X + colW + 0.3
 
-      // Left column card
-      s.addShape('roundRect', { x: col1X, y: colY, w: colW, h: colH,
-        fill: { color: t.accentLight }, line: { color: t.accentMid }, rectRadius: 0.1 })
-      // Column header — headerGrad (always dark) → white text is safe
-      gradRect(s, col1X, colY, colW, 0.68, t.headerGrad1, t.headerGrad2, 90)
-      s.addText(col1.heading || '', {
-        x: col1X + 0.22, y: colY, w: colW - 0.44, h: 0.68,
-        fontSize: 16, bold: true, color: 'FFFFFF',
-        fontFace: t.font, align: 'left', valign: 'middle',
-      })
-      // Left accent bar inside card
-      s.addShape('rect', { x: col1X + 0.15, y: colY + 0.78, w: 0.06, h: colH - 0.9,
-        fill: { color: t.accentColor }, line: { color: t.accentColor } })
-      ;(col1.points || []).slice(0, 4).forEach((pt: string, i: number) => {
-        s.addText(pt, {
-          x: col1X + 0.32, y: colY + 0.8 + i * 1.08, w: colW - 0.48, h: 0.9,
-          fontSize: 14, color: t.textColor,
-          fontFace: t.font, valign: 'top', wrap: true,
+      ;[{ col: col1, cx: col1X }, { col: col2, cx: col2X }].forEach(({ col, cx }) => {
+        // Card background — accentLight + textColor always contrasts
+        s.addShape('roundRect', { x: cx, y: colY, w: colW, h: colH,
+          fill: { color: t.accentLight }, line: { color: t.accentMid }, rectRadius: 0.1 })
+        // Column header — headerGrad (always dark) → white text always safe
+        gradRect(s, cx, colY, colW, 0.65, t.headerGrad1, t.headerGrad2, 90)
+        s.addText(col.heading || '', {
+          x: cx + 0.2, y: colY, w: colW - 0.3, h: 0.65,
+          fontSize: 16, bold: true, color: 'FFFFFF',
+          fontFace: t.font, align: 'left', valign: 'middle',
         })
-      })
-
-      // Right column card
-      s.addShape('roundRect', { x: col2X, y: colY, w: colW, h: colH,
-        fill: { color: t.accentLight }, line: { color: t.accentMid }, rectRadius: 0.1 })
-      gradRect(s, col2X, colY, colW, 0.68, t.headerGrad1, t.headerGrad2, 90)
-      s.addText(col2.heading || '', {
-        x: col2X + 0.22, y: colY, w: colW - 0.44, h: 0.68,
-        fontSize: 16, bold: true, color: 'FFFFFF',
-        fontFace: t.font, align: 'left', valign: 'middle',
-      })
-      s.addShape('rect', { x: col2X + 0.15, y: colY + 0.78, w: 0.06, h: colH - 0.9,
-        fill: { color: t.accentColor }, line: { color: t.accentColor } })
-      ;(col2.points || []).slice(0, 4).forEach((pt: string, i: number) => {
-        s.addText(pt, {
-          x: col2X + 0.32, y: colY + 0.8 + i * 1.08, w: colW - 0.48, h: 0.9,
-          fontSize: 14, color: t.textColor,
-          fontFace: t.font, valign: 'top', wrap: true,
+        // Left accent bar inside card
+        s.addShape('rect', { x: cx + 0.13, y: colY + 0.75, w: 0.06, h: colH - 0.85,
+          fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
+        ;(col.points || []).slice(0, 4).forEach((pt: string, i: number) => {
+          s.addText(pt, {
+            x: cx + 0.3, y: colY + 0.78 + i * 1.05, w: colW - 0.42, h: 0.92,
+            fontSize: 14, color: t.textColor,
+            fontFace: t.font, valign: 'top', wrap: true,
+          })
         })
       })
 
     // ── QUOTE ────────────────────────────────────────────────────────────────
     } else if (slide.type === 'quote') {
       gradRect(s, 0, 0, '100%', '100%', t.gradStop1, t.gradStop2, 160)
-      // Giant decorative quotation mark (background layer)
+      leftStripe(s, t.accentColor)
+      // Decorative giant quote mark — decoColor is muted, won't swamp the text
       s.addText('“', {
-        x: -0.5, y: -1.5, w: 6.0, h: 6.0,
-        fontSize: 260, color: t.accentColor,
+        x: -0.6, y: -1.8, w: 6.5, h: 6.5,
+        fontSize: 280, color: t.decoColor,
         fontFace: t.font, align: 'left', valign: 'top',
-        transparency: 70,
       })
+      // Slide title (small, at top) — AI prompt now requires it
+      if (slide.title) {
+        s.addText(slide.title.toUpperCase(), {
+          x: 0.9, y: 0.25, w: 10.5, h: 0.42,
+          fontSize: 11, color: t.titleSlide.subtitleColor,
+          fontFace: t.font, align: 'left', charSpacing: 2.5,
+        })
+      }
       // Vertical accent bar
-      s.addShape('rect', { x: PAD, y: 1.0, w: 0.14, h: 4.8,
-        fill: { color: t.accentColor }, line: { color: t.accentColor } })
+      s.addShape('rect', { x: 0.85, y: 1.1, w: 0.14, h: 4.7,
+        fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
       // Quote text — titleSlide.titleColor always readable on dark gradient
       s.addText(slide.quote || '', {
-        x: PAD + 0.4, y: 0.9, w: W - 1.65, h: 4.8,
-        fontSize: 27, italic: true,
-        color: t.titleSlide.titleColor, fontFace: t.font,
-        align: 'left', valign: 'middle', lineSpacingMultiple: 1.4,
+        x: 1.2, y: 0.9, w: W - 1.6, h: 4.9,
+        fontSize: 27, italic: true, color: t.titleSlide.titleColor,
+        fontFace: t.font, align: 'left', valign: 'middle', lineSpacingMultiple: 1.4,
       })
       if (slide.source) {
-        s.addShape('rect', { x: PAD + 0.4, y: 5.82, w: 3.2, h: 0.06,
-          fill: { color: t.accentColor }, line: { color: t.accentColor } })
+        s.addShape('rect', { x: 1.2, y: 5.9, w: 3.2, h: 0.06,
+          fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
         s.addText(`— ${slide.source}`, {
-          x: PAD + 0.4, y: 5.98, w: W - 1.65, h: 0.6,
-          fontSize: 15, bold: true,
-          color: t.titleSlide.subtitleColor, fontFace: t.font, align: 'left',
+          x: 1.2, y: 6.06, w: W - 1.6, h: 0.56,
+          fontSize: 15, bold: true, color: t.titleSlide.subtitleColor,
+          fontFace: t.font, align: 'left',
         })
       }
 
     // ── STATS ────────────────────────────────────────────────────────────────
     } else if (slide.type === 'stats') {
       s.background = { color: t.bg }
-      // Header — headerGrad (always dark) → white text is safe
-      gradRect(s, 0, 0, '100%', 1.12, t.headerGrad1, t.headerGrad2, 90)
-      s.addShape('rect', { x: 0, y: 1.12, w: '100%', h: 0.07,
-        fill: { color: t.accentColor }, line: { color: t.accentColor } })
+      // Left accent sidebar
+      s.addShape('rect', { x: 0, y: 0, w: 0.2, h: H,
+        fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
+      // Header band
+      gradRect(s, 0.2, 0, W - 0.2, 1.15, t.headerGrad1, t.headerGrad2, 90)
+      s.addShape('rect', { x: 0.2, y: 1.15, w: W - 0.2, h: 0.07,
+        fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
       s.addText(slide.title || '', {
-        x: PAD, y: 0.1, w: W - 1.1, h: 0.95,
+        x: 0.45, y: 0.1, w: W - 0.65, h: 0.97,
         fontSize: 27, bold: true, color: 'FFFFFF',
         fontFace: t.font, align: 'center', valign: 'middle',
       })
+      // Stat cards
       const stats: { value: string; label: string }[] = (slide.stats || []).slice(0, 3)
       const count = stats.length
-      const cardW = count === 2 ? 5.6 : 3.7
-      const spacing = count === 2 ? 5.9 : 3.9
-      const startX = (W - (count === 2 ? 11.2 : 11.1)) / 2
+      const cardW = count === 2 ? 5.7 : 3.75
+      const spacing = count === 2 ? 6.0 : 3.95
+      const totalW = count === 2 ? 11.4 : 11.25
+      const startX = (W - totalW) / 2
       stats.forEach((st, i) => {
         const cx = startX + i * spacing
-        // Card
-        s.addShape('roundRect', { x: cx, y: 1.32, w: cardW, h: H - 1.68,
+        // Card — accentLight bg + textColor/statColor always contrast
+        s.addShape('roundRect', { x: cx, y: 1.36, w: cardW, h: H - 1.7,
           fill: { color: t.accentLight }, line: { color: t.accentMid }, rectRadius: 0.14 })
-        // Top accent strip on card
-        s.addShape('rect', { x: cx, y: 1.32, w: cardW, h: 0.18,
-          fill: { color: t.accentColor }, line: { color: t.accentColor } })
-        // Stat value — statColor always contrasts with accentLight
-        // (dark accent on light card for light themes, light accent on dark card for dark theme)
+        // Top color strip
+        s.addShape('rect', { x: cx, y: 1.36, w: cardW, h: 0.22,
+          fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
+        // Stat value — statColor always contrasts with accentLight (verified per theme)
         s.addText(st.value, {
-          x: cx + 0.1, y: 1.58, w: cardW - 0.2, h: 2.85,
+          x: cx + 0.08, y: 1.62, w: cardW - 0.16, h: 2.82,
           fontSize: 80, bold: true, color: t.statColor,
           fontFace: t.font, align: 'center', valign: 'middle',
         })
         // Separator
-        s.addShape('rect', { x: cx + cardW / 2 - 1.3, y: 4.5, w: 2.6, h: 0.06,
-          fill: { color: t.accentColor }, line: { color: t.accentColor } })
-        // Label text — textColor always contrasts with accentLight
+        s.addShape('rect', { x: cx + cardW / 2 - 1.35, y: 4.52, w: 2.7, h: 0.06,
+          fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
+        // Label — textColor always contrasts with accentLight
         s.addText(st.label, {
-          x: cx + 0.18, y: 4.65, w: cardW - 0.36, h: 1.15,
+          x: cx + 0.15, y: 4.68, w: cardW - 0.3, h: 1.1,
           fontSize: 15, color: t.textColor,
           fontFace: t.font, align: 'center', valign: 'top', wrap: true,
         })
@@ -454,41 +465,39 @@ RULES:
     // ── CONCLUSION ───────────────────────────────────────────────────────────
     } else if (slide.type === 'conclusion') {
       gradRect(s, 0, 0, '100%', '100%', t.gradStop1, t.gradStop2, 135)
-      // Left accent stripe
-      s.addShape('rect', { x: 0, y: 0, w: 0.22, h: H,
-        fill: { color: t.accentColor }, line: { color: t.accentColor } })
+      leftStripe(s, t.accentColor)
       // Decorative circles bottom-right
-      s.addShape('ellipse', { x: 10.3, y: 3.6, w: 4.2, h: 4.2,
-        fill: { color: t.accentColor, transparency: 60 }, line: { color: t.accentColor, transparency: 75 } })
-      s.addShape('ellipse', { x: 11.1, y: 4.4, w: 3.0, h: 3.0,
-        fill: { color: t.gradStop1, transparency: 0 }, line: { color: t.gradStop1 } })
+      s.addShape('ellipse', { x: 10.2, y: 3.5, w: 4.4, h: 4.4,
+        fill: { color: t.accentColor, transparency: 62 }, line: { color: t.accentColor, transparency: 100 } })
+      s.addShape('ellipse', { x: 11.0, y: 4.3, w: 3.1, h: 3.1,
+        fill: { color: t.gradStop1, transparency: 0 }, line: { color: t.gradStop1, transparency: 100 } })
       // Title
       s.addText(slide.title || 'Key Takeaways', {
-        x: PAD + 0.3, y: 0.2, w: 9.5, h: 0.9,
-        fontSize: 30, bold: true,
-        color: t.titleSlide.titleColor, fontFace: t.font, align: 'left',
+        x: 0.9, y: 0.22, w: 9.5, h: 0.88,
+        fontSize: 30, bold: true, color: t.titleSlide.titleColor,
+        fontFace: t.font, align: 'left',
       })
-      s.addShape('rect', { x: PAD + 0.3, y: 1.15, w: 9.8, h: 0.05,
-        fill: { color: t.accentColor }, line: { color: t.accentColor } })
-      // Takeaway rows
+      s.addShape('rect', { x: 0.9, y: 1.14, w: 9.8, h: 0.05,
+        fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
+      // Takeaway rows — NO transparency trick, just solid accentLight card
       const pts: string[] = (slide.points || []).slice(0, 4)
       pts.forEach((pt: string, i: number) => {
-        const y = 1.38 + i * 1.38
-        // Row card (semi-transparent)
-        s.addShape('roundRect', { x: PAD + 0.3, y, w: 9.8, h: 1.12,
-          fill: { color: t.accentColor + '1A' }, line: { color: t.accentColor + '55' }, rectRadius: 0.08 })
-        // Number badge — t.onAccent for text on accentColor background
-        s.addShape('ellipse', { x: PAD + 0.42, y: y + 0.22, w: 0.66, h: 0.66,
-          fill: { color: t.accentColor }, line: { color: t.accentColor } })
+        const y = 1.36 + i * 1.42
+        // Row card: solid accentLight bg, no hex-suffix trick
+        s.addShape('roundRect', { x: 0.9, y, w: 9.8, h: 1.18,
+          fill: { color: t.accentLight }, line: { color: t.accentMid }, rectRadius: 0.08 })
+        // Number badge — onAccent for text on accentColor background
+        s.addShape('ellipse', { x: 1.04, y: y + 0.24, w: 0.68, h: 0.68,
+          fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
         s.addText(String(i + 1), {
-          x: PAD + 0.42, y: y + 0.22, w: 0.66, h: 0.66,
+          x: 1.04, y: y + 0.24, w: 0.68, h: 0.68,
           fontSize: 20, bold: true, color: t.onAccent,
           fontFace: t.font, align: 'center', valign: 'middle',
         })
-        // Point text — subtitleColor always readable on dark gradient
+        // Point text — titleColor always contrasts with accentLight
         s.addText(pt, {
-          x: PAD + 1.25, y: y + 0.08, w: 8.75, h: 0.9,
-          fontSize: 17, color: t.titleSlide.subtitleColor,
+          x: 1.9, y: y + 0.1, w: 8.65, h: 0.94,
+          fontSize: 17, color: t.titleColor,
           fontFace: t.font, valign: 'middle', wrap: true,
         })
       })
