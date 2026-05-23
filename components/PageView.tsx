@@ -1085,7 +1085,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                   {!page.is_database && headings.length > 0 && <MobileMenuItem onClick={() => { setTocOpen(o => !o); setMobileMenuOpen(false) }}>☰ Table of contents</MobileMenuItem>}
                   {canEdit && <MobileMenuItem onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots(); setMobileMenuOpen(false) }}>🕓 Version history</MobileMenuItem>}
                   {!page.is_database && <MobileMenuItem onClick={() => { setBacklinksOpen(o => !o); loadBacklinks(); setMobileMenuOpen(false) }}>↩ Backlinks{backlinksLoaded && backlinks.length > 0 ? ` (${backlinks.length})` : ''}</MobileMenuItem>}
-                  <MobileMenuItem onClick={() => { setFocusMode(f => { window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus')); return !f }); setMobileMenuOpen(false) }}>{focusMode ? '⊡ Exit focus mode' : '⊠ Focus mode'}</MobileMenuItem>
+                  <MobileMenuItem onClick={() => { setFocusMode(f => { window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus')); return !f }); setMobileMenuOpen(false) }}>{focusMode ? '🎯 Exit focus mode' : '🎯 Focus mode'}</MobileMenuItem>
                 </div>
               </>
             )}
