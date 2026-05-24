@@ -980,14 +980,6 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           </>
         ) : (
           <>
-            {/* Hamburger — opens sidebar on mobile */}
-            {isMobile && (
-              <button onClick={() => window.dispatchEvent(new CustomEvent('canopy:openSidebar'))}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: 18, padding: '4px 6px', borderRadius: 5, flexShrink: 0, lineHeight: 1 }}>
-                ☰
-              </button>
-            )}
-
             {/* Breadcrumb title */}
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-tertiary)', overflow: 'hidden', minWidth: 0 }}>
               {page.icon && <span style={{ fontSize: '14px', flexShrink: 0 }}>{page.icon}</span>}
@@ -1065,10 +1057,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
 
         {/* Mobile: compact action row */}
         {!isPublicShare && isMobile && <>
-          <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen} iconOnly>
-            <TbIcon d={TB_ICONS.chat} />{comments.length > 0 ? comments.length : ''}
+          <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen} iconOnly title="Comments">
+            💬{comments.length > 0 ? comments.length : ''}
           </TopBarBtn>
-          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn iconOnly><TbIcon d={TB_ICONS.share} /></TopBarBtn>}
+          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn iconOnly title="Share">🔗</TopBarBtn>}
           {/* Mobile overflow menu */}
           <div style={{ position: 'relative' }}>
             <TopBarBtn onClick={() => setMobileMenuOpen(o => !o)} active={mobileMenuOpen}>⋯</TopBarBtn>

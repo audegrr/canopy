@@ -127,6 +127,15 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }, [zoom])
 
   useEffect(() => {
+    if (isMobile && sidebarOpen) {
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = ''
+    }
+    return () => { document.body.style.overflow = '' }
+  }, [isMobile, sidebarOpen])
+
+  useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement)?.tagName
       const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable
@@ -1087,7 +1096,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
         {/* Pages tree */}
         <div ref={sidebarTreeRef} tabIndex={0} onKeyDown={handleSidebarKeyDown}
-          style={{ flex: 1, overflowY: 'auto', paddingBottom: '8px', outline: 'none' }}>
+          style={{ flex: 1, overflowY: 'auto', paddingBottom: '8px', outline: 'none', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
           {/* Favorites */}
           {favoriteIds.size > 0 && (() => {
             const favPages = [...pages, ...sharedPages].filter(p => favoriteIds.has(p.id))
