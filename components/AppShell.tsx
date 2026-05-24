@@ -979,7 +979,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)',
           display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden',
           transition: 'width 0.2s, min-width 0.2s', flexShrink: 0,
-          ...(isMobile ? { position: 'fixed', left: 0, top: 0, bottom: 0, zIndex: 40, boxShadow: '4px 0 24px rgba(0,0,0,0.15)' } : {}),
+          ...(isMobile ? { position: 'fixed', left: 0, top: 0, bottom: 0, height: 'auto', zIndex: 40, boxShadow: '4px 0 24px rgba(0,0,0,0.15)' } : {}),
         }}
         onTouchStart={isMobile ? e => { (e.currentTarget as any)._swipeStartX = e.touches[0].clientX } : undefined}
         onTouchEnd={isMobile ? e => {
@@ -1193,7 +1193,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         </div>
 
         {/* User — click for settings, separate sign out button */}
-        <div style={{ padding: '8px 10px', borderTop: '1px solid var(--border)', flexShrink: 0, position: 'relative' }}>
+        <div style={{ padding: '8px 10px', paddingBottom: isMobile ? 'calc(8px + env(safe-area-inset-bottom))' : '8px', borderTop: '1px solid var(--border)', flexShrink: 0, position: 'relative' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', borderRadius: '6px' }}>
             <div onClick={() => setUserMenuOpen(o => !o)}
               style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, cursor: 'pointer', borderRadius: '5px', padding: '2px 4px', minWidth: 0 }}
