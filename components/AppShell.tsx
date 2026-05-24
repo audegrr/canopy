@@ -127,15 +127,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }, [zoom])
 
   useEffect(() => {
-    if (isMobile && sidebarOpen) {
-      document.body.style.overflow = 'hidden'
-    } else {
-      document.body.style.overflow = ''
-    }
-    return () => { document.body.style.overflow = '' }
-  }, [isMobile, sidebarOpen])
-
-  useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement)?.tagName
       const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable
@@ -975,7 +966,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg)' }}>
       {isMobile && sidebarOpen && (
         <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 39, cursor: 'pointer' }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 39, cursor: 'pointer', touchAction: 'none' }}
+          onTouchMove={e => e.preventDefault()}
           onTouchEnd={e => { e.preventDefault(); setSidebarOpen(false) }}
           onClick={() => setSidebarOpen(false)}
         />
@@ -1096,7 +1088,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
         {/* Pages tree */}
         <div ref={sidebarTreeRef} tabIndex={0} onKeyDown={handleSidebarKeyDown}
-          style={{ flex: 1, overflowY: 'auto', paddingBottom: '8px', outline: 'none', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
+          style={{ flex: 1, overflowY: 'auto', paddingBottom: '8px', outline: 'none', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' } as React.CSSProperties}>
           {/* Favorites */}
           {favoriteIds.size > 0 && (() => {
             const favPages = [...pages, ...sharedPages].filter(p => favoriteIds.has(p.id))
