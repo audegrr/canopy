@@ -1067,17 +1067,30 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
             {mobileMenuOpen && (
               <>
                 <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setMobileMenuOpen(false)} />
-                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 6, boxShadow: 'var(--shadow-lg)', zIndex: 200, minWidth: 180 }} className="scale-in">
-                  <MobileMenuItem onClick={() => { setPresentationOpen(true); setMobileMenuOpen(false) }}>🎤 Generate Slides</MobileMenuItem>
-                  <MobileMenuItem onClick={() => { exportPDF(); setMobileMenuOpen(false) }}>📄 Export PDF</MobileMenuItem>
-                  {!page.is_database && <MobileMenuItem onClick={() => { exportMarkdown(); setMobileMenuOpen(false) }}>⬆️ Export Markdown</MobileMenuItem>}
-                  {canEdit && !page.is_database && <MobileMenuItem onClick={() => { triggerMarkdownImport(); setMobileMenuOpen(false) }}>⬇️ Import Markdown</MobileMenuItem>}
-                  {canEdit && !page.is_database && <MobileMenuItem onClick={() => { saveAsTemplate(); setMobileMenuOpen(false) }}>📋 Save as template</MobileMenuItem>}
-                  {page.is_database && <MobileMenuItem onClick={() => { exportCSV(); setMobileMenuOpen(false) }}>📊 Export CSV</MobileMenuItem>}
-                  {!page.is_database && headings.length > 0 && <MobileMenuItem onClick={() => { setTocOpen(o => !o); setMobileMenuOpen(false) }}>☰ Table of contents</MobileMenuItem>}
-                  {canEdit && <MobileMenuItem onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots(); setMobileMenuOpen(false) }}>🕓 Version history</MobileMenuItem>}
-                  {!page.is_database && <MobileMenuItem onClick={() => { setBacklinksOpen(o => !o); loadBacklinks(); setMobileMenuOpen(false) }}>↩ Backlinks{backlinksLoaded && backlinks.length > 0 ? ` (${backlinks.length})` : ''}</MobileMenuItem>}
+                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 6, boxShadow: 'var(--shadow-lg)', zIndex: 200, minWidth: 200, maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }} className="scale-in">
+                  {/* View */}
+                  {!page.is_database && headings.length > 0 && <MobileMenuItem onClick={() => { setTocOpen(o => !o); setMobileMenuOpen(false) }}>📑 Table of contents</MobileMenuItem>}
+                  {!page.is_database && <MobileMenuItem onClick={() => { setBacklinksOpen(o => !o); loadBacklinks(); setMobileMenuOpen(false) }}>📎 Backlinks{backlinksLoaded && backlinks.length > 0 ? ` (${backlinks.length})` : ''}</MobileMenuItem>}
+                  {canEdit && <MobileMenuItem onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots(); setMobileMenuOpen(false) }}>🕐 Version history</MobileMenuItem>}
                   <MobileMenuItem onClick={() => { setFocusMode(f => { window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus')); return !f }); setMobileMenuOpen(false) }}>{focusMode ? '🎯 Exit focus mode' : '🎯 Focus mode'}</MobileMenuItem>
+                  {!page.is_database && <MobileMenuItem onClick={() => { setPresentationOpen(true); setMobileMenuOpen(false) }}>🎤 Generate Slides</MobileMenuItem>}
+                  {/* Page management */}
+                  <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+                  {onToggleFavorite && <MobileMenuItem onClick={() => { onToggleFavorite(); setMobileMenuOpen(false) }}>{isFavorite ? '⭐ Remove from favorites' : '⭐ Add to favorites'}</MobileMenuItem>}
+                  {isOwner && <MobileMenuItem onClick={() => { toggleLock(); setMobileMenuOpen(false) }}>{page.is_locked ? '🔓 Unlock page' : '🔒 Lock page'}</MobileMenuItem>}
+                  {/* Edit */}
+                  {(canEdit && !page.is_database) && <>
+                    <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+                    <MobileMenuItem onClick={() => { triggerMarkdownImport(); setMobileMenuOpen(false) }}>⬇️ Import Markdown</MobileMenuItem>
+                    <MobileMenuItem onClick={() => { saveAsTemplate(); setMobileMenuOpen(false) }}>📋 Save as template</MobileMenuItem>
+                  </>}
+                  {/* Export */}
+                  <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
+                  <MobileMenuItem onClick={() => { exportPDF(); setMobileMenuOpen(false) }}>🖨️ Print / Save as PDF</MobileMenuItem>
+                  {!page.is_database && <MobileMenuItem onClick={() => { exportWord(); setMobileMenuOpen(false) }}>📝 Export Word</MobileMenuItem>}
+                  {!page.is_database && <MobileMenuItem onClick={() => { exportMarkdown(); setMobileMenuOpen(false) }}>⬆️ Export Markdown</MobileMenuItem>}
+                  {page.is_database && <MobileMenuItem onClick={() => { exportCSV(); setMobileMenuOpen(false) }}>📊 Export CSV</MobileMenuItem>}
+                  {page.is_database && <MobileMenuItem onClick={() => { exportXLSX(); setMobileMenuOpen(false) }}>📊 Export XLSX</MobileMenuItem>}
                 </div>
               </>
             )}
