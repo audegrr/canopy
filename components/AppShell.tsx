@@ -44,7 +44,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [sharedPages, setSharedPages] = useState(initSharedPages)
   const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set())
   const [expandedShared, setExpandedShared] = useState<Set<string>>(new Set())
-  const [sidebarOpen, setSidebarOpen] = useState(() => typeof window === 'undefined' ? true : window.innerWidth >= 768)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [wsMenuOpen, setWsMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsTab, setSettingsTab] = useState<'profile'|'appearance'>('profile')
@@ -98,7 +98,11 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const currentPageId = pathname.match(/\/app\/page\/([^/]+)/)?.[1] || null
 
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768)
+    const check = () => {
+      const mobile = window.innerWidth < 768
+      setIsMobile(mobile)
+      if (!mobile) setSidebarOpen(true)
+    }
     check()
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
