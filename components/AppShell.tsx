@@ -91,7 +91,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [favoritesCollapsed, setFavoritesCollapsed] = useState(false)
   const [keyFocusId, setKeyFocusId] = useState<string | null>(null)
   const sidebarTreeRef = useRef<HTMLDivElement>(null)
-  const mobileCloseRef = useRef<HTMLButtonElement>(null)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -104,18 +103,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
-
-  useEffect(() => {
-    const el = mobileCloseRef.current
-    if (!el) return
-    const close = () => setSidebarOpen(false)
-    el.addEventListener('touchstart', close, { passive: true })
-    el.addEventListener('click', close)
-    return () => {
-      el.removeEventListener('touchstart', close)
-      el.removeEventListener('click', close)
-    }
-  }, [isMobile])
 
   useEffect(() => {
     const onEnter = () => setSidebarOpen(false)
@@ -976,8 +963,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       {isMobile && sidebarOpen && (
         <div
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 39, cursor: 'pointer' }}
+          onTouchEnd={e => { e.preventDefault(); setSidebarOpen(false) }}
           onClick={() => setSidebarOpen(false)}
-          onTouchEnd={() => setSidebarOpen(false)}
         />
       )}
       {/* SIDEBAR */}
@@ -989,6 +976,11 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           transition: 'width 0.2s, min-width 0.2s', flexShrink: 0,
           ...(isMobile ? { position: 'fixed', left: 0, top: 0, bottom: 0, zIndex: 40, boxShadow: '4px 0 24px rgba(0,0,0,0.15)' } : {}),
         }}
+        onTouchStart={isMobile ? e => { (e.currentTarget as any)._swipeStartX = e.touches[0].clientX } : undefined}
+        onTouchEnd={isMobile ? e => {
+          const startX = (e.currentTarget as any)._swipeStartX ?? 0
+          if (e.changedTouches[0].clientX - startX < -50) setSidebarOpen(false)
+        } : undefined}
       >
         {/* Home + Workspace switcher */}
         <div style={{ padding: '10px 8px 4px', flexShrink: 0 }}>
@@ -1003,8 +995,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             </button>
             {isMobile && (
               <button
-                ref={mobileCloseRef}
-                style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '22px', lineHeight: 1, padding: '6px 10px', borderRadius: '6px', touchAction: 'manipulation' }}
+                onClick={() => setSidebarOpen(false)}
+                style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '22px', lineHeight: 1, padding: '10px 12px', borderRadius: '6px', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                aria-label="Close sidebar"
               >×</button>
             )}
           </div>
@@ -1248,7 +1241,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         {/* Top bar */}
         <div style={{ height: '48px', padding: '0 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <button onClick={() => setSidebarOpen(o => !o)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '16px', padding: '4px 6px', borderRadius: '4px', lineHeight: 1, flexShrink: 0 }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '18px', padding: isMobile ? '10px 12px' : '4px 6px', borderRadius: '4px', lineHeight: 1, flexShrink: 0, touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', minWidth: isMobile ? '44px' : undefined, minHeight: isMobile ? '44px' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
             title="Toggle sidebar">☰</button>
@@ -1296,7 +1289,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           {/* Cmd+K button */}
           <button
             onClick={() => setSearchOpen(true)}
-            style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px', padding: isMobile ? '6px 9px' : '5px 12px', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap', transition: 'all 0.15s' }}
+            style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px', padding: isMobile ? '10px 12px' : '5px 12px', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap', transition: 'all 0.15s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', minHeight: isMobile ? '44px' : undefined }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
             title="Search pages (⌘K)">
@@ -1307,7 +1300,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           <div style={{ position: 'relative', flexShrink: 0 }}>
             <button
               onClick={() => { const opening = !notifOpen; setNotifOpen(o => !o); if (opening) markAllRead() }}
-              style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '5px 7px', borderRadius: '6px', fontSize: '16px', lineHeight: 1, display: 'flex', alignItems: 'center' }}
+              style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: isMobile ? '10px 12px' : '5px 7px', borderRadius: '6px', fontSize: '18px', lineHeight: 1, display: 'flex', alignItems: 'center', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', minWidth: isMobile ? '44px' : undefined, minHeight: isMobile ? '44px' : undefined, justifyContent: 'center' }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
               title="Notifications">
