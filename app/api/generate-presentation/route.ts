@@ -102,6 +102,16 @@ function pill(s: any, t: Theme, label: string, x: number, y: number) {
     fontFace: t.font, align: 'center', valign: 'middle', charSpacing: 1.5 })
 }
 
+// Large translucent number for SECTION slides
+function sectionNum(s: any, t: Theme, n: number) {
+  s.addText(String(n).padStart(2, '0'), {
+    x: 4.8, y: -0.8, w: 8.2, h: 8.6,
+    fontSize: 420, bold: true, color: t.accentColor,
+    fontFace: t.font, align: 'right', valign: 'middle',
+    transparency: 87,
+  })
+}
+
 export async function POST(req: NextRequest) {
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'GROQ_API_KEY not configured' }, { status: 500 })
@@ -174,7 +184,11 @@ CONTENT RULES — all mandatory
 • Use STATS whenever numbers or metrics appear.
 • Use TWO-COL for any comparison or contrast.
 • Word limits are HARD — slides have fixed physical dimensions.
-• Language: exactly match the document (French → French, English → English).`,
+• Language: exactly match the document (French → French, English → English).
+• SPECIFICITY: every sentence must contain a concrete fact, name, number, or example from the document. Never write generic claims like "X is important" or "This approach offers many benefits".
+• BIG-IDEA statements must be counterintuitive or surprising — not a restatement of the obvious. Bad: "Leadership matters for success." Good: "Most projects fail from misaligned expectations, not technical failure."
+• Slide titles must not repeat the same opening word across consecutive slides. Vary structure: use verbs, nouns, questions.
+• TITLE slide: the title must be engaging and specific to this document's actual content, not just the document title verbatim.`,
         },
         { role: 'user', content: `Document title: ${title || 'Untitled'}\n\n${docText}` },
       ],
@@ -200,6 +214,7 @@ CONTENT RULES — all mandatory
   const prs = new PptxGenJS()
   prs.layout = 'LAYOUT_WIDE'
 
+  let sectionCount = 0
   for (const slide of slides) {
     const s = prs.addSlide()
 
@@ -234,11 +249,9 @@ CONTENT RULES — all mandatory
 
     // ── SECTION ─────────────────────────────────────────────────────────────
     } else if (slide.type === 'section') {
+      sectionCount++
       gRect(s, 0, 0, W, H, t.grad1, t.grad2, 148)
-      s.addShape('ellipse', { x: 7.4, y: -2.0, w: 8.6, h: 8.6,
-        fill: { color: t.accentColor, transparency: 76 }, line: { color: t.accentColor, transparency: 100 } })
-      s.addShape('ellipse', { x: 8.8, y: -0.8, w: 6.2, h: 6.2,
-        fill: { color: t.grad1, transparency: 0 }, line: { color: t.grad1, transparency: 100 } })
+      sectionNum(s, t, sectionCount)
       s.addShape('ellipse', { x: -2.8, y: 4.6, w: 5.8, h: 5.8,
         fill: { color: t.accentColor, transparency: 76 }, line: { color: t.accentColor, transparency: 100 } })
       s.addShape('rect', { x: 0.6, y: 1.5, w: 0.14, h: 2.5,
@@ -411,22 +424,24 @@ CONTENT RULES — all mandatory
             fill: { color: t.accentLight },
             line: { color: t.accentMid, transparency: 0, width: 0.5 },
             rectRadius: 0.12 })
-          // Column header — dark gradient + white text
-          gRect(s, cx, colY, colW, 0.72, t.hGrad1, t.hGrad2, 90)
+          // Column heading — accent-colored text (avoids flat gradient overlaying rounded card)
           s.addText(col.heading || '', {
-            x: cx + 0.18, y: colY + 0.04, w: colW - 0.28, h: 0.64,
-            fontSize: 20, bold: true, color: 'FFFFFF',
+            x: cx + 0.22, y: colY + 0.1, w: colW - 0.34, h: 0.64,
+            fontSize: 20, bold: true, color: t.accentColor,
             fontFace: t.font, align: 'left', valign: 'middle', shrinkText: true,
           })
-          // Left accent bar
-          s.addShape('rect', { x: cx + 0.14, y: colY + 0.82, w: 0.07, h: colH - 0.94,
+          // Separator line under heading
+          s.addShape('rect', { x: cx + 0.22, y: colY + 0.78, w: colW - 0.44, h: 0.045,
+            fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
+          // Left accent bar (below heading)
+          s.addShape('rect', { x: cx + 0.14, y: colY + 0.88, w: 0.07, h: colH - 1.0,
             fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
           const pts: string[] = (col.points || []).slice(0, 4)
-          const ptH = (colH - 0.94) / Math.max(pts.length, 1)
+          const ptH = (colH - 1.0) / Math.max(pts.length, 1)
           const ptFz = pts.length <= 3 ? 16 : 14
           pts.forEach((pt: string, i: number) => {
             s.addText(pt, {
-              x: cx + 0.3, y: colY + 0.86 + i * ptH, w: colW - 0.42, h: ptH - 0.06,
+              x: cx + 0.3, y: colY + 0.92 + i * ptH, w: colW - 0.42, h: ptH - 0.06,
               fontSize: ptFz, color: t.bodyText,
               fontFace: t.font, valign: 'middle', wrap: true, shrinkText: true,
               lineSpacingMultiple: 1.2,
