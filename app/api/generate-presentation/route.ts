@@ -88,7 +88,7 @@ function hBand(s: any, t: Theme, title: string, bandH: number) {
     fill: { color: t.accentColor }, line: { color: t.accentColor, transparency: 100 } })
   s.addText(title, {
     x: 0.52, y: 0.06, w: W - 0.72, h: bandH - 0.06,
-    fontSize: 30, bold: true, color: 'FFFFFF',
+    fontSize: 34, bold: true, color: 'FFFFFF',
     fontFace: t.font, align: 'left', valign: 'middle', shrinkText: true,
   })
 }
@@ -283,7 +283,7 @@ CONTENT RULES — all mandatory
       if (slide.title) {
         s.addText(slide.title.toUpperCase(), {
           x: 0.9, y: 0.26, w: 10.0, h: 0.46,
-          fontSize: 12, color: t.darkSub,
+          fontSize: 14, color: t.darkSub,
           fontFace: t.font, align: 'left', charSpacing: 3.5,
         })
         s.addShape('rect', { x: 0.9, y: 0.76, w: 2.2, h: 0.05,
@@ -309,7 +309,7 @@ CONTENT RULES — all mandatory
     // ── BULLETS ─────────────────────────────────────────────────────────────
     } else if (slide.type === 'bullets') {
       bgFill(s, t.bg)
-      const BAND = 1.28
+      const BAND = 1.42
       hBand(s, t, slide.title || '', BAND)
 
       const bullets: string[] = (slide.bullets || []).slice(0, 5)
@@ -353,7 +353,7 @@ CONTENT RULES — all mandatory
     // ── PROCESS ─────────────────────────────────────────────────────────────
     } else if (slide.type === 'process') {
       bgFill(s, t.bg)
-      const BAND = 1.28
+      const BAND = 1.42
       hBand(s, t, slide.title || '', BAND)
 
       const steps: { title: string; detail: string }[] = (slide.steps || []).slice(0, 5)
@@ -364,7 +364,7 @@ CONTENT RULES — all mandatory
       const numW = count <= 3 ? 1.0 : count === 4 ? 0.85 : 0.72
       const numFz = count <= 3 ? 38 : count === 4 ? 30 : 24
       const titleFz = count <= 3 ? 18 : count === 4 ? 16 : 14
-      const detailFz = count <= 3 ? 15 : count === 4 ? 13 : 12
+      const detailFz = count <= 3 ? 15 : 13
 
       steps.forEach((step, i) => {
         const y = BAND + 0.06 + i * rowH
@@ -461,7 +461,7 @@ CONTENT RULES — all mandatory
       if (slide.title) {
         s.addText(slide.title.toUpperCase(), {
           x: 0.9, y: 0.28, w: 10.5, h: 0.46,
-          fontSize: 12, color: t.darkSub,
+          fontSize: 14, color: t.darkSub,
           fontFace: t.font, align: 'left', charSpacing: 3.0,
         })
       }
