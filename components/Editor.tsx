@@ -111,6 +111,7 @@ import SubpageBlock from './SubpageBlock'
 import DatabaseBlock from './DatabaseBlock'
 import LinkBase from '@tiptap/extension-link'
 const Link = LinkBase.extend({
+  inclusive: false,
   addAttributes() {
     return { ...this.parent?.(), target: { default: '_blank' }, rel: { default: 'noopener noreferrer' } }
   },
