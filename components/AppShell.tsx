@@ -668,6 +668,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     })))
 
     setNavigating(false)
+    if (isMobile) setSidebarOpen(false)
     navigate('/app')
   }
 
@@ -979,7 +980,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)',
           display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden',
           transition: 'width 0.2s, min-width 0.2s', flexShrink: 0,
-          ...(isMobile ? { position: 'fixed', left: 0, top: 0, bottom: 0, height: 'auto', zIndex: 40, boxShadow: '4px 0 24px rgba(0,0,0,0.15)' } : {}),
+          ...(isMobile ? { position: 'fixed', left: 0, top: 0, bottom: 0, height: 'auto', zIndex: 300, boxShadow: '4px 0 24px rgba(0,0,0,0.15)' } : {}),
         }}
         onTouchStart={isMobile ? e => { (e.currentTarget as any)._swipeStartX = e.touches[0].clientX } : undefined}
         onTouchEnd={isMobile ? e => {
