@@ -1269,28 +1269,28 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           </div>
 
           {/* Font zoom controls */}
-          {!isMobile && (
-            <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden' }}>
-              <button
-                onClick={() => { const i = ZOOM_LEVELS.indexOf(zoom); if (i > 0) { const v = ZOOM_LEVELS[i-1]; setZoom(v); localStorage.setItem('canopy_zoom', String(v)) } }}
-                disabled={zoom === ZOOM_LEVELS[0]}
-                style={{ background: 'none', border: 'none', cursor: zoom === ZOOM_LEVELS[0] ? 'default' : 'pointer', color: zoom === ZOOM_LEVELS[0] ? 'var(--text-tertiary)' : 'var(--text-secondary)', fontSize: '14px', fontWeight: 400, padding: '4px 8px', fontFamily: 'var(--font-sans)', lineHeight: 1, borderRight: '1px solid var(--border)' }}
-                onMouseEnter={e => { if (zoom !== ZOOM_LEVELS[0]) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
-                title="Smaller text">−</button>
+          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, border: '1px solid var(--border)', borderRadius: '6px', overflow: 'hidden' }}>
+            <button
+              onClick={() => { const i = ZOOM_LEVELS.indexOf(zoom); if (i > 0) { const v = ZOOM_LEVELS[i-1]; setZoom(v); localStorage.setItem('canopy_zoom', String(v)) } }}
+              disabled={zoom === ZOOM_LEVELS[0]}
+              style={{ background: 'none', border: 'none', cursor: zoom === ZOOM_LEVELS[0] ? 'default' : 'pointer', color: zoom === ZOOM_LEVELS[0] ? 'var(--text-tertiary)' : 'var(--text-secondary)', fontSize: isMobile ? '16px' : '14px', fontWeight: 400, padding: isMobile ? '10px 14px' : '4px 8px', fontFamily: 'var(--font-sans)', lineHeight: 1, borderRight: '1px solid var(--border)', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' as any, minWidth: isMobile ? '44px' : undefined, minHeight: isMobile ? '44px' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onMouseEnter={e => { if (zoom !== ZOOM_LEVELS[0]) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
+              title="Smaller text">−</button>
+            {!isMobile && (
               <button
                 onClick={() => { setZoom(1.0); localStorage.setItem('canopy_zoom', '1') }}
                 style={{ background: zoom !== 1.0 ? 'var(--accent-light)' : 'none', border: 'none', cursor: zoom !== 1.0 ? 'pointer' : 'default', color: zoom !== 1.0 ? 'var(--accent)' : 'var(--text-tertiary)', fontSize: '11px', fontWeight: 500, padding: '4px 6px', fontFamily: 'var(--font-sans)', lineHeight: 1, minWidth: '34px', textAlign: 'center' }}
                 title={zoom !== 1.0 ? 'Reset to 100%' : 'Text size'}>{Math.round(zoom * 100)}%</button>
-              <button
-                onClick={() => { const i = ZOOM_LEVELS.indexOf(zoom); if (i < ZOOM_LEVELS.length - 1) { const v = ZOOM_LEVELS[i+1]; setZoom(v); localStorage.setItem('canopy_zoom', String(v)) } }}
-                disabled={zoom === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
-                style={{ background: 'none', border: 'none', cursor: zoom === ZOOM_LEVELS[ZOOM_LEVELS.length-1] ? 'default' : 'pointer', color: zoom === ZOOM_LEVELS[ZOOM_LEVELS.length-1] ? 'var(--text-tertiary)' : 'var(--text-secondary)', fontSize: '14px', fontWeight: 400, padding: '4px 8px', fontFamily: 'var(--font-sans)', lineHeight: 1, borderLeft: '1px solid var(--border)' }}
-                onMouseEnter={e => { if (zoom !== ZOOM_LEVELS[ZOOM_LEVELS.length-1]) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
-                title="Larger text">+</button>
-            </div>
-          )}
+            )}
+            <button
+              onClick={() => { const i = ZOOM_LEVELS.indexOf(zoom); if (i < ZOOM_LEVELS.length - 1) { const v = ZOOM_LEVELS[i+1]; setZoom(v); localStorage.setItem('canopy_zoom', String(v)) } }}
+              disabled={zoom === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
+              style={{ background: 'none', border: 'none', cursor: zoom === ZOOM_LEVELS[ZOOM_LEVELS.length-1] ? 'default' : 'pointer', color: zoom === ZOOM_LEVELS[ZOOM_LEVELS.length-1] ? 'var(--text-tertiary)' : 'var(--text-secondary)', fontSize: isMobile ? '16px' : '14px', fontWeight: 400, padding: isMobile ? '10px 14px' : '4px 8px', fontFamily: 'var(--font-sans)', lineHeight: 1, borderLeft: '1px solid var(--border)', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' as any, minWidth: isMobile ? '44px' : undefined, minHeight: isMobile ? '44px' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              onMouseEnter={e => { if (zoom !== ZOOM_LEVELS[ZOOM_LEVELS.length-1]) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
+              title="Larger text">+</button>
+          </div>
 
           {/* Cmd+K button */}
           <button
