@@ -1,10 +1,15 @@
 'use client'
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 
-export default function SignupPage() {
-  const [email, setEmail] = useState('')
+function SignupForm() {
+  const searchParams = useSearchParams()
+  const inviteToken = searchParams.get('invite') ?? ''
+  const prefillEmail = searchParams.get('email') ?? ''
+
+  const [email, setEmail] = useState(prefillEmail)
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [error, setError] = useState('')
@@ -15,13 +20,29 @@ export default function SignupPage() {
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true); setError('')
-    const { error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: name }, emailRedirectTo: `${location.origin}/auth/callback` } })
+
+    const redirectTo = inviteToken
+      ? `${location.origin}/auth/callback?next=${encodeURIComponent(`/invite/${inviteToken}`)}`
+      : `${location.origin}/auth/callback`
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: name }, emailRedirectTo: redirectTo },
+    })
+
     if (error) { setError(error.message); setLoading(false) }
     else setDone(true)
   }
 
   async function handleGoogle() {
-    await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${location.origin}/auth/callback`, queryParams: { prompt: 'select_account' } } })
+    const redirectTo = inviteToken
+      ? `${location.origin}/auth/callback?next=${encodeURIComponent(`/invite/${inviteToken}`)}`
+      : `${location.origin}/auth/callback`
+    await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo, queryParams: { prompt: 'select_account' } },
+    })
   }
 
   if (done) return (
@@ -29,7 +50,10 @@ export default function SignupPage() {
       <div style={{ textAlign: 'center' }}>
         <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 56, height: 56, objectFit: 'contain', marginBottom: '16px' }} />
         <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '8px', color: '#37352f' }}>Check your email</h2>
-        <p style={{ color: '#787774', fontSize: '14px' }}>We sent a confirmation link to <strong>{email}</strong></p>
+        <p style={{ color: '#787774', fontSize: '14px' }}>
+          We sent a confirmation link to <strong>{email}</strong>
+          {inviteToken && <><br />After confirming, you&apos;ll be added to the workspace.</>}
+        </p>
         <Link href="/login" style={{ display: 'inline-block', marginTop: '20px', color: '#2383e2', fontSize: '14px' }}>Back to login</Link>
       </div>
     </div>
@@ -41,7 +65,9 @@ export default function SignupPage() {
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 48, height: 48, objectFit: 'contain', marginBottom: '8px' }} />
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#37352f', marginBottom: '4px' }}>Canopy</h1>
-          <p style={{ color: '#787774', fontSize: '14px' }}>Create your account</p>
+          <p style={{ color: '#787774', fontSize: '14px' }}>
+            {inviteToken ? 'Create your account to accept the invitation' : 'Create your account'}
+          </p>
         </div>
         <div style={{ background: '#fff', border: '1px solid #e9e9e7', borderRadius: '8px', padding: '28px', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
           <button onClick={handleGoogle} style={googleBtn}>
@@ -55,7 +81,15 @@ export default function SignupPage() {
           </div>
           <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <input value={name} onChange={e => setName(e.target.value)} required style={inputSt} placeholder="Full name" />
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required style={inputSt} placeholder="Email" />
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              style={inputSt}
+              placeholder="Email"
+              readOnly={!!prefillEmail}
+            />
             <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} style={inputSt} placeholder="Password (min. 8 characters)" />
             {error && <p style={{ color: '#eb5757', fontSize: '13px' }}>{error}</p>}
             <button type="submit" disabled={loading} style={primaryBtn}>{loading ? 'Creating account…' : 'Create account'}</button>
@@ -68,6 +102,15 @@ export default function SignupPage() {
     </div>
   )
 }
+
+export default function SignupPage() {
+  return (
+    <Suspense>
+      <SignupForm />
+    </Suspense>
+  )
+}
+
 const inputSt: React.CSSProperties = { width: '100%', padding: '9px 12px', border: '1px solid #e9e9e7', borderRadius: '6px', fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#37352f', outline: 'none' }
 const primaryBtn: React.CSSProperties = { background: '#2383e2', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', fontFamily: 'Inter, sans-serif', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }
 const googleBtn: React.CSSProperties = { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '9px', border: '1px solid #e9e9e7', borderRadius: '6px', background: '#fff', fontFamily: 'Inter, sans-serif', fontSize: '14px', cursor: 'pointer', color: '#37352f' }

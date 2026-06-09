@@ -1,13 +1,36 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/app'
-  if (code) {
-    const supabase = await createClient()
-    await supabase.auth.exchangeCodeForSession(code)
+  const redirectUrl = `${origin}${next}`
+
+  if (!code) {
+    return NextResponse.redirect(redirectUrl)
   }
-  return NextResponse.redirect(`${origin}${next}`)
+
+  // Build the redirect response FIRST so we can attach session cookies to it.
+  // Using next/headers cookies() in a Route Handler does NOT reliably attach
+  // cookies to the outgoing redirect — they must be set on the Response object.
+  const response = NextResponse.redirect(redirectUrl)
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() { return request.cookies.getAll() },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options)
+          })
+        },
+      },
+    }
+  )
+
+  await supabase.auth.exchangeCodeForSession(code)
+  return response
 }

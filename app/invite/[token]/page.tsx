@@ -1,62 +1,99 @@
+import { createClient as createSupabaseAdmin } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
-import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
+
+function adminClient() {
+  return createSupabaseAdmin(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } }
+  )
+}
 
 export default async function InvitePage({ params }: { params: { token: string } }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Primary lookup: by token in the URL
-  const { data: inviteByToken } = await supabase
+  const admin = adminClient()
+
+  // Use admin client for all DB lookups — bypasses any RLS edge cases.
+  const { data: inviteByToken } = await admin
     .from('workspace_invites')
     .select('id, workspace_id, role, expires_at, invited_email')
     .eq('token', params.token)
-    .single()
+    .maybeSingle()
 
-  // Fallback: if authenticated and token not found, look up by email.
-  // This handles the case where the user clicked an old invite email after
-  // we rotated the token (cleanup + re-invite), but still has a valid invite.
   let invite = inviteByToken
+
+  // Fallback: if the user is authenticated, look them up by email.
+  // This covers old email links where the token was rotated on re-invite.
   if (!invite && user?.email) {
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (serviceRoleKey) {
-      const admin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
-        auth: { persistSession: false, autoRefreshToken: false }
-      })
-      const { data } = await admin
-        .from('workspace_invites')
-        .select('id, workspace_id, role, expires_at, invited_email')
-        .eq('invited_email', user.email)
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-      invite = data
-    }
+    const { data } = await admin
+      .from('workspace_invites')
+      .select('id, workspace_id, role, expires_at, invited_email')
+      .eq('invited_email', user.email.toLowerCase())
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .maybeSingle()
+    if (data) invite = data
   }
 
+  // Not authenticated — redirect to signup with invite context pre-filled.
+  // (Invited users have no password, so login won't work for them.)
   if (!user) {
-    const emailParam = inviteByToken?.invited_email ? `&email=${encodeURIComponent(inviteByToken.invited_email)}` : ''
-    redirect(`/login?redirect=/invite/${params.token}${emailParam}`)
+    const emailParam = invite?.invited_email
+      ? `&email=${encodeURIComponent(invite.invited_email)}`
+      : ''
+    redirect(`/signup?invite=${params.token}${emailParam}`)
   }
 
-  if (!invite) return <InviteError message="This invite link is invalid or has already been used." />
-  if (new Date(invite.expires_at) < new Date()) return <InviteError message="This invite link has expired." />
+  // Invite not found even with admin client + email fallback.
+  if (!invite) {
+    // Maybe it was already accepted — check workspace membership.
+    const { data: anyMembership } = await admin
+      .from('workspace_members')
+      .select('workspace_id')
+      .eq('user_id', user.id)
+      .limit(1)
+      .maybeSingle()
+    if (anyMembership) redirect('/app')
+    return <InviteError message="This invite link is invalid or has already been used." />
+  }
 
-  // Check if already a member
-  const { data: existing } = await supabase
+  if (new Date(invite.expires_at) < new Date()) {
+    return <InviteError message="This invite link has expired. Ask the workspace owner to send a new one." />
+  }
+
+  // Check if user is already a member of this workspace.
+  const { data: existing } = await admin
     .from('workspace_members')
     .select('id')
     .eq('workspace_id', invite.workspace_id)
     .eq('user_id', user.id)
-    .single()
+    .maybeSingle()
 
   if (!existing) {
-    await supabase.from('workspace_members').insert({ workspace_id: invite.workspace_id, user_id: user.id, role: invite.role })
+    await admin.from('workspace_members').insert({
+      workspace_id: invite.workspace_id,
+      user_id: user.id,
+      role: invite.role,
+    })
   }
 
-  // Delete used invite
-  await supabase.from('workspace_invites').delete().eq('id', invite.id)
+  // Mark invite as used.
+  await admin.from('workspace_invites').delete().eq('id', invite.id)
+
+  // If user has no display name they came through the invite-only path
+  // and need to complete their profile before using the app.
+  const { data: profile } = await admin
+    .from('profiles')
+    .select('full_name')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (!profile?.full_name) {
+    redirect('/welcome')
+  }
 
   redirect('/app')
 }
