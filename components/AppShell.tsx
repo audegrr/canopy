@@ -704,74 +704,44 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     const email = inviteEmail.trim().toLowerCase()
     if (!email) return
 
-    // Find user by email in profiles
-    const { data: profiles, error: profileError } = await supabase
-      .from('profiles')
-      .select('id, email')
-      .eq('email', email)
+    const res = await fetch('/api/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, workspace_id: currentWs.id, role: inviteRole })
+    })
 
-    if (profileError) { showToastMsg('Error: ' + profileError.message); return }
-
-    // No existing account → send an email invitation
-    if (!profiles || profiles.length === 0) {
-      const res = await fetch('/api/invite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, workspace_id: currentWs.id, role: inviteRole })
-      })
-      if (res.ok) {
-        const body = await res.json()
-        setInviteEmail('')
-        if (body.alreadyInvited) {
-          await navigator.clipboard.writeText(body.inviteLink).catch(() => {})
-          showToastMsg('Already invited — link copied to clipboard!')
-        } else {
-          showToastMsg('Invitation email sent!')
-        }
-        await loadWsMembers()
-      } else {
-        const { error: msg } = await res.json()
-        showToastMsg('Failed to send invite: ' + (msg ?? 'unknown error'))
-      }
+    if (!res.ok) {
+      const { error: msg } = await res.json()
+      showToastMsg('Error: ' + (msg ?? 'unknown error'))
       return
     }
 
-    const userId = profiles[0].id
-
-    // Check not already a member
-    const { data: existing } = await supabase
-      .from('workspace_members')
-      .select('id')
-      .eq('workspace_id', currentWs.id)
-      .eq('user_id', userId)
-
-    if (existing && existing.length > 0) { showToastMsg('Already a member'); return }
-
-    // Insert
-    const { error } = await supabase.from('workspace_members').insert({
-      workspace_id: currentWs.id,
-      user_id: userId,
-      role: inviteRole
-    })
-
-    if (error) { showToastMsg('Error adding member: ' + error.message); return }
-
-    // Notify the invited user
-    fetch('/api/notify', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        user_id: userId,
-        type: 'workspace_invite',
-        title: `Added to workspace "${currentWs.name}"`,
-        body: `${user.name} invited you as ${inviteRole === 'member' ? 'member' : 'viewer'}.`,
-        data: { workspace_id: currentWs.id, workspace_name: currentWs.name }
-      })
-    }).catch(() => {})
-
+    const body = await res.json()
     setInviteEmail('')
     await loadWsMembers()
-    showToastMsg('Member added!')
+
+    if (body.alreadyMember) {
+      showToastMsg('Already a member')
+    } else if (body.addedDirectly) {
+      // Confirmed account → notify them in-app
+      fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: body.userId,
+          type: 'workspace_invite',
+          title: `Added to workspace "${currentWs.name}"`,
+          body: `${user.name} invited you as ${inviteRole === 'member' ? 'member' : 'viewer'}.`,
+          data: { workspace_id: currentWs.id, workspace_name: currentWs.name }
+        })
+      }).catch(() => {})
+      showToastMsg('Member added!')
+    } else if (body.alreadyInvited) {
+      await navigator.clipboard.writeText(body.inviteLink).catch(() => {})
+      showToastMsg('Already invited — link copied to clipboard!')
+    } else {
+      showToastMsg('Invitation email sent!')
+    }
   }
 
   async function removeMember(userId: string) {

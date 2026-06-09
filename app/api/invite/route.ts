@@ -27,26 +27,40 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Delete stale pending workspace_invites for this email
-  await admin
-    .from('workspace_invites')
-    .delete()
-    .eq('workspace_id', workspace_id)
-    .eq('invited_email', email)
+  // Check if the email has an auth account and whether it is confirmed
+  const { data: authRows } = await admin.rpc('get_auth_user_by_email', { p_email: email })
+  const authUser = authRows?.[0] as { id: string; confirmed: boolean } | undefined
 
-  // Delete the unconfirmed auth user if they exist so inviteUserByEmail sends a fresh email
-  const { data: unconfirmedId, error: rpcError } = await admin.rpc('get_unconfirmed_auth_user_id', { p_email: email })
-  if (rpcError) {
-    console.error('[invite] RPC get_unconfirmed_auth_user_id failed:', rpcError.message, '— SQL function may not be applied yet')
-  } else if (unconfirmedId) {
-    const { error: deleteError } = await admin.auth.admin.deleteUser(unconfirmedId)
-    if (deleteError) console.error('[invite] deleteUser failed:', deleteError.message)
-    else console.log('[invite] deleted unconfirmed auth user for', email)
-  } else {
-    console.log('[invite] no unconfirmed auth user found for', email)
+  // ── Case 1: confirmed account → add directly as workspace member ──────────
+  if (authUser?.confirmed) {
+    const { data: profile } = await admin.from('profiles').select('id').eq('email', email).single()
+    if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
+
+    const { data: existing } = await admin
+      .from('workspace_members').select('id').eq('workspace_id', workspace_id).eq('user_id', profile.id).single()
+    if (existing) return NextResponse.json({ ok: true, addedDirectly: true, alreadyMember: true })
+
+    await admin.from('workspace_members').insert({ workspace_id, user_id: profile.id, role })
+    return NextResponse.json({ ok: true, addedDirectly: true, userId: profile.id })
   }
 
-  // Create a new invite token
+  // ── Case 2: unconfirmed account (invite accepted email but not finished) ──
+  // Clean up everything so we can start fresh
+  if (authUser && !authUser.confirmed) {
+    console.log('[invite] cleaning up unconfirmed account for', email)
+    // Remove from workspace_members if added by mistake
+    const { data: profile } = await admin.from('profiles').select('id').eq('email', email).single()
+    if (profile) {
+      await admin.from('workspace_members').delete().eq('workspace_id', workspace_id).eq('user_id', profile.id)
+      await admin.from('profiles').delete().eq('id', profile.id)
+    }
+    await admin.auth.admin.deleteUser(authUser.id)
+  }
+
+  // ── Case 3 (and after Case 2 cleanup): no confirmed account → send invite ─
+  // Delete stale pending workspace_invites for this email
+  await admin.from('workspace_invites').delete().eq('workspace_id', workspace_id).eq('invited_email', email)
+
   const { data: invite, error: inviteError } = await admin
     .from('workspace_invites')
     .insert({ workspace_id, role, created_by: user.id, invited_email: email })
@@ -54,7 +68,7 @@ export async function POST(req: Request) {
     .single()
 
   if (inviteError || !invite) {
-    console.error('[invite] failed to create workspace_invites record:', inviteError?.message)
+    console.error('[invite] failed to create invite record:', inviteError?.message)
     return NextResponse.json({ error: inviteError?.message ?? 'Failed to create invite' }, { status: 500 })
   }
 
@@ -62,7 +76,7 @@ export async function POST(req: Request) {
   const next = encodeURIComponent(`/invite/${invite.token}`)
   const redirectTo = `${origin}/auth/callback?next=${next}`
 
-  console.log('[invite] calling inviteUserByEmail for', email, 'redirectTo:', redirectTo)
+  console.log('[invite] calling inviteUserByEmail for', email)
   const { error: authError } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo })
 
   if (authError) {
