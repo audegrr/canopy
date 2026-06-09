@@ -29,10 +29,10 @@ export async function POST(req: Request) {
 
   // Check if the email has an auth account and whether it is confirmed
   const { data: authRows } = await admin.rpc('get_auth_user_by_email', { p_email: email })
-  const authUser = authRows?.[0] as { id: string; confirmed: boolean } | undefined
+  const authUser = authRows?.[0] as { id: string; has_account: boolean } | undefined
 
-  // ── Case 1: confirmed account → add directly as workspace member ──────────
-  if (authUser?.confirmed) {
+  // ── Case 1: real account (has signed in at least once) → add directly ─────
+  if (authUser?.has_account) {
     const { data: profile } = await admin.from('profiles').select('id').eq('email', email).single()
     if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
 
@@ -44,9 +44,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, addedDirectly: true, userId: profile.id })
   }
 
-  // ── Case 2: unconfirmed account (invite accepted email but not finished) ──
-  // Clean up everything so we can start fresh
-  if (authUser && !authUser.confirmed) {
+  // ── Case 2: invited via Supabase but never logged in → clean up and resend ─
+  if (authUser && !authUser.has_account) {
     console.log('[invite] cleaning up unconfirmed account for', email)
     // Remove from workspace_members if added by mistake
     const { data: profile } = await admin.from('profiles').select('id').eq('email', email).single()
