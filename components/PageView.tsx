@@ -859,23 +859,24 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   function showToast(msg: string, ms = 2500) { setToast(msg); setTimeout(() => setToast(''), ms) }
 
   function copyToClipboard(text: string) {
-    // navigator.clipboard requires an unbroken user gesture chain — after any
-    // await it may be denied. Fall back to execCommand which has no such limit.
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text).catch(() => execCommandCopy(text))
-    } else {
-      execCommandCopy(text)
+    // navigator.clipboard.writeText() can resolve without error even when it
+    // hasn't actually copied (e.g. after an await breaks the gesture chain),
+    // so the .catch() fallback never runs. Always try execCommand first — it
+    // works reliably in a click handler even after awaits — and only fall back
+    // to the Clipboard API if execCommand isn't available.
+    try {
+      const el = document.createElement('textarea')
+      el.value = text
+      el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0'
+      document.body.appendChild(el)
+      el.focus()
+      el.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(el)
+      if (!ok) throw new Error('execCommand returned false')
+    } catch {
+      navigator.clipboard?.writeText(text).catch(() => {})
     }
-  }
-
-  function execCommandCopy(text: string) {
-    const el = document.createElement('textarea')
-    el.value = text
-    el.style.cssText = 'position:fixed;opacity:0;pointer-events:none'
-    document.body.appendChild(el)
-    el.focus(); el.select()
-    document.execCommand('copy')
-    document.body.removeChild(el)
   }
   function isCssBackground(v: string) { return v.startsWith('linear-gradient') || v.startsWith('radial-gradient') || (v.startsWith('#') && v.length <= 9) }
 
