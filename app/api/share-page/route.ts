@@ -80,8 +80,13 @@ export async function POST(req: Request) {
     })
     if (!res.ok) {
       const err = await res.text()
-      console.error('[share-page] Resend error:', err)
-      return NextResponse.json({ error: 'Failed to send email' }, { status: 500 })
+      console.error('[share-page] Resend error:', res.status, err)
+      // Resend sandbox restriction: onboarding@resend.dev can only send to the
+      // Resend account owner's email. Fall back to clipboard link in that case.
+      if (res.status === 403 || err.includes('testing') || err.includes('verified')) {
+        return NextResponse.json({ ok: true, emailSent: false, shareUrl, resendError: err })
+      }
+      return NextResponse.json({ error: err }, { status: 500 })
     }
     return NextResponse.json({ ok: true, emailSent: true })
   }
