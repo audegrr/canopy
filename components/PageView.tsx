@@ -538,56 +538,72 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   }
 
   async function inviteUser() {
-    if (!inviteEmail.trim()) return
-    // Try profiles table first, then auth.users via RPC
-    let userId: string | null = null
-    const { data: profile } = await supabase
+    const email = inviteEmail.trim().toLowerCase()
+    if (!email) return
+
+    // Look up by email in profiles
+    const { data: profiles } = await supabase
       .from('profiles')
-      .select('id')
-      .ilike('email', inviteEmail.trim())
-      .single()
+      .select('id, email')
+      .ilike('email', email)
+    const profile = profiles?.[0]
+
     if (profile) {
-      userId = profile.id
-    } else {
-      // Try finding by exact email match in profiles
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, email')
-        .ilike('email', inviteEmail.trim())
-      if (profiles && profiles.length > 0) userId = profiles[0].id
-    }
-    if (!userId) {
-      showToast('User not found — make sure they have a Canopy account')
+      // Existing Canopy user — add directly to page_shares
+      const { error } = await supabase.from('page_shares').upsert({
+        page_id: page.id, user_id: profile.id, permission: inviteRole
+      }, { onConflict: 'page_id,user_id' })
+      if (error) { showToast('Error: ' + error.message); return }
+      const { data: subIds } = await supabase.rpc('get_all_subpage_ids', { page_id: page.id })
+      if (subIds) {
+        for (const row of subIds) {
+          await supabase.from('page_shares').upsert({
+            page_id: row.id, user_id: profile.id, permission: inviteRole
+          }, { onConflict: 'page_id,user_id' })
+        }
+      }
+      fetch('/api/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: profile.id,
+          type: 'page_share',
+          title: `"${(page as any).title || 'Untitled'}" was shared with you`,
+          body: `You received ${inviteRole === 'edit' ? 'edit' : 'view'} access.`,
+          data: { page_id: page.id, page_title: (page as any).title }
+        })
+      }).catch(() => {})
+      setInviteEmail('')
+      loadShares()
+      showToast(`Shared with ${email}`)
       return
     }
-    // Share the page
-    const { error } = await supabase.from('page_shares').upsert({
-      page_id: page.id, user_id: userId, permission: inviteRole
-    }, { onConflict: 'page_id,user_id' })
-    if (error) { showToast('Error: ' + error.message); return }
-    // Share all sub-pages automatically
-    const { data: subIds } = await supabase.rpc('get_all_subpage_ids', { page_id: page.id })
-    if (subIds) {
-      for (const row of subIds) {
-        await supabase.from('page_shares').upsert({
-          page_id: row.id, user_id: userId, permission: inviteRole
-        }, { onConflict: 'page_id,user_id' })
-      }
-    }
-    fetch('/api/notify', {
+
+    // Not a Canopy user — send them the share link by email (no account created)
+    const res = await fetch('/api/share-page', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        user_id: userId,
-        type: 'page_share',
-        title: `"${(page as any).title || 'Untitled'}" was shared with you`,
-        body: `You received ${inviteRole === 'edit' ? 'edit' : 'view'} access.`,
-        data: { page_id: page.id, page_title: (page as any).title }
-      })
-    }).catch(() => {})
+        email,
+        page_id: page.id,
+        page_title: (page as any).title || 'Untitled',
+        role: inviteRole,
+      }),
+    })
+    const json = await res.json()
+    if (!res.ok) { showToast('Error: ' + (json.error ?? 'Failed')); return }
+
     setInviteEmail('')
-    loadShares()
-    showToast(`✅ Shared with ${inviteEmail}`)
+    if (json.emailSent) {
+      showToast(`Invitation sent to ${email}`)
+    } else {
+      // Resend not configured — copy the share link to clipboard as fallback
+      const link = json.shareUrl ?? `${window.location.origin}/share/${page.id}`
+      navigator.clipboard?.writeText(link).catch(() => {})
+      showToast(`Link copied — send it to ${email}`)
+    }
+    // Refresh page to reflect any link_permission change
+    setPage(p => ({ ...p, link_permission: inviteRole === 'edit' ? 'edit' : (p as any).link_permission === 'edit' ? 'edit' : 'view' }) as any)
   }
 
   async function removeShare(uid: string) {
