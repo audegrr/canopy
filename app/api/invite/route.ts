@@ -27,18 +27,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Delete any existing pending workspace_invites for this email so we start fresh
+  // Delete stale pending workspace_invites for this email
   await admin
     .from('workspace_invites')
     .delete()
     .eq('workspace_id', workspace_id)
     .eq('invited_email', email)
 
-  // If the user was previously invited but never confirmed, delete them from auth
-  // so that inviteUserByEmail can create a fresh invite and actually send the email.
-  const { data: unconfirmedId } = await admin.rpc('get_unconfirmed_auth_user_id', { p_email: email })
-  if (unconfirmedId) {
-    await admin.auth.admin.deleteUser(unconfirmedId)
+  // Delete the unconfirmed auth user if they exist so inviteUserByEmail sends a fresh email
+  const { data: unconfirmedId, error: rpcError } = await admin.rpc('get_unconfirmed_auth_user_id', { p_email: email })
+  if (rpcError) {
+    console.error('[invite] RPC get_unconfirmed_auth_user_id failed:', rpcError.message, '— SQL function may not be applied yet')
+  } else if (unconfirmedId) {
+    const { error: deleteError } = await admin.auth.admin.deleteUser(unconfirmedId)
+    if (deleteError) console.error('[invite] deleteUser failed:', deleteError.message)
+    else console.log('[invite] deleted unconfirmed auth user for', email)
+  } else {
+    console.log('[invite] no unconfirmed auth user found for', email)
   }
 
   // Create a new invite token
@@ -49,6 +54,7 @@ export async function POST(req: Request) {
     .single()
 
   if (inviteError || !invite) {
+    console.error('[invite] failed to create workspace_invites record:', inviteError?.message)
     return NextResponse.json({ error: inviteError?.message ?? 'Failed to create invite' }, { status: 500 })
   }
 
@@ -56,13 +62,15 @@ export async function POST(req: Request) {
   const next = encodeURIComponent(`/invite/${invite.token}`)
   const redirectTo = `${origin}/auth/callback?next=${next}`
 
+  console.log('[invite] calling inviteUserByEmail for', email, 'redirectTo:', redirectTo)
   const { error: authError } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo })
 
   if (authError) {
-    // Fallback: return a shareable link the owner can send manually
+    console.error('[invite] inviteUserByEmail error:', authError.message)
     const inviteLink = `${origin}/invite/${invite.token}`
     return NextResponse.json({ ok: true, alreadyInvited: true, inviteLink })
   }
 
+  console.log('[invite] invitation email sent to', email)
   return NextResponse.json({ ok: true })
 }
