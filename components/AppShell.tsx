@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { Workspace, Page, SharedPage, User, MemberWorkspace, WsMember } from '@/lib/types'
+import type { Workspace, Page, SharedPage, User, MemberWorkspace, WsMember, PendingInvite } from '@/lib/types'
 import PageView from './PageView'
 import CommandPalette from './CommandPalette'
 import SearchModal from './SearchModal'
@@ -53,6 +53,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [sharedCollapsed, setSharedCollapsed] = useState(false)
   const { theme, setTheme } = useTheme()
   const [wsMembers, setWsMembers] = useState<WsMember[]>([])
+  const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState<'member'|'viewer'>('member')
   const [profileName, setProfileName] = useState(user.name)
@@ -679,15 +680,24 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       .select('id, user_id, role, workspace_id')
       .eq('workspace_id', currentWs.id)
     if (error) { console.error('loadWsMembers:', error); return }
-    if (!data || data.length === 0) { setWsMembers([]); return }
-    // Enrich with profile data
-    const userIds = data.map(m => m.user_id)
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, email, full_name')
-      .in('id', userIds)
-    const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]))
-    setWsMembers(data.map(m => ({ ...m, profile: profileMap[m.user_id] || null })))
+    if (!data || data.length === 0) { setWsMembers([]) }
+    else {
+      // Enrich with profile data
+      const userIds = data.map(m => m.user_id)
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, email, full_name')
+        .in('id', userIds)
+      const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]))
+      setWsMembers(data.map(m => ({ ...m, profile: profileMap[m.user_id] || null })))
+    }
+    // Load pending invites (invited_email set, not yet accepted)
+    const { data: invites } = await supabase
+      .from('workspace_invites')
+      .select('id, invited_email, role, expires_at')
+      .eq('workspace_id', currentWs.id)
+      .not('invited_email', 'is', null)
+    setPendingInvites((invites ?? []).filter(i => new Date(i.expires_at) > new Date()) as PendingInvite[])
   }
 
   async function inviteMember() {
@@ -1486,7 +1496,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       {/* ── WORKSPACE SETTINGS MODAL ──────────────────────── */}
       {wsSettingsOpen && (
         <WsSettingsModal
-          workspace={currentWs} tab={wsSettingsTab} members={wsMembers}
+          workspace={currentWs} tab={wsSettingsTab} members={wsMembers} pendingInvites={pendingInvites}
           owner={user} inviteEmail={inviteEmail} inviteRole={inviteRole}
           onTabChange={(tab) => { setWsSettingsTab(tab as 'general'|'members'|'danger'); if (tab === 'members') loadWsMembers() }}
           onIconChange={async (em) => { await supabase.from('workspaces').update({ icon: em }).eq('id', currentWs.id); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, icon: em } : w)); setCurrentWs(w => ({ ...w, icon: em })) }}
@@ -1494,6 +1504,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           onAccentChange={async (color) => { await supabase.from('workspaces').update({ accent_color: color }).eq('id', currentWs.id); setCurrentWs(w => ({ ...w, accent_color: color })); setWorkspaces(ws => ws.map(w => w.id === currentWs.id ? { ...w, accent_color: color } : w)) }}
           onRoleChange={async (memberId, role) => { await supabase.from('workspace_members').update({ role }).eq('id', memberId); loadWsMembers() }}
           onRemoveMember={removeMember}
+          onCancelInvite={async (inviteId) => { await supabase.from('workspace_invites').delete().eq('id', inviteId); loadWsMembers() }}
           onInviteEmailChange={setInviteEmail}
           onInviteRoleChange={setInviteRole}
           onInvite={inviteMember}
@@ -2256,13 +2267,14 @@ function InviteLinkSection({ workspaceId }: { workspaceId: string }) {
 }
 
 // ── WORKSPACE SETTINGS MODAL ─────────────────────────────────
-function WsSettingsModal({ workspace, tab, members, owner, inviteEmail, inviteRole, onTabChange, onIconChange, onNameSave, onAccentChange, onRoleChange, onRemoveMember, onInviteEmailChange, onInviteRoleChange, onInvite, onDelete, onClose }: {
-  workspace: Workspace; tab: 'general' | 'members' | 'danger'; members: WsMember[]
+function WsSettingsModal({ workspace, tab, members, pendingInvites, owner, inviteEmail, inviteRole, onTabChange, onIconChange, onNameSave, onAccentChange, onRoleChange, onRemoveMember, onCancelInvite, onInviteEmailChange, onInviteRoleChange, onInvite, onDelete, onClose }: {
+  workspace: Workspace; tab: 'general' | 'members' | 'danger'; members: WsMember[]; pendingInvites: PendingInvite[]
   owner: User; inviteEmail: string; inviteRole: 'member' | 'viewer'
   onTabChange: (t: 'general' | 'members' | 'danger') => void
   onIconChange: (em: string) => void; onNameSave: (name: string) => void
   onAccentChange: (color: string) => void
   onRoleChange: (memberId: string, role: string) => void; onRemoveMember: (userId: string) => void
+  onCancelInvite: (inviteId: string) => void
   onInviteEmailChange: (v: string) => void; onInviteRoleChange: (v: 'member' | 'viewer') => void
   onInvite: () => void; onDelete: () => void; onClose: () => void
 }) {
@@ -2355,6 +2367,19 @@ function WsSettingsModal({ workspace, tab, members, owner, inviteEmail, inviteRo
                     <option value="viewer">viewer</option>
                   </select>
                   <button onClick={() => onRemoveMember(m.user_id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '13px', padding: '2px 4px', borderRadius: '3px' }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>✕</button>
+                </div>
+              ))}
+              {pendingInvites.map(inv => (
+                <div key={inv.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '5px 0', borderBottom: '1px solid var(--border)', opacity: 0.75 }}>
+                  <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--sidebar-active)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', flexShrink: 0 }}>✉️</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.invited_email}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Invitation pending</div>
+                  </div>
+                  <span style={{ fontSize: '11px', padding: '2px 7px', borderRadius: '8px', background: 'var(--sidebar-active)', color: 'var(--text-tertiary)', fontWeight: 500, flexShrink: 0 }}>{inv.role}</span>
+                  <button onClick={() => onCancelInvite(inv.id)} title="Cancel invitation" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '13px', padding: '2px 4px', borderRadius: '3px' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)' }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>✕</button>
                 </div>

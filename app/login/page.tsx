@@ -2,10 +2,11 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('')
+  const searchParams = useSearchParams()
+  const [email, setEmail] = useState(searchParams.get('email') ?? '')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -17,7 +18,7 @@ export default function LoginPage() {
     setLoading(true); setError('')
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) { setError(error.message); setLoading(false) }
-    else router.push('/app')
+    else router.push(searchParams.get('redirect') ?? '/app')
   }
 
   async function handleGoogle() {

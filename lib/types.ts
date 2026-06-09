@@ -96,6 +96,13 @@ export type WsMember = {
   profile: { id: string; email: string; full_name: string | null } | null
 }
 
+export type PendingInvite = {
+  id: string
+  invited_email: string
+  role: 'member' | 'viewer'
+  expires_at: string
+}
+
 export type Notification = {
   id: string
   user_id: string

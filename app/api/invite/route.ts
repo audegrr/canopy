@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   // Create an invite token in the DB
   const { data: invite, error: inviteError } = await admin
     .from('workspace_invites')
-    .insert({ workspace_id, role, created_by: user.id })
+    .insert({ workspace_id, role, created_by: user.id, invited_email: email })
     .select('token')
     .single()
 
@@ -38,7 +38,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: inviteError?.message ?? 'Failed to create invite' }, { status: 500 })
   }
 
-  const redirectTo = `${process.env.NEXT_PUBLIC_APP_URL ?? req.headers.get('origin')}/invite/${invite.token}`
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? req.headers.get('origin')
+  const next = encodeURIComponent(`/invite/${invite.token}`)
+  const redirectTo = `${origin}/auth/callback?next=${next}`
 
   const { error: authError } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo })
 

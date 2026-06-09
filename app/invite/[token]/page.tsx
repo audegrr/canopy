@@ -5,13 +5,16 @@ export default async function InvitePage({ params }: { params: { token: string }
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) redirect(`/login?redirect=/invite/${params.token}`)
-
   const { data: invite } = await supabase
     .from('workspace_invites')
-    .select('id, workspace_id, role, expires_at')
+    .select('id, workspace_id, role, expires_at, invited_email')
     .eq('token', params.token)
     .single()
+
+  if (!user) {
+    const emailParam = invite?.invited_email ? `&email=${encodeURIComponent(invite.invited_email)}` : ''
+    redirect(`/login?redirect=/invite/${params.token}${emailParam}`)
+  }
 
   if (!invite) return <InviteError message="This invite link is invalid or has already been used." />
   if (new Date(invite.expires_at) < new Date()) return <InviteError message="This invite link has expired." />
