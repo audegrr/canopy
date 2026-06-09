@@ -31,17 +31,14 @@ export async function POST(req: Request) {
   const { data: authRows } = await admin.rpc('get_auth_user_by_email', { p_email: email })
   const authUser = authRows?.[0] as { id: string; has_account: boolean } | undefined
 
-  // ── Case 1: real account (has signed in at least once) → add directly ─────
+  // ── Case 1: real account → add directly using the auth user ID ──────────
   if (authUser?.has_account) {
-    const { data: profile } = await admin.from('profiles').select('id').eq('email', email).single()
-    if (!profile) return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-
     const { data: existing } = await admin
-      .from('workspace_members').select('id').eq('workspace_id', workspace_id).eq('user_id', profile.id).single()
+      .from('workspace_members').select('id').eq('workspace_id', workspace_id).eq('user_id', authUser.id).maybeSingle()
     if (existing) return NextResponse.json({ ok: true, addedDirectly: true, alreadyMember: true })
 
-    await admin.from('workspace_members').insert({ workspace_id, user_id: profile.id, role })
-    return NextResponse.json({ ok: true, addedDirectly: true, userId: profile.id })
+    await admin.from('workspace_members').insert({ workspace_id, user_id: authUser.id, role })
+    return NextResponse.json({ ok: true, addedDirectly: true, userId: authUser.id })
   }
 
   // ── Case 2: invited via Supabase but never logged in → clean up and resend ─
