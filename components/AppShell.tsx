@@ -720,8 +720,15 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         body: JSON.stringify({ email, workspace_id: currentWs.id, role: inviteRole })
       })
       if (res.ok) {
+        const body = await res.json()
         setInviteEmail('')
-        showToastMsg('Invitation email sent!')
+        if (body.alreadyInvited) {
+          await navigator.clipboard.writeText(body.inviteLink).catch(() => {})
+          showToastMsg('Already invited — link copied to clipboard!')
+        } else {
+          showToastMsg('Invitation email sent!')
+        }
+        await loadWsMembers()
       } else {
         const { error: msg } = await res.json()
         showToastMsg('Failed to send invite: ' + (msg ?? 'unknown error'))

@@ -27,7 +27,26 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Create an invite token in the DB
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? req.headers.get('origin')
+
+  // Check if there's already a pending invite for this email in this workspace
+  const { data: existingInvite } = await admin
+    .from('workspace_invites')
+    .select('token')
+    .eq('workspace_id', workspace_id)
+    .eq('invited_email', email)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+
+  if (existingInvite) {
+    // User was already invited — return the existing invite link so the owner can share it manually
+    const inviteLink = `${origin}/invite/${existingInvite.token}`
+    return NextResponse.json({ ok: true, alreadyInvited: true, inviteLink })
+  }
+
+  // Create a new invite token
   const { data: invite, error: inviteError } = await admin
     .from('workspace_invites')
     .insert({ workspace_id, role, created_by: user.id, invited_email: email })
@@ -38,13 +57,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: inviteError?.message ?? 'Failed to create invite' }, { status: 500 })
   }
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL ?? req.headers.get('origin')
   const next = encodeURIComponent(`/invite/${invite.token}`)
   const redirectTo = `${origin}/auth/callback?next=${next}`
 
   const { error: authError } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo })
 
-  if (authError) return NextResponse.json({ error: authError.message }, { status: 500 })
+  // inviteUserByEmail can silently succeed without sending when the user already exists in auth.
+  // In that case we fall back to the shareable link.
+  if (authError) {
+    const inviteLink = `${origin}/invite/${invite.token}`
+    return NextResponse.json({ ok: true, alreadyInvited: true, inviteLink })
+  }
 
   return NextResponse.json({ ok: true })
 }
