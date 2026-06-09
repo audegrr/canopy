@@ -392,7 +392,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }
 
   function showToastMsg(msg: string) { setToast({ msg, type: 'success' }); setTimeout(() => setToast(null), 2500) }
-  function showError(msg: string) { setToast({ msg, type: 'error' }); setTimeout(() => setToast(null), 3500) }
+  function showError(msg: string) { setToast({ msg, type: 'error' }); setTimeout(() => setToast(null), 7000) }
 
   // ── PAGE ACTIONS ────────────────────────────────────────────
   async function createPage(parentId: string | null = null) {
@@ -712,7 +712,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
     if (!res.ok) {
       const { error: msg } = await res.json()
-      showToastMsg('Error: ' + (msg ?? 'unknown error'))
+      showError('Error: ' + (msg ?? 'unknown error'))
       return
     }
 
