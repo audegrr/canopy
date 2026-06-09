@@ -1,18 +1,42 @@
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 
 export default async function InvitePage({ params }: { params: { token: string } }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: invite } = await supabase
+  // Primary lookup: by token in the URL
+  const { data: inviteByToken } = await supabase
     .from('workspace_invites')
     .select('id, workspace_id, role, expires_at, invited_email')
     .eq('token', params.token)
     .single()
 
+  // Fallback: if authenticated and token not found, look up by email.
+  // This handles the case where the user clicked an old invite email after
+  // we rotated the token (cleanup + re-invite), but still has a valid invite.
+  let invite = inviteByToken
+  if (!invite && user?.email) {
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    if (serviceRoleKey) {
+      const admin = createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
+        auth: { persistSession: false, autoRefreshToken: false }
+      })
+      const { data } = await admin
+        .from('workspace_invites')
+        .select('id, workspace_id, role, expires_at, invited_email')
+        .eq('invited_email', user.email)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+      invite = data
+    }
+  }
+
   if (!user) {
-    const emailParam = invite?.invited_email ? `&email=${encodeURIComponent(invite.invited_email)}` : ''
+    const emailParam = inviteByToken?.invited_email ? `&email=${encodeURIComponent(inviteByToken.invited_email)}` : ''
     redirect(`/login?redirect=/invite/${params.token}${emailParam}`)
   }
 
