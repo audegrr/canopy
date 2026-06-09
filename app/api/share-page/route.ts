@@ -71,7 +71,7 @@ export async function POST(req: Request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: process.env.RESEND_FROM_EMAIL || 'Canopy <noreply@canopy.app>',
+        from: process.env.RESEND_FROM_EMAIL || 'Canopy <onboarding@resend.dev>',
         to: [email],
         subject: `${inviterName} shared "${title}" with you`,
         html: buildEmailHtml({ inviterName, title, shareUrl, role }),
