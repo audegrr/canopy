@@ -27,23 +27,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL ?? req.headers.get('origin')
-
-  // Check if there's already a pending invite for this email in this workspace
-  const { data: existingInvite } = await admin
+  // Delete any existing pending workspace_invites for this email so we start fresh
+  await admin
     .from('workspace_invites')
-    .select('token')
+    .delete()
     .eq('workspace_id', workspace_id)
     .eq('invited_email', email)
-    .gt('expires_at', new Date().toISOString())
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .single()
 
-  if (existingInvite) {
-    // User was already invited — return the existing invite link so the owner can share it manually
-    const inviteLink = `${origin}/invite/${existingInvite.token}`
-    return NextResponse.json({ ok: true, alreadyInvited: true, inviteLink })
+  // If the user was previously invited but never confirmed, delete them from auth
+  // so that inviteUserByEmail can create a fresh invite and actually send the email.
+  const { data: unconfirmedId } = await admin.rpc('get_unconfirmed_auth_user_id', { p_email: email })
+  if (unconfirmedId) {
+    await admin.auth.admin.deleteUser(unconfirmedId)
   }
 
   // Create a new invite token
@@ -57,14 +52,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: inviteError?.message ?? 'Failed to create invite' }, { status: 500 })
   }
 
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? req.headers.get('origin')
   const next = encodeURIComponent(`/invite/${invite.token}`)
   const redirectTo = `${origin}/auth/callback?next=${next}`
 
   const { error: authError } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo })
 
-  // inviteUserByEmail can silently succeed without sending when the user already exists in auth.
-  // In that case we fall back to the shareable link.
   if (authError) {
+    // Fallback: return a shareable link the owner can send manually
     const inviteLink = `${origin}/invite/${invite.token}`
     return NextResponse.json({ ok: true, alreadyInvited: true, inviteLink })
   }
