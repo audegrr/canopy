@@ -41,20 +41,13 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, addedDirectly: true, userId: authUser.id })
   }
 
-  // ── Case 2: invited via Supabase but never logged in → clean up and resend ─
-  if (authUser && !authUser.has_account) {
-    console.log('[invite] cleaning up unconfirmed account for', email)
-    // Remove from workspace_members if added by mistake
-    const { data: profile } = await admin.from('profiles').select('id').eq('email', email).single()
-    if (profile) {
-      await admin.from('workspace_members').delete().eq('workspace_id', workspace_id).eq('user_id', profile.id)
-      await admin.from('profiles').delete().eq('id', profile.id)
-    }
-    await admin.auth.admin.deleteUser(authUser.id)
-  }
+  // ── Case 2 + 3: pending or brand-new → (re)send invite ─────────────────
+  // Do NOT delete the existing auth user before re-inviting: Supabase rate-
+  // limits emails per address (~60 s), so delete+immediate-recreate always
+  // fails. inviteUserByEmail on an existing pending user just re-sends the
+  // email with the new redirectTo, which is exactly what we want.
 
-  // ── Case 3 (and after Case 2 cleanup): no confirmed account → send invite ─
-  // Delete stale pending workspace_invites for this email
+  // Rotate the invite token so old links stop working.
   await admin.from('workspace_invites').delete().eq('workspace_id', workspace_id).eq('invited_email', email)
 
   const { data: invite, error: inviteError } = await admin
@@ -72,15 +65,12 @@ export async function POST(req: Request) {
   const next = encodeURIComponent(`/invite/${invite.token}`)
   const redirectTo = `${origin}/auth/callback?next=${next}`
 
-  console.log('[invite] calling inviteUserByEmail for', email)
   const { error: authError } = await admin.auth.admin.inviteUserByEmail(email, { redirectTo })
 
   if (authError) {
     console.error('[invite] inviteUserByEmail error:', authError.message)
-    const inviteLink = `${origin}/invite/${invite.token}`
-    return NextResponse.json({ ok: true, alreadyInvited: true, inviteLink })
+    return NextResponse.json({ error: `Failed to send invitation: ${authError.message}` }, { status: 500 })
   }
 
-  console.log('[invite] invitation email sent to', email)
   return NextResponse.json({ ok: true })
 }
