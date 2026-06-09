@@ -10,7 +10,8 @@ function adminClient() {
   )
 }
 
-export default async function InvitePage({ params }: { params: { token: string } }) {
+export default async function InvitePage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -20,7 +21,7 @@ export default async function InvitePage({ params }: { params: { token: string }
   const { data: inviteByToken } = await admin
     .from('workspace_invites')
     .select('id, workspace_id, role, expires_at, invited_email')
-    .eq('token', params.token)
+    .eq('token', token)
     .maybeSingle()
 
   let invite = inviteByToken
@@ -39,12 +40,11 @@ export default async function InvitePage({ params }: { params: { token: string }
   }
 
   // Not authenticated — redirect to signup with invite context pre-filled.
-  // (Invited users have no password, so login won't work for them.)
   if (!user) {
     const emailParam = invite?.invited_email
       ? `&email=${encodeURIComponent(invite.invited_email)}`
       : ''
-    redirect(`/signup?invite=${params.token}${emailParam}`)
+    redirect(`/signup?invite=${token}${emailParam}`)
   }
 
   // Invite not found even with admin client + email fallback.
