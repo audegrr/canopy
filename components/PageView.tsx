@@ -28,6 +28,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   const [shares, setShares] = useState<any[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('view')
+  const [generatedLink, setGeneratedLink] = useState<string | null>(null)
   const [toast, setToast] = useState('')
   const [showSubpagePicker, setShowSubpagePicker] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
@@ -574,13 +575,18 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         })
       }).catch(() => {})
       setInviteEmail('')
+      setGeneratedLink(null)
       loadShares()
       showToast(`Shared with ${email}`)
       return
     }
 
-    // Not a Canopy user — send them the share link by email (no account created)
-    const res = await fetch('/api/share-page', {
+    // Not a Canopy user — enable link access and show the share link in the panel.
+    // We call the server to set link_permission but don't rely on clipboard APIs
+    // (they fail silently after awaits). Instead we display the link in the UI
+    // with a dedicated copy button that works within a fresh user gesture.
+    const shareUrl = `${window.location.origin}/share/${page.id}`
+    fetch('/api/share-page', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -589,20 +595,12 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         page_title: (page as any).title || 'Untitled',
         role: inviteRole,
       }),
-    })
-    const json = await res.json()
-    if (!res.ok) { showToast('Error: ' + (json.error ?? 'Failed')); return }
+    }).then(r => r.json()).then(json => {
+      if (json.emailSent) showToast(`Invitation sent to ${email}`)
+    }).catch(() => {})
 
     setInviteEmail('')
-    if (json.emailSent) {
-      showToast(`Invitation sent to ${email}`)
-    } else {
-      // Resend not configured — copy the share link to clipboard as fallback
-      const link = json.shareUrl ?? `${window.location.origin}/share/${page.id}`
-      copyToClipboard(link)
-      showToast(`Link copied — send it to ${email}`, 5000)
-    }
-    // Refresh page to reflect any link_permission change
+    setGeneratedLink(shareUrl)
     setPage(p => ({ ...p, link_permission: inviteRole === 'edit' ? 'edit' : (p as any).link_permission === 'edit' ? 'edit' : 'view' }) as any)
   }
 
@@ -859,24 +857,18 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   function showToast(msg: string, ms = 2500) { setToast(msg); setTimeout(() => setToast(''), ms) }
 
   function copyToClipboard(text: string) {
-    // navigator.clipboard.writeText() can resolve without error even when it
-    // hasn't actually copied (e.g. after an await breaks the gesture chain),
-    // so the .catch() fallback never runs. Always try execCommand first — it
-    // works reliably in a click handler even after awaits — and only fall back
-    // to the Clipboard API if execCommand isn't available.
-    try {
+    // Use the modern Clipboard API — this function is only called from direct
+    // click handlers (fresh user gesture, no preceding await), so it works.
+    navigator.clipboard?.writeText(text).catch(() => {
+      // Fallback for browsers without clipboard API
       const el = document.createElement('textarea')
       el.value = text
-      el.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0'
+      el.style.cssText = 'position:fixed;top:-9999px;left:-9999px'
       document.body.appendChild(el)
-      el.focus()
-      el.select()
-      const ok = document.execCommand('copy')
+      el.focus(); el.select()
+      document.execCommand('copy')
       document.body.removeChild(el)
-      if (!ok) throw new Error('execCommand returned false')
-    } catch {
-      navigator.clipboard?.writeText(text).catch(() => {})
-    }
+    })
   }
   function isCssBackground(v: string) { return v.startsWith('linear-gradient') || v.startsWith('radial-gradient') || (v.startsWith('#') && v.length <= 9) }
 
@@ -1607,6 +1599,30 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                 </button>
               </div>
             </div>
+
+            {/* Generated share link for non-users */}
+            {generatedLink && (
+              <div style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px' }}>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--text-secondary)' }}>
+                  No Canopy account found — copy this link and send it manually:
+                </p>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    readOnly
+                    value={generatedLink}
+                    style={{ ...inputSt, flex: 1, fontSize: 11, color: 'var(--text-secondary)', cursor: 'text' }}
+                    onFocus={e => (e.target as HTMLInputElement).select()}
+                  />
+                  <button
+                    onClick={() => { copyToClipboard(generatedLink); showToast('Link copied!') }}
+                    style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '0 12px', borderRadius: 6, fontFamily: 'var(--font-sans)', fontSize: 12, cursor: 'pointer', flexShrink: 0 }}
+                  >
+                    Copy
+                  </button>
+                </div>
+                <button onClick={() => setGeneratedLink(null)} style={{ marginTop: 6, background: 'none', border: 'none', fontSize: 11, color: 'var(--text-tertiary)', cursor: 'pointer', padding: 0 }}>Dismiss</button>
+              </div>
+            )}
 
             {/* People */}
             {shares.length > 0 && (
