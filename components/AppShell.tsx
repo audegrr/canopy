@@ -701,7 +701,23 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       .eq('email', email)
 
     if (profileError) { showToastMsg('Error: ' + profileError.message); return }
-    if (!profiles || profiles.length === 0) { showToastMsg('No Canopy account found for this email'); return }
+
+    // No existing account → send an email invitation
+    if (!profiles || profiles.length === 0) {
+      const res = await fetch('/api/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, workspace_id: currentWs.id, role: inviteRole })
+      })
+      if (res.ok) {
+        setInviteEmail('')
+        showToastMsg('Invitation email sent!')
+      } else {
+        const { error: msg } = await res.json()
+        showToastMsg('Failed to send invite: ' + (msg ?? 'unknown error'))
+      }
+      return
+    }
 
     const userId = profiles[0].id
 
