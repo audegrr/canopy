@@ -599,8 +599,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     } else {
       // Resend not configured — copy the share link to clipboard as fallback
       const link = json.shareUrl ?? `${window.location.origin}/share/${page.id}`
-      navigator.clipboard?.writeText(link).catch(() => {})
-      showToast(`Link copied — send it to ${email}`)
+      copyToClipboard(link)
+      showToast(`Link copied — send it to ${email}`, 5000)
     }
     // Refresh page to reflect any link_permission change
     setPage(p => ({ ...p, link_permission: inviteRole === 'edit' ? 'edit' : (p as any).link_permission === 'edit' ? 'edit' : 'view' }) as any)
@@ -822,7 +822,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   }
 
   function copyShareLink() {
-    navigator.clipboard?.writeText(`${window.location.origin}/share/${page.id}`)
+    copyToClipboard(`${window.location.origin}/share/${page.id}`)
     showToast('Link copied!')
   }
 
@@ -856,7 +856,27 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     }
   }
 
-  function showToast(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2500) }
+  function showToast(msg: string, ms = 2500) { setToast(msg); setTimeout(() => setToast(''), ms) }
+
+  function copyToClipboard(text: string) {
+    // navigator.clipboard requires an unbroken user gesture chain — after any
+    // await it may be denied. Fall back to execCommand which has no such limit.
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).catch(() => execCommandCopy(text))
+    } else {
+      execCommandCopy(text)
+    }
+  }
+
+  function execCommandCopy(text: string) {
+    const el = document.createElement('textarea')
+    el.value = text
+    el.style.cssText = 'position:fixed;opacity:0;pointer-events:none'
+    document.body.appendChild(el)
+    el.focus(); el.select()
+    document.execCommand('copy')
+    document.body.removeChild(el)
+  }
   function isCssBackground(v: string) { return v.startsWith('linear-gradient') || v.startsWith('radial-gradient') || (v.startsWith('#') && v.length <= 9) }
 
   async function loadSnapshots() {
