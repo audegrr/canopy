@@ -1565,6 +1565,17 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
               <button onClick={() => setShareOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '16px', lineHeight: 1 }}>✕</button>
             </div>
 
+            {/* Copy URL — for members who already have access */}
+            <div>
+              <label style={labelSt}>Copy URL</label>
+              <button
+                onClick={() => { copyToClipboard(window.location.href); showToast('URL copied!') }}
+                style={{ marginTop: '6px', width: '100%', padding: '7px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--sidebar-bg)', fontFamily: 'var(--font-sans)', fontSize: '13px', cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                🔗 Copy page URL
+              </button>
+              <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>For workspace members who already have access</div>
+            </div>
+
             {/* Link access */}
             <div>
               <label style={labelSt}>Link access</label>
