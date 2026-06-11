@@ -1060,10 +1060,10 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
         function onInsert(e: any) {
           const src = e.detail?.src
           if (!src) return
-          editor.chain().focus().setImage({ src }).run()
-          setTimeout(() => {
-            editor.commands.insertContent({ type: 'paragraph' })
-          }, 50)
+          editor.chain().focus().insertContent([
+            { type: 'image', attrs: { src } },
+            { type: 'paragraph' },
+          ]).run()
         }
         window.addEventListener('canopy:insertImage', onInsert)
 
@@ -1334,17 +1334,10 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
         break
       case 'image': {
         const insertFn = (src: string) => {
-          editor.chain().focus().setImage({ src }).run()
-          setTimeout(() => {
-            try {
-              const pos = editor.state.selection.to
-              if (pos < editor.state.doc.content.size) {
-                editor.chain().focus().insertContentAt(pos + 1, { type: 'paragraph' }).run()
-              } else {
-                editor.commands.insertContent({ type: 'paragraph' })
-              }
-            } catch {}
-          }, 50)
+          editor.chain().focus().insertContent([
+            { type: 'image', attrs: { src } },
+            { type: 'paragraph' },
+          ]).run()
         }
         window.dispatchEvent(new CustomEvent('canopy:showImagePicker', { detail: { onUrl: insertFn, onFile: insertFn } }))
         break
