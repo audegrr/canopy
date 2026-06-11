@@ -1562,18 +1562,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
             {isMobile && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 199 }} onClick={() => setShareOpen(false)} />}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3 style={{ fontSize: '15px', fontWeight: 600 }}>Share</h3>
-              <button onClick={() => setShareOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '16px', lineHeight: 1 }}>✕</button>
-            </div>
-
-            {/* Copy URL — for members who already have access */}
-            <div>
-              <label style={labelSt}>Copy URL</label>
-              <button
-                onClick={() => { copyToClipboard(window.location.href); showToast('URL copied!') }}
-                style={{ marginTop: '6px', width: '100%', padding: '7px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--sidebar-bg)', fontFamily: 'var(--font-sans)', fontSize: '13px', cursor: 'pointer', color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
-                🔗 Copy page URL
-              </button>
-              <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>For workspace members who already have access</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <button onClick={() => { copyToClipboard(window.location.href); showToast('URL copied!') }} title="Copy page URL (for workspace members)" style={{ background: 'none', border: '1px solid var(--border)', borderRadius: '5px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '12px', padding: '3px 8px', fontFamily: 'var(--font-sans)' }}>Copy URL</button>
+                <button onClick={() => setShareOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '16px', lineHeight: 1 }}>✕</button>
+              </div>
             </div>
 
             {/* Link access */}
