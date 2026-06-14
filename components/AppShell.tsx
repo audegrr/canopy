@@ -141,7 +141,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
   // Apply workspace accent color
   useEffect(() => {
-    const color = currentWs.accent_color || '#0b6e99'
+    const color = currentWs.accent_color || '#2f6b4f'
     document.documentElement.style.setProperty('--accent', color)
     // Derive a lighter tint for accent-light
     document.documentElement.style.setProperty('--accent-light', color + '18')
@@ -979,8 +979,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       {/* SIDEBAR */}
       <aside
         style={{
-          width: sidebarOpen ? '260px' : '0', minWidth: sidebarOpen ? '260px' : '0',
-          background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)',
+          width: sidebarOpen ? '256px' : '0', minWidth: sidebarOpen ? '256px' : '0',
+          background: 'var(--sidebar-bg)', borderRight: '1px solid var(--side-border)',
           display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden',
           transition: 'width 0.2s, min-width 0.2s', flexShrink: 0,
           ...(isMobile ? { position: 'fixed', left: 0, top: 0, bottom: 0, height: 'auto', zIndex: 300, boxShadow: '4px 0 24px rgba(0,0,0,0.15)' } : {}),
@@ -999,8 +999,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', minWidth: 0 }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.75' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}>
-              <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 32, height: 32, objectFit: 'contain', flexShrink: 0 }} />
-              <span style={{ fontSize: '18px', fontWeight: 500, color: 'var(--text)', letterSpacing: '-0.01em' }}>Canopy</span>
+              <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 30, height: 30, objectFit: 'contain', flexShrink: 0 }} />
+              <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.01em', fontFamily: 'var(--font-head)' }}>Canopy</span>
             </button>
             {isMobile && (
               <button
@@ -1101,7 +1101,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               <>
                 <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px 14px 3px', gap: '4px' }}
                   onClick={() => setFavoritesCollapsed(o => !o)}>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1, userSelect: 'none', fontFamily: 'var(--font-sans)' }}>Favorites</div>
+                  <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--side-text-2)', flex: 1, userSelect: 'none', fontFamily: 'var(--font-body)' }}>Favorites</div>
                   <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, transition: 'transform 0.15s', transform: favoritesCollapsed ? 'rotate(-90deg)' : 'none', marginRight: '2px' }}>
                     <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
@@ -1133,7 +1133,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               <div style={{ margin: '10px 12px 0', borderTop: '1px solid var(--border)' }} />
               <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px 14px 3px', gap: '4px' }}
                 onClick={() => setSharedCollapsed(o => !o)}>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1, userSelect: 'none', fontFamily: 'var(--font-sans)' }}>Shared with me</div>
+                <div style={{ fontSize: '11.5px', fontWeight: 600, color: 'var(--side-text-2)', flex: 1, userSelect: 'none', fontFamily: 'var(--font-body)' }}>Shared with me</div>
                 <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, transition: 'transform 0.15s', transform: sharedCollapsed ? 'rotate(-90deg)' : 'none', marginRight: '2px' }}>
                   <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
@@ -1248,7 +1248,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         }}
       >
         {/* Top bar */}
-        <div style={{ height: '48px', padding: '0 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <div style={{ height: '52px', padding: '0 16px', borderBottom: '1px solid var(--border)', background: 'var(--topbar-bg)', backdropFilter: 'saturate(180%) blur(8px)', WebkitBackdropFilter: 'saturate(180%) blur(8px)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
           <button onClick={() => setSidebarOpen(o => !o)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '18px', padding: isMobile ? '10px 12px' : '4px 6px', borderRadius: '4px', lineHeight: 1, flexShrink: 0, touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', minWidth: isMobile ? '44px' : undefined, minHeight: isMobile ? '44px' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
@@ -1384,7 +1384,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         </div>
 
         {navigating && (
-          <div style={{ height: '2px', background: 'var(--accent)', position: 'absolute', top: '44px', left: sidebarOpen && !isMobile ? '260px' : '0', right: 0, zIndex: 10, animation: 'loadingBar 0.8s ease-out forwards' }} />
+          <div style={{ height: '2px', background: 'var(--accent)', position: 'absolute', top: '52px', left: sidebarOpen && !isMobile ? '256px' : '0', right: 0, zIndex: 10, animation: 'loadingBar 0.8s ease-out forwards' }} />
         )}
 
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
@@ -2479,7 +2479,7 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
         </span>
       )}
 
-      {/* Badge (shared pages) — small grey text, same style as action buttons */}
+      {/* Badge (shared pages) — small grey text */}
       {badge && (
         <span style={{
           fontSize: '10px', color: 'var(--text-tertiary)', flexShrink: 0,
@@ -2489,16 +2489,27 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
         }}>{badge}</span>
       )}
 
-      {/* Actions row — always on same line */}
-      {(hovered || isFavorite) && !isRenaming && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+      {/* Row actions — absolutely positioned, no layout reflow on hover */}
+      {!isRenaming && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: 'absolute', right: '4px', top: '50%', transform: 'translateY(-50%)',
+            display: 'flex', gap: '1px', alignItems: 'center',
+            opacity: (hovered || isFavorite) ? 1 : 0,
+            pointerEvents: (hovered || isFavorite) ? 'auto' : 'none',
+            paddingLeft: '24px',
+            background: 'linear-gradient(90deg, transparent, var(--side-fade) 36%)',
+            transition: 'opacity 0.1s',
+          }}
+        >
           {onRemove ? (
             <SbBtn onClick={onRemove} title="Remove">✕</SbBtn>
           ) : (
             <>
               {onToggleFavorite && (
                 <SbBtn onClick={onToggleFavorite} title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
-                  <span style={{ color: isFavorite ? '#f59e0b' : undefined }}>{isFavorite ? '★' : '☆'}</span>
+                  <span style={{ color: isFavorite ? 'var(--accent)' : undefined }}>{isFavorite ? '★' : '☆'}</span>
                 </SbBtn>
               )}
               {hovered && onAddSubpage && <SbBtn onClick={onAddSubpage} title="New sub-page">+</SbBtn>}
@@ -2540,7 +2551,7 @@ function QuickBtn({ onClick, title, flex, children }: { onClick: () => void; tit
 
 function SectionLabel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ padding: '8px 14px 3px', fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', userSelect: 'none', ...style }}>
+    <div style={{ padding: '15px 16px 5px', fontSize: '11.5px', fontWeight: 600, color: 'var(--side-text-2)', fontFamily: 'var(--font-body)', userSelect: 'none', letterSpacing: '0.005em', ...style }}>
       {children}
     </div>
   )
