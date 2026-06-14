@@ -1047,58 +1047,41 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
 
         {!isPublicShare && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0, transition: 'opacity 0.3s', opacity: saved ? 0 : 1 }}>Saving…</span>}
 
-        {/* Desktop toolbar */}
+        {/* Desktop buttons */}
         {!isPublicShare && !isMobile && <>
-          <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginRight: '4px', whiteSpace: 'nowrap', flexShrink: 0 }}>
-            Edited just now
-          </span>
-          {isOwner && <ShareTextBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn />}
-          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0, margin: '0 3px' }} />
+          {/* Separator */}
+          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onXLSX={page.is_database ? exportXLSX : undefined} onMarkdown={exportMarkdown} isDatabase={!!page.is_database} />
-          {!page.is_database && (
-            <TopBarBtn onClick={() => setPresentationOpen(true)} iconOnly title="Generate Slides"><TbIcon d={TB_ICONS.slides} /></TopBarBtn>
-          )}
-          {canEdit && !page.is_database && (
-            <TopBarBtn onClick={triggerMarkdownImport} iconOnly title="Import from Markdown"><TbIcon d={TB_ICONS.import} /></TopBarBtn>
-          )}
-          {canEdit && !page.is_database && (
-            <TopBarBtn onClick={saveAsTemplate} iconOnly title="Save as template"><TbIcon d={TB_ICONS.template} /></TopBarBtn>
-          )}
-          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0, margin: '0 3px' }} />
+          {!page.is_database && <TopBarBtn onClick={() => setPresentationOpen(true)} iconOnly title="Generate Slides">🎤</TopBarBtn>}
+          <TopBarBtn onClick={exportPDF} iconOnly title="Print / Save as PDF">🖨️</TopBarBtn>
+          {canEdit && !page.is_database && <TopBarBtn onClick={triggerMarkdownImport} iconOnly title="Import from Markdown">⬇️</TopBarBtn>}
+          {canEdit && !page.is_database && <TopBarBtn onClick={saveAsTemplate} iconOnly title="Save as template">📋</TopBarBtn>}
+          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           {!page.is_database && headings.length > 0 && (
-            <TopBarBtn onClick={() => setTocOpen(o => !o)} active={tocOpen} iconOnly title="Table of contents"><TbIcon d={TB_ICONS.toc} /></TopBarBtn>
+            <TopBarBtn onClick={() => setTocOpen(o => !o)} active={tocOpen} iconOnly title="Table of contents">📑</TopBarBtn>
           )}
+          {canEdit && <TopBarBtn onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots() }} active={historyOpen} iconOnly title="Version history">🕐</TopBarBtn>}
           {!page.is_database && (
             <TopBarBtn onClick={() => { setBacklinksOpen(o => !o); loadBacklinks() }} active={backlinksOpen} iconOnly title="Backlinks">
-              <TbIcon d={TB_ICONS.backlink} />
-              {backlinksLoaded && backlinks.length > 0 && <span style={{ fontSize: '10px', lineHeight: 1 }}>{backlinks.length}</span>}
+              📎{backlinksLoaded && backlinks.length > 0 ? backlinks.length : ''}
             </TopBarBtn>
           )}
           <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen} iconOnly title="Comments">
-            <TbIcon d={TB_ICONS.chat} />
-            {comments.length > 0 && <span style={{ fontSize: '10px', lineHeight: 1 }}>{comments.length}</span>}
+            💬{comments.length > 0 ? comments.length : ''}
           </TopBarBtn>
-          <TopBarBtn onClick={() => { setFocusMode(f => { window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus')); return !f }) }} iconOnly active={focusMode} title="Focus mode (⌘⇧F)">
-            <TbIcon d={focusMode ? TB_ICONS.focusOut : TB_ICONS.focusIn} />
-          </TopBarBtn>
-          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0, margin: '0 3px' }} />
-          {canEdit && (
-            <TopBarBtn onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots() }} active={historyOpen} iconOnly title="Version history">
-              <TbIcon d={TB_ICONS.history} />
-            </TopBarBtn>
-          )}
+          <TopBarBtn onClick={() => { setFocusMode(f => { window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus')); return !f }) }} iconOnly active={focusMode} title="Focus mode (⌘⇧F)">🎯</TopBarBtn>
+          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           {onToggleFavorite && (
-            <TopBarBtn onClick={onToggleFavorite} iconOnly title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
-              <svg width="14" height="14" viewBox="0 0 16 16" fill={isFavorite ? 'var(--accent)' : 'none'} style={{ display: 'block', flexShrink: 0, color: isFavorite ? 'var(--accent)' : 'currentColor' }}>
-                <path d={TB_ICONS.star} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
+            <TopBarBtn onClick={onToggleFavorite} iconOnly title={isFavorite ? 'Remove from favorites' : 'Add to favorites'} active={!!isFavorite}>
+              ⭐
             </TopBarBtn>
           )}
           {isOwner && (
             <TopBarBtn onClick={toggleLock} iconOnly title={page.is_locked ? 'Unlock page' : 'Lock page'} active={!!page.is_locked}>
-              <TbIcon d={page.is_locked ? TB_ICONS.unlock : TB_ICONS.lock} />
+              {page.is_locked ? '🔒' : '🔓'}
             </TopBarBtn>
           )}
+          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn iconOnly title="Share">🔗</TopBarBtn>}
         </>}
 
         {/* Mobile: compact action row */}
@@ -1243,7 +1226,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           )}
 
           {/* Page body */}
-          <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? 'min(1800px, calc(100% - 80px))' : page.is_database ? 'clamp(900px, 80vw, 1600px)' : 'min(var(--content-w), calc(100% - 48px))', margin: '0 auto', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 28px 200px') : (isMobile ? '32px 20px 60px' : '58px 28px 200px'), transition: 'max-width 0.3s ease', fontSize: 'calc(1rem * var(--content-zoom, 1))' }}>
+          <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? 'min(1800px, calc(100% - 80px))' : 'clamp(900px, 60vw, 1600px)', margin: '0 auto', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 60px 80px') : (isMobile ? '32px 20px 60px' : '64px 60px 80px'), transition: 'max-width 0.3s ease', fontSize: 'calc(1rem * var(--content-zoom, 1))' }}>
 
             {/* Shared-by notice */}
             {!isOwner && ownerName && (
@@ -1320,11 +1303,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                     }
                   }
                 }}
-                className='page-title' style={{ fontSize: '2.5em', fontWeight: 600, color: 'var(--text)', outline: 'none', marginBottom: '2px', lineHeight: 1.1, letterSpacing: '-0.018em', wordBreak: 'break-word', minHeight: '1.1em', fontFamily: 'var(--font-head)', textWrap: 'balance' } as React.CSSProperties}
+                className='page-title' style={{ fontSize: '2.5em', fontWeight: 700, color: 'var(--text)', outline: 'none', marginBottom: '2px', lineHeight: 1.2, wordBreak: 'break-word', minHeight: '1.2em', fontFamily: 'var(--font-sans)' }}
                 data-placeholder="Untitled"
               />
             ) : (
-              <h1 style={{ fontSize: '2.5em', fontWeight: 600, color: 'var(--text)', marginBottom: '2px', lineHeight: 1.1, letterSpacing: '-0.018em', fontFamily: 'var(--font-head)', textWrap: 'balance' } as React.CSSProperties}>
+              <h1 style={{ fontSize: '2.5em', fontWeight: 700, color: 'var(--text)', marginBottom: '2px', lineHeight: 1.2, fontFamily: 'var(--font-sans)' }}>
                 {page.title || 'Untitled'}
               </h1>
             )}
@@ -2214,75 +2197,6 @@ function CoverGallery({ onSelect, onUpload, onClose }: { onSelect: (v: string) =
   )
 }
 
-function ShareTextBtn({ active, onClick, ...props }: { active: boolean; onClick: () => void; [k: string]: any }) {
-  const [hovered, setHovered] = useState(false)
-  return (
-    <button
-      {...props}
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 500,
-        color: 'var(--text-secondary)',
-        background: (active || hovered) ? 'var(--hover)' : 'none',
-        border: 'none', padding: '5px 10px',
-        borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-        transition: 'background .12s, color .12s', flexShrink: 0,
-      }}
-    >
-      Share
-    </button>
-  )
-}
-
-function MoreOptionsMenu({ page, canEdit, isOwner, headings, backlinks, backlinksLoaded, tocOpen, setTocOpen, backlinksOpen, setBacklinksOpen, loadBacklinks, focusMode, setFocusMode, toggleLock, exportPDF, exportWord, exportCSV, exportXLSX, exportMarkdown, triggerMarkdownImport, saveAsTemplate, setPresentationOpen }: any) {
-  const [open, setOpen] = useState(false)
-  const item = (label: string, icon: string, fn: () => void) => (
-    <div onClick={() => { fn(); setOpen(false) }}
-      style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '7px 12px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '13px', color: 'var(--text)', whiteSpace: 'nowrap' }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--hover)' }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-      <TbIcon d={icon} />{label}
-    </div>
-  )
-  const sep = () => <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-  return (
-    <div style={{ position: 'relative' }}>
-      <TopBarBtn onClick={() => setOpen(o => !o)} active={open} iconOnly title="More options">
-        <TbIcon d={TB_ICONS.more} size={16} />
-      </TopBarBtn>
-      {open && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpen(false)} />
-          <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 100, minWidth: '210px' }} className="scale-in">
-            {/* View */}
-            {!page.is_database && headings.length > 0 && item(tocOpen ? 'Hide table of contents' : 'Table of contents', TB_ICONS.toc, () => setTocOpen((o: boolean) => !o))}
-            {!page.is_database && item((backlinksLoaded && backlinks.length > 0 ? `Backlinks (${backlinks.length})` : 'Backlinks'), TB_ICONS.backlink, () => { setBacklinksOpen((o: boolean) => !o); loadBacklinks() })}
-            {item(focusMode ? 'Exit focus mode' : 'Focus mode', focusMode ? TB_ICONS.focusOut : TB_ICONS.focusIn, () => { setFocusMode((f: boolean) => { window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus')); return !f }) })}
-            {isOwner && item(page.is_locked ? 'Unlock page' : 'Lock page', page.is_locked ? TB_ICONS.unlock : TB_ICONS.lock, toggleLock)}
-            {sep()}
-            {/* Export */}
-            {item('Export as PDF', TB_ICONS.print, exportPDF)}
-            {page.is_database
-              ? <>
-                  {item('Export as CSV', TB_ICONS.export, exportCSV || (() => {}))}
-                  {item('Export as Excel', TB_ICONS.export, exportXLSX || (() => {}))}
-                </>
-              : item('Export as Word', TB_ICONS.export, exportWord)}
-            {!page.is_database && item('Export as Markdown', TB_ICONS.export, exportMarkdown || (() => {}))}
-            {sep()}
-            {/* Create */}
-            {!page.is_database && item('Generate slides', TB_ICONS.slides, () => setPresentationOpen(true))}
-            {canEdit && !page.is_database && item('Import from Markdown', TB_ICONS.import, triggerMarkdownImport)}
-            {canEdit && !page.is_database && item('Save as template', TB_ICONS.template, saveAsTemplate)}
-          </div>
-        </>
-      )}
-    </div>
-  )
-}
-
 function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, onPresentation, isDatabase }: { onPDF: () => void; onWord: () => void; onCSV?: () => void; onXLSX?: () => void; onMarkdown?: () => void; onPresentation?: () => void; isDatabase?: boolean }) {
   const [open, setOpen] = useState(false)
   const item = (label: string, fn: () => void) => (
@@ -2338,11 +2252,6 @@ const TB_ICONS = {
   focusIn:  'M3 6V3h3M10 3h3v3M13 10v3h-3M6 13H3v-3',
   focusOut: 'M6 3H3v3M13 3h-3v3M3 10v3h3M10 13h3v-3',
   link:     'M10 7l2-2a3 3 0 00-4.2-4.2L5 4a3 3 0 000 4.2M6 9l-2 2a3 3 0 004.2 4.2L11 12a3 3 0 000-4.2',
-  star:     'M8 2l1.6 3.2 3.6.5-2.6 2.5.6 3.6L8 10.1l-3.2 1.7.6-3.6L2.8 5.7l3.6-.5L8 2z',
-  more:     'M4 8h.01M8 8h.01M12 8h.01',
-  slides:   'M2 4a1 1 0 011-1h10a1 1 0 011 1v8a1 1 0 01-1 1H3a1 1 0 01-1-1V4zm4 4l3-2v4L6 8z',
-  import:   'M8 13V5m0 8l-3-3m3 3 3-3M3 13h10',
-  template: 'M3 3h4v4H3V3zm6 0h4v4H9V3zM3 9h4v4H3V9zm6 2h4m-2-2v4',
 }
 
 function TopBarBtn({ onClick, active, iconOnly, children, ...props }: { onClick: () => void; active?: boolean; iconOnly?: boolean; children: React.ReactNode; [key: string]: any }) {
@@ -2354,18 +2263,18 @@ function TopBarBtn({ onClick, active, iconOnly, children, ...props }: { onClick:
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: (active || hovered) ? 'var(--hover)' : 'transparent',
-        color: active ? 'var(--text)' : hovered ? 'var(--text)' : 'var(--text-secondary)',
-        border: 'none',
-        padding: iconOnly ? '0 6px' : '0 10px',
-        height: '30px',
-        minWidth: '30px',
-        borderRadius: 'var(--radius-sm)',
-        fontFamily: 'var(--font-body)',
-        fontSize: '13px',
+        background: active ? 'var(--accent)' : hovered ? 'var(--sidebar-hover)' : 'transparent',
+        color: active ? '#fff' : hovered ? 'var(--text)' : 'var(--text-secondary)',
+        border: active ? '1px solid transparent' : `1px solid ${hovered ? 'var(--border)' : 'transparent'}`,
+        padding: iconOnly ? '0 5px' : '0 9px',
+        height: '28px',
+        minWidth: '28px',
+        borderRadius: '6px',
+        fontFamily: 'var(--font-sans)',
+        fontSize: '12.5px',
         fontWeight: 500,
         cursor: 'pointer',
-        transition: 'background 0.12s, color 0.12s',
+        transition: 'background 0.12s, color 0.12s, border-color 0.12s',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
