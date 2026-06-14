@@ -916,7 +916,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             isFavorite={favoriteIds.has(page.id)}
             onToggleFavorite={() => toggleFavorite(page.id)}
           />
-          {isExpanded && <div>{renderPageTree(page.id, depth + 1)}</div>}
+          {isExpanded && <div style={{ marginLeft: '16px', borderLeft: '1.5px solid var(--side-border)' }}>{renderPageTree(page.id, depth + 1)}</div>}
         </div>
       )
     })
@@ -950,7 +950,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           badge={page.permission === 'edit' ? 'edit' : 'view'}
           isShared={true}
         />
-        {isExpanded && <div>{renderSharedTree(page.id, depth + 1)}</div>}
+        {isExpanded && <div style={{ marginLeft: '16px', borderLeft: '1.5px solid var(--side-border)' }}>{renderSharedTree(page.id, depth + 1)}</div>}
       </div>
     )
   }
@@ -991,12 +991,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           if (e.changedTouches[0].clientX - startX < -50) setSidebarOpen(false)
         } : undefined}
       >
-        {/* Home + Workspace switcher */}
-        <div style={{ padding: '10px 8px 4px', flexShrink: 0 }}>
+        {/* Sidebar header */}
+        <div style={{ flexShrink: 0 }}>
           {/* Logo row */}
-          <div style={{ display: 'flex', alignItems: 'center', padding: '8px 10px 12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '15px 16px 13px', gap: '9px' }}>
             <button onClick={() => navigate('/app')}
-              style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', minWidth: 0 }}
+              style={{ display: 'flex', alignItems: 'center', gap: '9px', flex: 1, background: 'none', border: 'none', cursor: 'pointer', minWidth: 0 }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.75' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}>
               <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 30, height: 30, objectFit: 'contain', flexShrink: 0 }} />
@@ -1010,30 +1010,37 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               >×</button>
             )}
           </div>
-          <div style={{ height: '1px', background: 'var(--text-tertiary)', margin: '0 4px 4px', opacity: 0.3 }} />
+
+          {/* Workspace card */}
           <div onClick={() => setWsMenuOpen(o => !o)}
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', userSelect: 'none' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '9px', margin: '2px 9px 8px', padding: '8px 9px', borderRadius: 'var(--radius)', cursor: 'pointer', userSelect: 'none', transition: 'background 0.12s' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; setWsRowHovered(true) }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; setWsRowHovered(false) }}>
-            <span style={{ fontSize: '22px', lineHeight: 1, borderRadius: '4px', padding: '1px' }}>{currentWs.icon}</span>
-            {renamingWs ? (
-              <input autoFocus value={wsNameInput} onChange={e => setWsNameInput(e.target.value)}
-                onBlur={() => renameWorkspace(wsNameInput)}
-                onKeyDown={e => { if (e.key === 'Enter') renameWorkspace(wsNameInput); if (e.key === 'Escape') setRenamingWs(false) }}
-                onClick={e => e.stopPropagation()}
-                style={{ flex: 1, border: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 600, color: 'var(--text)', outline: 'none', borderBottom: '1px solid var(--accent)' }} />
-            ) : (
-              <span style={{ flex: 1, fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentWs.name}</span>
-            )}
+            {/* Emoji in rounded tile */}
+            <div style={{ width: '26px', height: '26px', borderRadius: '6px', background: 'var(--sidebar-active)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '15px', flexShrink: 0, lineHeight: 1 }}>
+              {currentWs.icon}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {renamingWs ? (
+                <input autoFocus value={wsNameInput} onChange={e => setWsNameInput(e.target.value)}
+                  onBlur={() => renameWorkspace(wsNameInput)}
+                  onKeyDown={e => { if (e.key === 'Enter') renameWorkspace(wsNameInput); if (e.key === 'Escape') setRenamingWs(false) }}
+                  onClick={e => e.stopPropagation()}
+                  style={{ width: '100%', border: 'none', background: 'transparent', fontFamily: 'var(--font-body)', fontSize: '13px', fontWeight: 600, color: 'var(--text)', outline: 'none', borderBottom: '1px solid var(--accent)' }} />
+              ) : (
+                <div style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--side-text)' }}>{currentWs.name}</div>
+              )}
+              <div style={{ fontSize: '11px', color: 'var(--side-text-2)' }}>Workspace</div>
+            </div>
             {wsRowHovered && (
               <button onClick={e => { e.stopPropagation(); setWsSettingsTab('general'); setWsSettingsOpen(true); setWsMenuOpen(false); loadWsMembers() }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '18px', padding: '2px 5px', borderRadius: '4px', flexShrink: 0, lineHeight: 1 }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--side-text-2)', fontSize: '15px', padding: '2px 5px', borderRadius: '4px', flexShrink: 0, lineHeight: 1 }}
                 title="Workspace settings"
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>⚙</button>
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--side-text)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--side-text-2)' }}>⚙</button>
             )}
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: '1px' }} xmlns="http://www.w3.org/2000/svg">
-              <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, color: 'var(--side-text-2)' }}>
+              <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
 
@@ -1076,16 +1083,22 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             </div>
           )}
         </div>
-        <div style={{ height: '1px', background: 'var(--text-tertiary)', margin: '0 12px', opacity: 0.3 }} />
-
         {/* Quick actions */}
-        <div style={{ padding: '8px 10px 8px', display: 'flex', gap: '4px', flexShrink: 0 }}>
+        <div style={{ padding: '4px 9px 10px', display: 'flex', gap: '6px', flexShrink: 0 }}>
           <QuickBtn onClick={() => createPage(null)} title="New page" flex>
-            <span style={{ fontSize: '15px' }}>📄</span>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+              <path d="M4 2h5.5L13 5.5V14H4V2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+              <path d="M9 2v4h4" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round"/>
+              <path d="M6.5 9.5h3M6.5 11.5h2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+            </svg>
             <span style={{ fontSize: '12.5px' }}>New page</span>
           </QuickBtn>
           <QuickBtn onClick={() => createDatabase(null)} title="New database" flex>
-            <span style={{ fontSize: '15px' }}>🗄️</span>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+              <ellipse cx="8" cy="4.5" rx="5" ry="2" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M3 4.5v3c0 1.1 2.24 2 5 2s5-.9 5-2v-3" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M3 7.5v3c0 1.1 2.24 2 5 2s5-.9 5-2v-3" stroke="currentColor" strokeWidth="1.5"/>
+            </svg>
             <span style={{ fontSize: '12.5px' }}>New database</span>
           </QuickBtn>
         </div>
@@ -2428,7 +2441,7 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
       onMouseLeave={() => setHovered(false)}
       style={{
         display: 'flex', alignItems: 'center',
-        paddingLeft: `${6 + depth * 16}px`, paddingRight: '6px',
+        paddingLeft: '6px', paddingRight: '6px',
         paddingTop: '6px', paddingBottom: '6px',
         borderRadius: '5px', cursor: 'pointer',
         background: isActive ? 'var(--sidebar-active)' : isDragOver ? 'var(--accent-light)' : isKeyFocused ? 'var(--sidebar-hover)' : hovered ? 'var(--sidebar-hover)' : 'transparent',

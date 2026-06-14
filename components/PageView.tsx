@@ -1047,19 +1047,46 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
 
         {!isPublicShare && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0, transition: 'opacity 0.3s', opacity: saved ? 0 : 1 }}>Saving…</span>}
 
-        {/* Desktop toolbar — monochrome SVG icons */}
+        {/* Desktop toolbar */}
         {!isPublicShare && !isMobile && <>
-          <span style={{ fontSize: '12.5px', color: 'var(--text-tertiary)', marginRight: '2px', whiteSpace: 'nowrap', flexShrink: 0 }}>
+          <span style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginRight: '4px', whiteSpace: 'nowrap', flexShrink: 0 }}>
             Edited just now
           </span>
-          {isOwner && (
-            <ShareTextBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn />
+          {isOwner && <ShareTextBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn />}
+          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0, margin: '0 3px' }} />
+          <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onXLSX={page.is_database ? exportXLSX : undefined} onMarkdown={exportMarkdown} isDatabase={!!page.is_database} />
+          {!page.is_database && (
+            <TopBarBtn onClick={() => setPresentationOpen(true)} iconOnly title="Generate Slides"><TbIcon d={TB_ICONS.slides} /></TopBarBtn>
           )}
-          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0, margin: '0 2px' }} />
+          {canEdit && !page.is_database && (
+            <TopBarBtn onClick={triggerMarkdownImport} iconOnly title="Import from Markdown"><TbIcon d={TB_ICONS.import} /></TopBarBtn>
+          )}
+          {canEdit && !page.is_database && (
+            <TopBarBtn onClick={saveAsTemplate} iconOnly title="Save as template"><TbIcon d={TB_ICONS.template} /></TopBarBtn>
+          )}
+          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0, margin: '0 3px' }} />
+          {!page.is_database && headings.length > 0 && (
+            <TopBarBtn onClick={() => setTocOpen(o => !o)} active={tocOpen} iconOnly title="Table of contents"><TbIcon d={TB_ICONS.toc} /></TopBarBtn>
+          )}
+          {!page.is_database && (
+            <TopBarBtn onClick={() => { setBacklinksOpen(o => !o); loadBacklinks() }} active={backlinksOpen} iconOnly title="Backlinks">
+              <TbIcon d={TB_ICONS.backlink} />
+              {backlinksLoaded && backlinks.length > 0 && <span style={{ fontSize: '10px', lineHeight: 1 }}>{backlinks.length}</span>}
+            </TopBarBtn>
+          )}
           <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen} iconOnly title="Comments">
             <TbIcon d={TB_ICONS.chat} />
             {comments.length > 0 && <span style={{ fontSize: '10px', lineHeight: 1 }}>{comments.length}</span>}
           </TopBarBtn>
+          <TopBarBtn onClick={() => { setFocusMode(f => { window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus')); return !f }) }} iconOnly active={focusMode} title="Focus mode (⌘⇧F)">
+            <TbIcon d={focusMode ? TB_ICONS.focusOut : TB_ICONS.focusIn} />
+          </TopBarBtn>
+          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0, margin: '0 3px' }} />
+          {canEdit && (
+            <TopBarBtn onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots() }} active={historyOpen} iconOnly title="Version history">
+              <TbIcon d={TB_ICONS.history} />
+            </TopBarBtn>
+          )}
           {onToggleFavorite && (
             <TopBarBtn onClick={onToggleFavorite} iconOnly title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
               <svg width="14" height="14" viewBox="0 0 16 16" fill={isFavorite ? 'var(--accent)' : 'none'} style={{ display: 'block', flexShrink: 0, color: isFavorite ? 'var(--accent)' : 'currentColor' }}>
@@ -1067,25 +1094,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
               </svg>
             </TopBarBtn>
           )}
-          {canEdit && (
-            <TopBarBtn onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots() }} active={historyOpen} iconOnly title="Version history">
-              <TbIcon d={TB_ICONS.history} />
+          {isOwner && (
+            <TopBarBtn onClick={toggleLock} iconOnly title={page.is_locked ? 'Unlock page' : 'Lock page'} active={!!page.is_locked}>
+              <TbIcon d={page.is_locked ? TB_ICONS.unlock : TB_ICONS.lock} />
             </TopBarBtn>
           )}
-          {/* More options — contains export, focus, lock, slides, import, template, toc, backlinks */}
-          <MoreOptionsMenu
-            page={page} canEdit={canEdit} isOwner={isOwner}
-            headings={headings} backlinks={backlinks} backlinksLoaded={backlinksLoaded}
-            tocOpen={tocOpen} setTocOpen={setTocOpen}
-            backlinksOpen={backlinksOpen} setBacklinksOpen={setBacklinksOpen} loadBacklinks={loadBacklinks}
-            focusMode={focusMode} setFocusMode={setFocusMode}
-            toggleLock={toggleLock}
-            exportPDF={exportPDF} exportWord={exportWord} exportCSV={exportCSV}
-            exportXLSX={exportXLSX} exportMarkdown={exportMarkdown}
-            triggerMarkdownImport={triggerMarkdownImport}
-            saveAsTemplate={saveAsTemplate}
-            setPresentationOpen={setPresentationOpen}
-          />
         </>}
 
         {/* Mobile: compact action row */}
