@@ -143,6 +143,7 @@ import HorizontalRule from '@tiptap/extension-horizontal-rule'
 import TextAlign from '@tiptap/extension-text-align'
 import Underline from '@tiptap/extension-underline'
 import EmojiPicker from './EmojiPicker'
+import { Icon } from './Icons'
 
 // ── RESIZABLE IMAGE EXTENSION ──────────────────────────────────────────
 function ResizableImageView({ node, updateAttributes, selected }: any) {
@@ -209,12 +210,16 @@ const ResizableImage = Image.extend({
 // ── CALLOUT EXTENSION ──────────────────────────────────────────────────
 function CalloutView({ node, updateAttributes }: any) {
   const [showPicker, setShowPicker] = useState(false)
+  const emoji = node.attrs.emoji
   return (
     <NodeViewWrapper>
       <div style={{ background: 'var(--accent-light)', border: '1px solid rgba(47,107,79,0.2)', borderRadius: '10px', padding: '12px 16px', margin: '6px 0', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
         <div style={{ position: 'relative', flexShrink: 0 }}>
-          <span onClick={() => setShowPicker(o => !o)} style={{ fontSize: '20px', cursor: 'pointer', userSelect: 'none', lineHeight: 1.4 }}>
-            {node.attrs.emoji || '💡'}
+          <span onClick={() => setShowPicker(o => !o)} style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', paddingTop: '2px', color: 'var(--accent)' }}>
+            {emoji
+              ? <span style={{ fontSize: '20px', lineHeight: 1.4 }}>{emoji}</span>
+              : <Icon name="sun" size={20} />
+            }
           </span>
           {showPicker && (
             <EmojiPicker
@@ -234,7 +239,7 @@ const CalloutExtension = Node.create({
   name: 'callout',
   group: 'block',
   content: 'inline*',
-  addAttributes() { return { emoji: { default: '☀️' } } },
+  addAttributes() { return { emoji: { default: null } } },
   parseHTML() { return [{ tag: 'div[data-type="callout"]' }] },
   renderHTML({ HTMLAttributes }) { return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'callout' }), 0] },
   addNodeView() { return ReactNodeViewRenderer(CalloutView) },

@@ -1017,7 +1017,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                 style={{ flex: 1, border: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: 'var(--text)', outline: 'none', borderBottom: '1px solid var(--accent)' }} />
             ) : (
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '15px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>{currentWs.name}</div>
+                <div style={{ fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>{currentWs.name}</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>Workspace</div>
               </div>
             )}

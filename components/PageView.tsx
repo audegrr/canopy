@@ -1077,7 +1077,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           </div>
         )}
 
-        {!isPublicShare && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0, transition: 'opacity 0.3s', opacity: saved ? 0 : 1 }}>Saving…</span>}
+        {!isPublicShare && <span style={{ fontSize: '13px', color: 'var(--text-tertiary)', flexShrink: 0, transition: 'opacity 0.3s', opacity: saved ? 0 : 1 }}>Saving…</span>}
 
         {/* Desktop buttons */}
         {!isPublicShare && !isMobile && <>
