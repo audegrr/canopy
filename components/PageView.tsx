@@ -1009,13 +1009,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
             <a href="/login" style={{ flexShrink: 0, background: 'var(--accent)', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: '13px', fontWeight: 600, color: '#fff', textDecoration: 'none', fontFamily: 'var(--font-sans)' }}>Get started free</a>
           </>
         ) : (
-          <>
-            {/* Breadcrumb title */}
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-tertiary)', overflow: 'hidden', minWidth: 0 }}>
-              {page.icon && <span style={{ fontSize: '14px', flexShrink: 0 }}>{page.icon}</span>}
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{page.title || 'Untitled'}</span>
-            </div>
-          </>
+          <div style={{ flex: 1 }} />
         )}
 
         {/* Presence avatars, saving indicator, action buttons — hidden for public share */}
@@ -1253,17 +1247,17 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                 <div data-export-hide className="page-hover-btns" style={{ display: 'flex', gap: '8px', marginBottom: page.icon ? '4px' : '12px' }}>
                   {!page.icon && (
                     <button onClick={() => setShowIconPicker(o => !o)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', padding: '3px 7px', borderRadius: '5px', display: 'flex', alignItems: 'center', gap: '6px', transition: 'background .12s, color .12s' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)' }}>
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)', padding: '3px 7px', borderRadius: '5px', display: 'flex', alignItems: 'center', gap: '6px', transition: 'background .12s, color .12s' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>
                       <Icon name="smile" size={14} /> Add icon
                     </button>
                   )}
                   {!page.cover_url && (
                     <button onClick={() => setShowCoverGallery(true)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', padding: '3px 7px', borderRadius: '5px', display: 'flex', alignItems: 'center', gap: '6px', transition: 'background .12s, color .12s' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)' }}>
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)', padding: '3px 7px', borderRadius: '5px', display: 'flex', alignItems: 'center', gap: '6px', transition: 'background .12s, color .12s' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>
                       <Icon name="image" size={14} /> Add cover
                     </button>
                   )}

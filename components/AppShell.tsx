@@ -48,7 +48,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [wsMenuOpen, setWsMenuOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [settingsTab, setSettingsTab] = useState<'profile'|'appearance'>('profile')
+  const [settingsTab, setSettingsTab] = useState<'profile'|'appearance'|'danger'>('profile')
   const [wsSettingsOpen, setWsSettingsOpen] = useState(false)
   const [wsSettingsTab, setWsSettingsTab] = useState<'general'|'members'|'danger'>('general')
   const [sharedCollapsed, setSharedCollapsed] = useState(false)
@@ -1199,26 +1199,17 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
         {/* User — click for settings, separate sign out button */}
         <div style={{ padding: '8px 10px', paddingBottom: isMobile ? 'calc(8px + env(safe-area-inset-bottom))' : '8px', borderTop: '1px solid var(--border)', flexShrink: 0, position: 'relative' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 8px', borderRadius: '6px' }}>
-            <div onClick={() => setUserMenuOpen(o => !o)}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, cursor: 'pointer', borderRadius: '5px', padding: '2px 4px', minWidth: 0 }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-              <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-                {user.name[0]?.toUpperCase()}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '13px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
-              </div>
+          <div onClick={() => setUserMenuOpen(o => !o)}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 10px', borderRadius: '7px', cursor: 'pointer' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--side-hover)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+            <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+              {user.name[0]?.toUpperCase()}
             </div>
-            {/* Sign out button — power icon */}
-            <button onClick={handleSignOut} title="Sign out"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--side-text-2)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius)', flexShrink: 0 }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--side-text)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--side-text-2)' }}>
-              <Icon name="power" size={16} />
-            </button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--side-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-body)' }}>{user.name}</div>
+              <div style={{ fontSize: '11px', color: 'var(--side-text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
+            </div>
           </div>
 
           {/* User settings menu */}
@@ -1237,18 +1228,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                   </div>
                 </div>
                 <MenuItem onClick={() => { setUserMenuOpen(false); setSettingsTab('profile'); setSettingsOpen(true) }}><Icon name="gear" size={15} /> Settings</MenuItem>
-                {/* Appearance segmented control */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 9px', fontSize: '13px', color: 'var(--text)' }}>
-                  <span>Appearance</span>
-                  <div style={{ display: 'flex', gap: '2px', background: 'var(--sidebar-bg)', borderRadius: '7px', padding: '2px' }}>
-                    {(['light', 'dark'] as const).map(t => (
-                      <button key={t} onClick={() => { setTheme(t); setUserMenuOpen(false) }}
-                        style={{ border: 'none', background: theme === t ? 'var(--bg)' : 'none', fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--text)', padding: '4px 10px', borderRadius: '5px', cursor: 'pointer', boxShadow: theme === t ? '0 1px 2px rgba(0,0,0,.14)' : 'none', transition: 'background .1s,box-shadow .1s' }}>
-                        {t === 'light' ? 'Light' : 'Dark'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
                 <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
                 <MenuItem onClick={() => { handleSignOut(); setUserMenuOpen(false) }}><Icon name="power" size={15} /> Sign out</MenuItem>
               </div>
@@ -2096,9 +2075,9 @@ function TemplatePicker({ workspaceId, userId, onSelect, onClose }: { workspaceI
 
 // ── SETTINGS MODAL ───────────────────────────────────────────
 function SettingsModal({ user, tab, theme, profileName, setProfileName, onTabChange, onThemeChange, onSave, onClose, onDeleteAccount }: {
-  user: User; tab: 'profile' | 'appearance'; theme: 'light' | 'dark' | 'system'
+  user: User; tab: 'profile' | 'appearance' | 'danger'; theme: 'light' | 'dark' | 'system'
   profileName: string; setProfileName: (v: string) => void
-  onTabChange: (t: 'profile' | 'appearance') => void; onThemeChange: (t: 'light' | 'dark' | 'system') => void
+  onTabChange: (t: 'profile' | 'appearance' | 'danger') => void; onThemeChange: (t: 'light' | 'dark' | 'system') => void
   onSave: () => void; onClose: () => void; onDeleteAccount: () => void
 }) {
   const supabase = createClient()
@@ -2134,27 +2113,20 @@ function SettingsModal({ user, tab, theme, profileName, setProfileName, onTabCha
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 2000 }} onClick={onClose} />
       <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: 'min(500px, calc(100vw - 24px))', height: 'min(440px, 90vh)', display: 'flex', overflow: 'hidden', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in-center">
         <div style={{ width: '150px', minWidth: '130px', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '14px 8px', flexShrink: 0 }}>
-          <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0 6px 8px' }}>Settings</div>
-          {(['profile', 'appearance'] as const).map(t => (
+          <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0 6px 8px', fontFamily: 'var(--font-body)' }}>Settings</div>
+          {([['profile', 'user', 'Profile'], ['appearance', 'sun', 'Appearance'], ['danger', 'warning', 'Danger']] as const).map(([t, icon, label]) => (
             <div key={t} onClick={() => onTabChange(t)}
-              style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', fontWeight: tab === t ? 500 : 400, color: tab === t ? 'var(--text)' : 'var(--text-secondary)', background: tab === t ? 'var(--sidebar-active)' : 'none', marginBottom: '2px' }}
-              onMouseEnter={e => { if (tab !== t) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', fontFamily: 'var(--font-body)', fontWeight: tab === t ? 500 : 400, color: tab === t ? (t === 'danger' ? 'var(--red)' : 'var(--text)') : (t === 'danger' ? 'var(--red)' : 'var(--text-secondary)'), background: tab === t ? 'var(--sidebar-active)' : 'none', marginBottom: '2px', opacity: t === 'danger' ? 0.85 : 1 }}
+              onMouseEnter={e => { if (tab !== t) (e.currentTarget as HTMLElement).style.background = t === 'danger' ? '#fff0f0' : 'var(--sidebar-hover)' }}
               onMouseLeave={e => { if (tab !== t) (e.currentTarget as HTMLElement).style.background = 'none' }}>
-              {t === 'profile' ? '👤' : '🎨'} {t.charAt(0).toUpperCase() + t.slice(1)}
+              <Icon name={icon} size={14} /> {label}
             </div>
           ))}
-          <div style={{ borderTop: '1px solid var(--border)', marginTop: 'auto', paddingTop: '8px', position: 'absolute', bottom: '12px', width: '134px' }}>
-            <div onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', color: 'var(--red)' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-              🚫 Close
-            </div>
-          </div>
         </div>
         <div style={{ flex: 1, padding: '18px 22px', overflowY: 'auto' }}>
           {tab === 'profile' && (
             <div>
-              <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Profile</div>
+              <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', fontFamily: 'var(--font-body)' }}>Profile</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
                 <div
                   onClick={() => avatarInputRef.current?.click()}
@@ -2167,39 +2139,44 @@ function SettingsModal({ user, tab, theme, profileName, setProfileName, onTabCha
                   <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: uploadingAvatar ? 1 : 0, transition: 'opacity 0.15s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
                     onMouseLeave={e => { if (!uploadingAvatar) (e.currentTarget as HTMLElement).style.opacity = '0' }}>
-                    <span style={{ fontSize: 10, color: '#fff', fontWeight: 600, textAlign: 'center', lineHeight: 1.3 }}>{uploadingAvatar ? '…' : '📷'}</span>
+                    <span style={{ fontSize: 10, color: '#fff', fontWeight: 600, textAlign: 'center', lineHeight: 1.3 }}>{uploadingAvatar ? '…' : <Icon name="user" size={14} />}</span>
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{profileName || user.name}</div>
-                  <button onClick={() => avatarInputRef.current?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--accent)', padding: 0, marginTop: 2 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-body)' }}>{profileName || user.name}</div>
+                  <button onClick={() => avatarInputRef.current?.click()} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: 11, color: 'var(--accent)', padding: 0, marginTop: 2 }}>
                     {avatarUrl ? 'Change photo' : 'Add photo'}
                   </button>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0 }}>Name</div>
-                <input value={profileName} onChange={e => setProfileName(e.target.value)} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }} onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }} onBlur={e => { (e.target as HTMLElement).style.borderColor = 'var(--border)' }} />
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0, fontFamily: 'var(--font-body)' }}>Name</div>
+                <input value={profileName} onChange={e => setProfileName(e.target.value)} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-body)', color: 'var(--text)', background: 'var(--surface)', outline: 'none' }} onFocus={e => { (e.target as HTMLElement).style.borderColor = 'var(--accent)' }} onBlur={e => { (e.target as HTMLElement).style.borderColor = 'var(--border)' }} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0 }}>Email</div>
-                <input defaultValue={user.email} readOnly style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)', background: 'var(--sidebar-bg)', outline: 'none' }} />
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0, fontFamily: 'var(--font-body)' }}>Email</div>
+                <input defaultValue={user.email} readOnly style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: 'var(--font-body)', color: 'var(--text-secondary)', background: 'var(--sidebar-bg)', outline: 'none' }} />
               </div>
-              <button onClick={onSave} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 16px', fontSize: '13px', cursor: 'pointer', fontWeight: 500, fontFamily: 'var(--font-sans)' }}>Save</button>
-              <div style={{ borderTop: '1px solid var(--border)', marginTop: '16px', paddingTop: '12px' }}>
-                <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Danger zone</div>
-                <button onClick={onDeleteAccount} style={{ border: '1px solid #fecaca', background: 'none', borderRadius: '5px', padding: '4px 10px', fontSize: '12px', cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--red)' }}>Delete account</button>
-              </div>
+              <button onClick={onSave} style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 16px', fontSize: '13px', cursor: 'pointer', fontWeight: 500, fontFamily: 'var(--font-body)' }}>Save</button>
+            </div>
+          )}
+          {tab === 'danger' && (
+            <div>
+              <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', fontFamily: 'var(--font-body)' }}>Danger zone</div>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '14px', lineHeight: 1.5, fontFamily: 'var(--font-body)' }}>Deleting your account is permanent and cannot be undone. All your workspaces and pages will be removed.</p>
+              <button onClick={onDeleteAccount} style={{ border: '1px solid #fecaca', background: 'none', borderRadius: '5px', padding: '6px 14px', fontSize: '13px', cursor: 'pointer', fontFamily: 'var(--font-body)', color: 'var(--red)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Icon name="trash" size={14} /> Delete account
+              </button>
             </div>
           )}
           {tab === 'appearance' && (
             <div>
-              <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>Appearance</div>
+              <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', fontFamily: 'var(--font-body)' }}>Appearance</div>
               <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
-                {(['light', 'dark', 'system'] as const).map(t => (
+                {([['light', 'sun', 'Light'], ['dark', 'moon', 'Dark'], ['system', 'focus', 'System']] as const).map(([t, icon, label]) => (
                   <button key={t} onClick={() => onThemeChange(t)}
-                    style={{ border: `1px solid ${theme === t ? 'var(--accent)' : 'var(--border)'}`, background: theme === t ? 'var(--accent-light)' : 'var(--surface)', color: theme === t ? 'var(--accent)' : 'var(--text)', borderRadius: '7px', padding: '6px 12px', fontSize: '12.5px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: theme === t ? 500 : 400, transition: 'all 0.15s' }}>
-                    {t === 'light' ? '☀️ Light' : t === 'dark' ? '🌙 Dark' : '💻 System'}
+                    style={{ border: `1px solid ${theme === t ? 'var(--accent)' : 'var(--border)'}`, background: theme === t ? 'var(--accent-light)' : 'var(--surface)', color: theme === t ? 'var(--accent)' : 'var(--text)', borderRadius: '7px', padding: '6px 12px', fontSize: '12.5px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: theme === t ? 500 : 400, transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Icon name={icon} size={13} /> {label}
                   </button>
                 ))}
               </div>
@@ -2285,12 +2262,12 @@ function WsSettingsModal({ workspace, tab, members, pendingInvites, owner, invit
           <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0 6px 8px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {workspace.icon} {workspace.name}
           </div>
-          {([['general','⚙️','General'],['members','👥','Members'],['danger','⚠️','Danger']] as const).map(([t, icon, label]) => (
+          {([['general','gear','General'],['members','users','Members'],['danger','warning','Danger']] as const).map(([t, icon, label]) => (
             <div key={t} onClick={() => onTabChange(t)}
-              style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', fontWeight: tab === t ? 500 : 400, color: tab === t ? (t === 'danger' ? 'var(--red)' : 'var(--text)') : (t === 'danger' ? 'var(--red)' : 'var(--text-secondary)'), background: tab === t ? 'var(--sidebar-active)' : 'none', marginBottom: '2px', opacity: t === 'danger' ? 0.85 : 1 }}
+              style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', fontFamily: 'var(--font-body)', fontWeight: tab === t ? 500 : 400, color: tab === t ? (t === 'danger' ? 'var(--red)' : 'var(--text)') : (t === 'danger' ? 'var(--red)' : 'var(--text-secondary)'), background: tab === t ? 'var(--sidebar-active)' : 'none', marginBottom: '2px', opacity: t === 'danger' ? 0.85 : 1 }}
               onMouseEnter={e => { if (tab !== t) (e.currentTarget as HTMLElement).style.background = t === 'danger' ? '#fff0f0' : 'var(--sidebar-hover)' }}
               onMouseLeave={e => { if (tab !== t) (e.currentTarget as HTMLElement).style.background = 'none' }}>
-              {icon} {label}
+              <Icon name={icon} size={14} /> {label}
             </div>
           ))}
           <div style={{ borderTop: '1px solid var(--border)', position: 'absolute', bottom: '12px', width: '134px' }}>
