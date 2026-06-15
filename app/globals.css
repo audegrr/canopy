@@ -94,9 +94,9 @@ html, body {
   float: left;
   height: 0;
 }
-.tiptap h1 { font-size: 1.875em; font-weight: 700; margin: 1.4rem 0 2px; line-height: 1.2; }
-.tiptap h2 { font-size: 1.5em; font-weight: 600; margin: 1.2rem 0 2px; line-height: 1.3; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
-.tiptap h3 { font-size: 1.2em; font-weight: 600; margin: 1rem 0 2px; }
+.tiptap h1 { font-family: var(--font-head); font-size: 1.875em; font-weight: 700; margin: 1.4rem 0 2px; line-height: 1.2; letter-spacing: -.01em; }
+.tiptap h2 { font-family: var(--font-head); font-size: 1.55rem; font-weight: 600; margin: 1.6rem 0 6px; line-height: 1.3; letter-spacing: -.01em; }
+.tiptap h3 { font-family: var(--font-head); font-size: 1.2em; font-weight: 600; margin: 1rem 0 2px; }
 .tiptap ul, .tiptap ol { padding-left: 1.5rem; margin: 2px 0; }
 .tiptap li { margin: 1px 0; line-height: 1.45; }
 .tiptap li p { margin: 0; }

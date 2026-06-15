@@ -11,6 +11,7 @@ import { useNotifications } from '@/hooks/useNotifications'
 import { useTheme } from '@/hooks/useTheme'
 import { exportPageAsPDF, exportPageAsWord, exportPageAsCSV } from '@/lib/export'
 import EmojiPicker from './EmojiPicker'
+import { Icon } from './Icons'
 
 type Props = {
   user: User
@@ -973,6 +974,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         style={{
           width: sidebarOpen ? '256px' : '0', minWidth: sidebarOpen ? '256px' : '0',
           background: 'var(--sidebar-bg)', borderRight: '1px solid var(--side-border)',
+          color: 'var(--side-text)',
           display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden',
           transition: 'width 0.2s, min-width 0.2s', flexShrink: 0,
           ...(isMobile ? { position: 'fixed', left: 0, top: 0, bottom: 0, height: 'auto', zIndex: 300, boxShadow: '4px 0 24px rgba(0,0,0,0.15)' } : {}),
@@ -1034,9 +1036,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
           {wsMenuOpen && (
             <div style={{ position: 'absolute', top: '54px', left: '8px', width: '250px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', zIndex: 200, padding: '6px' }} className="scale-in">
-              <MenuItem onClick={() => { setWsMenuOpen(false); setWsSettingsTab('general'); setWsSettingsOpen(true); loadWsMembers() }}>⚙️ Workspace settings</MenuItem>
-              <MenuItem onClick={() => { setWsMenuOpen(false); setWsSettingsTab('members'); setWsSettingsOpen(true); loadWsMembers() }}>👥 Invite members</MenuItem>
-              <MenuItem onClick={() => { setWsMenuOpen(false); createWorkspace() }}>➕ New workspace</MenuItem>
+              <MenuItem onClick={() => { setWsMenuOpen(false); setWsSettingsTab('general'); setWsSettingsOpen(true); loadWsMembers() }}><Icon name="gear" size={15} /> Workspace settings</MenuItem>
+              <MenuItem onClick={() => { setWsMenuOpen(false); setWsSettingsTab('members'); setWsSettingsOpen(true); loadWsMembers() }}><Icon name="users" size={15} /> Invite members</MenuItem>
+              <MenuItem onClick={() => { setWsMenuOpen(false); createWorkspace() }}><Icon name="plus" size={15} /> New workspace</MenuItem>
               <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
               {workspaces.map(ws => (
                 <div key={ws.id} onClick={() => switchWorkspace(ws)}
@@ -1078,11 +1080,11 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         {/* Quick actions */}
         <div style={{ padding: '8px 10px 8px', display: 'flex', gap: '4px', flexShrink: 0 }}>
           <QuickBtn onClick={() => createPage(null)} title="New page" flex>
-            <span style={{ fontSize: '15px' }}>📄</span>
+            <Icon name="doc" size={15} />
             <span style={{ fontSize: '12.5px' }}>New page</span>
           </QuickBtn>
           <QuickBtn onClick={() => createDatabase(null)} title="New database" flex>
-            <span style={{ fontSize: '15px' }}>🗄️</span>
+            <Icon name="db" size={15} />
             <span style={{ fontSize: '12.5px' }}>New database</span>
           </QuickBtn>
         </div>
@@ -1208,12 +1210,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                 <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
               </div>
             </div>
-            {/* Sign out button — only the power icon */}
+            {/* Sign out button — power icon */}
             <button onClick={handleSignOut} title="Sign out"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '16px', padding: '4px 6px', borderRadius: '4px', lineHeight: 1, flexShrink: 0 }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
-              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>
-              ⏻
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--side-text-2)', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'var(--radius)', flexShrink: 0 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--side-text)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--side-text-2)' }}>
+              <Icon name="power" size={16} />
             </button>
           </div>
 
@@ -1232,7 +1234,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                     <div style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
                   </div>
                 </div>
-                <MenuItem onClick={() => { setUserMenuOpen(false); setSettingsTab('profile'); setSettingsOpen(true) }}>⚙️ Settings</MenuItem>
+                <MenuItem onClick={() => { setUserMenuOpen(false); setSettingsTab('profile'); setSettingsOpen(true) }}><Icon name="gear" size={15} /> Settings</MenuItem>
                 {/* Appearance segmented control */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 9px', fontSize: '13px', color: 'var(--text)' }}>
                   <span>Appearance</span>
@@ -1246,7 +1248,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                   </div>
                 </div>
                 <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-                <MenuItem onClick={() => { handleSignOut(); setUserMenuOpen(false) }}>🚪 Sign out</MenuItem>
+                <MenuItem onClick={() => { handleSignOut(); setUserMenuOpen(false) }}><Icon name="power" size={15} /> Sign out</MenuItem>
               </div>
             </>
           )}
@@ -2434,6 +2436,10 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
     {dropIndicator === 'above' && (
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'var(--accent)', borderRadius: 1, zIndex: 5, pointerEvents: 'none' }} />
     )}
+    {/* Active accent bar */}
+    {isActive && (
+      <div style={{ position: 'absolute', left: 0, top: '22%', bottom: '22%', width: 3, borderRadius: '0 3px 3px 0', background: 'var(--side-accent)', pointerEvents: 'none', zIndex: 1 }} />
+    )}
     <div
       draggable={!isRenaming}
       onDragStart={onDragStart} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onDragEnd={onDragEnd}
@@ -2442,44 +2448,47 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
       onMouseEnter={() => { setHovered(true); onHover?.() }}
       onMouseLeave={() => setHovered(false)}
       style={{
-        display: 'flex', alignItems: 'center',
-        paddingLeft: `${6 + depth * 16}px`, paddingRight: '6px',
-        paddingTop: '6px', paddingBottom: '6px',
-        borderRadius: '5px', cursor: 'pointer',
+        display: 'flex', alignItems: 'center', gap: '5px',
+        paddingLeft: `${8 + depth * 16}px`, paddingRight: '8px',
+        paddingTop: '5px', paddingBottom: '5px',
+        borderRadius: 'var(--radius)', cursor: 'pointer',
         background: isActive ? 'var(--sidebar-active)' : isDragOver ? 'var(--accent-light)' : isKeyFocused ? 'var(--sidebar-hover)' : hovered ? 'var(--sidebar-hover)' : 'transparent',
         outline: isKeyFocused ? '2px solid var(--accent)' : 'none',
         outlineOffset: '-2px',
         opacity: isDragging ? 0.4 : 1,
         margin: '0 4px',
         userSelect: 'none',
-        fontWeight: isActive ? 500 : 400,
-        transition: 'background 0.08s',
+        fontWeight: isActive ? 600 : 400,
+        transition: 'background 0.12s',
       }}
     >
-      {/* Expand toggle — big arrow, only visible when has children */}
+      {/* Expand toggle — chevron SVG */}
       <span
         onClick={e => { e.stopPropagation(); if (hasChildren) onToggle() }}
         style={{
-          width: '20px', height: '20px',
+          width: '17px', height: '17px', flexShrink: 0,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0, borderRadius: '4px',
-          color: hasChildren ? 'var(--text-secondary)' : 'transparent',
-          fontSize: '13px',
-          transition: 'transform 0.15s',
+          borderRadius: '4px',
+          color: hasChildren ? 'var(--side-text-2)' : 'transparent',
+          transition: 'transform 0.16s, background 0.12s',
           transform: isExpanded ? 'rotate(90deg)' : 'none',
           cursor: hasChildren ? 'pointer' : 'default',
         }}
-        onMouseEnter={e => { if (hasChildren) (e.currentTarget as HTMLElement).style.background = 'var(--border)' }}
+        onMouseEnter={e => { if (hasChildren) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-active)' }}
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
         title={hasChildren ? (isExpanded ? 'Collapse' : 'Expand') : ''}
       >
-        {hasChildren ? '▶' : ''}
+        {hasChildren && <Icon name="chev-right" size={12} />}
       </span>
 
-      {/* Page icon */}
-      <span style={{ fontSize: '15px', flexShrink: 0, width: '20px', textAlign: 'center', lineHeight: 1, marginRight: '2px' }}>
-        {page.icon || (page.is_database ? '🗄️' : '📄')}
-      </span>
+      {/* Page icon — emoji if set, else SVG fallback */}
+      {page.icon ? (
+        <span style={{ fontSize: '15px', flexShrink: 0, width: '17px', textAlign: 'center', lineHeight: 1 }}>{page.icon}</span>
+      ) : (
+        <span style={{ flexShrink: 0, width: '17px', display: 'flex', justifyContent: 'center', color: 'var(--side-text-2)' }}>
+          <Icon name={page.is_database ? 'db' : 'doc'} size={15} />
+        </span>
+      )}
 
       {/* Title or rename input */}
       {isRenaming ? (
@@ -2489,7 +2498,7 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
           onClick={e => e.stopPropagation()}
           style={{ flex: 1, border: 'none', borderBottom: '1px solid var(--accent)', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '13.5px', color: 'var(--text)', outline: 'none', padding: '0 2px' }} />
       ) : (
-        <span style={{ flex: 1, fontSize: '13.5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: isActive ? 500 : 400 }}>
+        <span style={{ flex: 1, fontSize: '13.5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {page.title || 'Untitled'}
         </span>
       )}
@@ -2514,7 +2523,7 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
             opacity: (hovered || isFavorite) ? 1 : 0,
             pointerEvents: (hovered || isFavorite) ? 'auto' : 'none',
             transition: 'opacity .12s',
-            paddingLeft: 20,
+            paddingLeft: 26,
             background: 'linear-gradient(90deg, transparent, var(--side-fade) 38%)',
           }}>
           {onRemove ? (
@@ -2544,9 +2553,9 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
 function SbBtn({ onClick, title, children }: { onClick?: (e: React.MouseEvent) => void; title: string; children: React.ReactNode }) {
   return (
     <button onClick={e => { e.stopPropagation(); onClick?.(e) }} title={title}
-      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '3px 5px', borderRadius: '4px', fontSize: '12px', lineHeight: 1, fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '20px', minWidth: '20px' }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--border)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
-      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>
+      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--side-text-2)', padding: '3px', borderRadius: '5px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', flexShrink: 0 }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-active)'; (e.currentTarget as HTMLElement).style.color = 'var(--side-text)' }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--side-text-2)' }}>
       {children}
     </button>
   )

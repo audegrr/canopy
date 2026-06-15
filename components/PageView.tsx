@@ -8,6 +8,7 @@ import Editor from './Editor'
 import DragHandle from './DragHandle'
 import DatabaseView from './DatabaseView'
 import EmojiPicker from './EmojiPicker'
+import { Icon } from './Icons'
 
 type Props = {
   page: Page
@@ -1052,44 +1053,44 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           {/* Separator */}
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onXLSX={page.is_database ? exportXLSX : undefined} onMarkdown={exportMarkdown} isDatabase={!!page.is_database} />
-          {!page.is_database && <TopBarBtn onClick={() => setPresentationOpen(true)} iconOnly title="Generate Slides">🎤</TopBarBtn>}
-          <TopBarBtn onClick={exportPDF} iconOnly title="Print">🖨️</TopBarBtn>
-          {canEdit && !page.is_database && <TopBarBtn onClick={triggerMarkdownImport} iconOnly title="Import from Markdown">⬇️</TopBarBtn>}
-          {canEdit && !page.is_database && <TopBarBtn onClick={saveAsTemplate} iconOnly title="Save as template">📋</TopBarBtn>}
-          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
+          {!page.is_database && <TopBarBtn onClick={() => setPresentationOpen(true)} iconOnly title="Generate Slides"><Icon name="slides" size={16} /></TopBarBtn>}
+          <TopBarBtn onClick={exportPDF} iconOnly title="Print"><Icon name="print" size={16} /></TopBarBtn>
+          {canEdit && !page.is_database && <TopBarBtn onClick={triggerMarkdownImport} iconOnly title="Import from Markdown"><Icon name="import" size={16} /></TopBarBtn>}
+          {canEdit && !page.is_database && <TopBarBtn onClick={saveAsTemplate} iconOnly title="Save as template"><Icon name="template" size={16} /></TopBarBtn>}
+          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0, margin: '0 4px' }} />
           {!page.is_database && headings.length > 0 && (
-            <TopBarBtn onClick={() => setTocOpen(o => !o)} active={tocOpen} iconOnly title="Table of contents">📑</TopBarBtn>
+            <TopBarBtn onClick={() => setTocOpen(o => !o)} active={tocOpen} iconOnly title="Table of contents"><Icon name="toc" size={16} /></TopBarBtn>
           )}
-          {canEdit && <TopBarBtn onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots() }} active={historyOpen} iconOnly title="Version history">🕐</TopBarBtn>}
+          {canEdit && <TopBarBtn onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots() }} active={historyOpen} iconOnly title="Version history"><Icon name="history" size={16} /></TopBarBtn>}
           {!page.is_database && (
             <TopBarBtn onClick={() => { setBacklinksOpen(o => !o); loadBacklinks() }} active={backlinksOpen} iconOnly title="Backlinks">
-              📎{backlinksLoaded && backlinks.length > 0 ? backlinks.length : ''}
+              <Icon name="backlink" size={16} />{backlinksLoaded && backlinks.length > 0 ? <span style={{ fontSize: 10, marginLeft: 1 }}>{backlinks.length}</span> : null}
             </TopBarBtn>
           )}
           <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen} iconOnly title="Comments">
-            💬{comments.length > 0 ? comments.length : ''}
+            <Icon name="comment" size={16} />{comments.length > 0 ? <span style={{ fontSize: 10, marginLeft: 1 }}>{comments.length}</span> : null}
           </TopBarBtn>
-          <TopBarBtn onClick={() => { setFocusMode(f => { window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus')); return !f }) }} iconOnly active={focusMode} title="Focus mode (⌘⇧F)">🎯</TopBarBtn>
-          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
+          <TopBarBtn onClick={() => { setFocusMode(f => { window.dispatchEvent(new CustomEvent(f ? 'canopy:exitFocus' : 'canopy:enterFocus')); return !f }) }} iconOnly active={focusMode} title="Focus mode (⌘⇧F)"><Icon name="focus" size={16} /></TopBarBtn>
+          <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0, margin: '0 4px' }} />
           {onToggleFavorite && (
             <TopBarBtn onClick={onToggleFavorite} iconOnly title={isFavorite ? 'Remove from favorites' : 'Add to favorites'} active={!!isFavorite}>
-              ⭐
+              <Icon name={isFavorite ? 'star-fill' : 'star'} size={16} />
             </TopBarBtn>
           )}
           {isOwner && (
             <TopBarBtn onClick={toggleLock} iconOnly title={page.is_locked ? 'Unlock page' : 'Lock page'} active={!!page.is_locked}>
-              {page.is_locked ? '🔒' : '🔓'}
+              <Icon name={page.is_locked ? 'lock' : 'unlock'} size={16} />
             </TopBarBtn>
           )}
-          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn iconOnly title="Share">🔗</TopBarBtn>}
+          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn iconOnly title="Share"><Icon name="share" size={16} /></TopBarBtn>}
         </>}
 
         {/* Mobile: compact action row */}
         {!isPublicShare && isMobile && <>
           <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen} iconOnly title="Comments">
-            💬{comments.length > 0 ? comments.length : ''}
+            <Icon name="comment" size={16} />{comments.length > 0 ? <span style={{ fontSize: 10, marginLeft: 1 }}>{comments.length}</span> : null}
           </TopBarBtn>
-          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn iconOnly title="Share">🔗</TopBarBtn>}
+          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn iconOnly title="Share"><Icon name="share" size={16} /></TopBarBtn>}
           {/* Mobile overflow menu */}
           <div style={{ position: 'relative' }}>
             <TopBarBtn onClick={() => setMobileMenuOpen(o => !o)} active={mobileMenuOpen}>⋯</TopBarBtn>
@@ -2210,7 +2211,7 @@ function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, onPresentation, 
   return (
     <div style={{ position: 'relative' }}>
       <TopBarBtn onClick={() => setOpen(o => !o)} active={open} data-export-btn iconOnly title="Export">
-        📤
+        <Icon name="export" size={16} />
       </TopBarBtn>
       {open && (
         <>
