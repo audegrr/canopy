@@ -1242,14 +1242,14 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             {breadcrumbs.map((crumb, i) => {
               const isLast = i === breadcrumbs.length - 1
               return (
-                <div key={crumb.id} style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 1, minWidth: 0, ...(isLast ? { flex: 1 } : {}) }}>
+                <div key={crumb.id} style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: isLast ? 0 : 1, minWidth: 0 }}>
                   {i > 0 && <span style={{ color: 'var(--text-tertiary)', fontSize: '12px', flexShrink: 0, margin: '0 1px' }}>/</span>}
                   <button onClick={() => navigate(`/app/page/${crumb.id}`)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px', color: isLast ? 'var(--text)' : 'var(--text-secondary)', padding: '3px 5px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px', maxWidth: isLast ? '100%' : '160px', fontWeight: isLast ? 500 : 400, whiteSpace: 'nowrap', overflow: 'hidden' }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px', color: isLast ? 'var(--text)' : 'var(--text-secondary)', padding: '3px 5px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: isLast ? 500 : 400, whiteSpace: 'nowrap', overflow: 'hidden', minWidth: 0 }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
                     <span style={{ fontSize: '13px', flexShrink: 0 }}>{crumb.icon}</span>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{crumb.title}</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, minWidth: 0 }}>{crumb.title}</span>
                   </button>
                 </div>
               )
