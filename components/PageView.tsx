@@ -1126,8 +1126,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         <button
           onClick={() => { setFocusMode(false); window.dispatchEvent(new CustomEvent('canopy:exitFocus')) }}
           title="Exit focus mode (Esc)"
-          style={{ position: 'fixed', top: remoteConflict ? 112 : 64, right: 12, zIndex: 500, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)', boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: 5 }}>
-          🎯 Exit focus
+          style={{ position: 'fixed', top: remoteConflict ? 112 : 64, right: 12, zIndex: 500, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: '12px', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <Icon name="minimize" size={14} /> Exit focus
         </button>
       )}
 
@@ -1221,7 +1221,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           )}
 
           {/* Page body */}
-          <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? 'min(1800px, calc(100% - 80px))' : '720px', margin: '0 auto', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 60px 80px') : (isMobile ? '32px 20px 60px' : '64px 60px 80px'), transition: 'max-width 0.3s ease', fontSize: 'calc(1rem * var(--content-zoom, 1))' }}>
+          <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? 'min(1800px, calc(100% - 80px))' : '100%', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 48px 80px') : (isMobile ? '32px 20px 60px' : '64px 48px 80px'), transition: 'max-width 0.3s ease', fontSize: 'calc(1rem * var(--content-zoom, 1))' }}>
 
             {/* Shared-by notice */}
             {!isOwner && ownerName && (

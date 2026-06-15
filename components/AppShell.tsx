@@ -1022,13 +1022,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                 <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Workspace</div>
               </div>
             )}
-            {wsRowHovered && (
-              <button onClick={e => { e.stopPropagation(); setWsSettingsTab('general'); setWsSettingsOpen(true); setWsMenuOpen(false); loadWsMembers() }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '18px', padding: '2px 5px', borderRadius: '4px', flexShrink: 0, lineHeight: 1 }}
-                title="Workspace settings"
-                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>⚙</button>
-            )}
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: '1px' }} xmlns="http://www.w3.org/2000/svg">
               <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -1048,12 +1041,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                   <span style={{ fontSize: '16px' }}>{ws.icon}</span>
                   <span style={{ flex: 1, fontSize: '13px', fontWeight: 500 }}>{ws.name}</span>
                   {ws.id === currentWs.id && <span style={{ fontSize: '14px', color: 'var(--accent)', fontWeight: 700, lineHeight: 1 }}>✓</span>}
-                  {ws.id !== currentWs.id && (
-                    <span onClick={e => { e.stopPropagation(); deleteWorkspace(ws.id) }}
-                      style={{ fontSize: '17px', color: 'var(--text-tertiary)', padding: '1px 4px', borderRadius: '3px', lineHeight: 1, cursor: 'pointer' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)'; (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; (e.currentTarget as HTMLElement).style.background = 'none' }}>✕</span>
-                  )}
                 </div>
               ))}
               <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
@@ -2271,10 +2258,10 @@ function WsSettingsModal({ workspace, tab, members, pendingInvites, owner, invit
             </div>
           ))}
           <div style={{ borderTop: '1px solid var(--border)', position: 'absolute', bottom: '12px', width: '134px' }}>
-            <div onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', color: 'var(--red)', marginTop: '8px' }}
-              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
+            <div onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '12.5px', fontFamily: 'var(--font-body)', color: 'var(--text-secondary)', marginTop: '8px' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-              🚫 Close
+              <Icon name="chev-right" size={14} style={{ transform: 'rotate(180deg)' }} /> Close
             </div>
           </div>
         </div>
@@ -2299,17 +2286,6 @@ function WsSettingsModal({ workspace, tab, members, pendingInvites, owner, invit
                     Save
                   </button>
                 )}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '50px', flexShrink: 0 }}>Colour</div>
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {['#0b6e99','#0f7b6c','#6940a5','#ad1a72','#d9730d','#e03e3e','#37352f','#2f9e44'].map(col => (
-                    <div key={col} onClick={() => onAccentChange(col)}
-                      style={{ width: 22, height: 22, borderRadius: '50%', background: col, cursor: 'pointer', border: (workspace.accent_color || '#0b6e99') === col ? '3px solid var(--text)' : '2px solid transparent', flexShrink: 0 }} />
-                  ))}
-                  <input type="color" value={workspace.accent_color || '#0b6e99'} onChange={e => onAccentChange(e.target.value)}
-                    style={{ width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--border)', cursor: 'pointer', padding: 0 }} title="Custom colour" />
-                </div>
               </div>
             </div>
           )}
@@ -2414,11 +2390,7 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
   return (
     <div style={{ position: 'relative' }} data-page-id={page.id}>
     {dropIndicator === 'above' && (
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'var(--accent)', borderRadius: 1, zIndex: 5, pointerEvents: 'none' }} />
-    )}
-    {/* Active accent bar */}
-    {isActive && (
-      <div style={{ position: 'absolute', left: 0, top: '22%', bottom: '22%', width: 3, borderRadius: '0 3px 3px 0', background: 'var(--side-accent)', pointerEvents: 'none', zIndex: 1 }} />
+      <div style={{ position: 'absolute', top: 0, left: 6, right: 6, height: 2, background: 'var(--accent)', borderRadius: 1, zIndex: 5, pointerEvents: 'none' }} />
     )}
     <div
       draggable={!isRenaming}
@@ -2428,20 +2400,26 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
       onMouseEnter={() => { setHovered(true); onHover?.() }}
       onMouseLeave={() => setHovered(false)}
       style={{
+        position: 'relative',
         display: 'flex', alignItems: 'center', gap: '5px',
         paddingLeft: `${8 + depth * 16}px`, paddingRight: '8px',
         paddingTop: '5px', paddingBottom: '5px',
-        borderRadius: 'var(--radius)', cursor: 'pointer',
-        background: isActive ? 'var(--sidebar-active)' : isDragOver ? 'var(--accent-light)' : isKeyFocused ? 'var(--sidebar-hover)' : hovered ? 'var(--sidebar-hover)' : 'transparent',
+        borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+        background: isActive ? 'var(--side-active)' : isDragOver ? 'var(--accent-light)' : isKeyFocused ? 'var(--side-hover)' : hovered ? 'var(--side-hover)' : 'transparent',
         outline: isKeyFocused ? '2px solid var(--accent)' : 'none',
         outlineOffset: '-2px',
         opacity: isDragging ? 0.4 : 1,
-        margin: '0 4px',
+        margin: '1px 6px',
         userSelect: 'none',
-        fontWeight: isActive ? 600 : 400,
+        fontWeight: isActive ? 500 : 400,
+        color: 'var(--side-text)',
         transition: 'background 0.12s',
       }}
     >
+      {/* Active accent bar — inside the pill, at its left edge */}
+      {isActive && (
+        <div style={{ position: 'absolute', left: 0, top: '20%', bottom: '20%', width: 3, borderRadius: '0 3px 3px 0', background: 'var(--side-accent)', pointerEvents: 'none', zIndex: 1 }} />
+      )}
       {/* Expand toggle — chevron SVG */}
       <span
         onClick={e => { e.stopPropagation(); if (hasChildren) onToggle() }}
@@ -2523,7 +2501,7 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
       )}
     </div>
     {dropIndicator === 'below' && (
-      <div style={{ position: 'absolute', bottom: 0, left: `${(depth || 0) * 16 + 8}px`, right: 4, height: 2, background: 'var(--accent)', borderRadius: 1, zIndex: 5, pointerEvents: 'none' }} />
+      <div style={{ position: 'absolute', bottom: 0, left: 6, right: 6, height: 2, background: 'var(--accent)', borderRadius: 1, zIndex: 5, pointerEvents: 'none' }} />
     )}
     </div>
   )
