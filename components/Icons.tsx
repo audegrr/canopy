@@ -83,6 +83,17 @@ const ICONS: Record<string, () => React.ReactNode> = {
     <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/>
     <path d="M2 21c0-3 1.85-5.36 5.08-6"/>
   </>,
+  smile: () => <>
+    <circle cx="12" cy="12" r="9"/>
+    <path d="M8 13s1.5 2 4 2 4-2 4-2"/>
+    <line x1="9" y1="9" x2="9.01" y2="9"/>
+    <line x1="15" y1="9" x2="15.01" y2="9"/>
+  </>,
+  image: () => <>
+    <rect x="3" y="3" width="18" height="18" rx="2"/>
+    <circle cx="8.5" cy="8.5" r="1.5"/>
+    <path d="M21 15l-5-5L5 21"/>
+  </>,
 }
 
 export function Icon({ name, size = 16, style, className }: { name: string; size?: number; style?: React.CSSProperties; className?: string }) {

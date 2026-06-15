@@ -1253,18 +1253,18 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                 <div data-export-hide className="page-hover-btns" style={{ display: 'flex', gap: '8px', marginBottom: page.icon ? '4px' : '12px' }}>
                   {!page.icon && (
                     <button onClick={() => setShowIconPicker(o => !o)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                      😀 Add icon
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', padding: '3px 7px', borderRadius: '5px', display: 'flex', alignItems: 'center', gap: '6px', transition: 'background .12s, color .12s' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)' }}>
+                      <Icon name="smile" size={14} /> Add icon
                     </button>
                   )}
                   {!page.cover_url && (
                     <button onClick={() => setShowCoverGallery(true)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '4px 8px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                      🖼 Add cover
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', padding: '3px 7px', borderRadius: '5px', display: 'flex', alignItems: 'center', gap: '6px', transition: 'background .12s, color .12s' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)' }}>
+                      <Icon name="image" size={14} /> Add cover
                     </button>
                   )}
                 </div>

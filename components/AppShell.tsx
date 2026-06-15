@@ -1100,7 +1100,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               <>
                 <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px 14px 3px', gap: '4px' }}
                   onClick={() => setFavoritesCollapsed(o => !o)}>
-                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1, userSelect: 'none', fontFamily: 'var(--font-sans)' }}>Favorites</div>
+                  <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--side-text-2)', textTransform: 'uppercase', letterSpacing: '.05em', flex: 1, userSelect: 'none', fontFamily: 'var(--font-body)', opacity: 0.68 }}>Favorites</div>
                   <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, transition: 'transform 0.15s', transform: favoritesCollapsed ? 'rotate(-90deg)' : 'none', marginRight: '2px' }}>
                     <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
@@ -1132,7 +1132,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               <div style={{ margin: '10px 12px 0', borderTop: '1px solid var(--border)' }} />
               <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '8px 14px 3px', gap: '4px' }}
                 onClick={() => setSharedCollapsed(o => !o)}>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1, userSelect: 'none', fontFamily: 'var(--font-sans)' }}>Shared with me</div>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--side-text-2)', textTransform: 'uppercase', letterSpacing: '.05em', flex: 1, userSelect: 'none', fontFamily: 'var(--font-body)', opacity: 0.68 }}>Shared with me</div>
                 <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, transition: 'transform 0.15s', transform: sharedCollapsed ? 'rotate(-90deg)' : 'none', marginRight: '2px' }}>
                   <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
@@ -1145,13 +1145,13 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         {/* Trash */}
         <div style={{ borderTop: '1px solid var(--border)', flexShrink: 0 }}>
           <div onClick={() => { setTrashOpen(o => !o); if (!trashOpen) loadTrash() }}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', cursor: 'pointer', fontSize: '13px', color: 'var(--side-text)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--side-hover)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-            <span>🗑️</span>
-            <span style={{ flex: 1 }}>Trash</span>
-            {trashedPages.length > 0 && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{trashedPages.length}</span>}
-            <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', transition: 'transform 0.15s', transform: trashOpen ? 'rotate(90deg)' : 'none' }}>▶</span>
+            <Icon name="trash" size={14} style={{ color: 'var(--side-text-2)', flexShrink: 0 }} />
+            <span style={{ flex: 1, fontFamily: 'var(--font-body)', fontSize: '13px' }}>Trash</span>
+            {trashedPages.length > 0 && <span style={{ fontSize: '11px', color: 'var(--side-text-2)' }}>{trashedPages.length}</span>}
+            <span style={{ color: 'var(--side-text-2)', transition: 'transform 0.15s', transform: trashOpen ? 'rotate(90deg)' : 'none', display: 'flex' }}><Icon name="chev-right" size={12} /></span>
           </div>
           {trashOpen && (
             <div style={{ background: 'var(--sidebar-bg)', borderBottom: '1px solid var(--border)', maxHeight: '280px', overflowY: 'auto' }}>
@@ -1170,22 +1170,24 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                     </span>
                   </div>
                   {trashedPages.map(p => (
-                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 14px', fontSize: '12px', color: 'var(--text-secondary)' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                    <div key={p.id} className="trash-item" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px 5px 14px', fontSize: '13px', color: 'var(--side-text)', position: 'relative' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--side-hover)' }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                      <span style={{ flexShrink: 0 }}>{p.icon || '📄'}</span>
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>{p.title || 'Untitled'}</span>
-                      <span title="Restore" onClick={() => restorePage(p.id)}
-                        style={{ flexShrink: 0, cursor: 'pointer', padding: '2px 5px', borderRadius: 4, fontSize: '11px' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'inherit' }}>
-                        ↩ Restore
-                      </span>
-                      <span title="Delete permanently" onClick={() => { if (confirm('Permanently delete this page?')) permanentlyDeletePage(p.id) }}
-                        style={{ flexShrink: 0, cursor: 'pointer', padding: '2px 5px', borderRadius: 4, fontSize: '11px', color: 'var(--text-tertiary)' }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#eb575718'; (e.currentTarget as HTMLElement).style.color = '#eb5757' }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>
-                        ✕
+                      <span style={{ flexShrink: 0, fontSize: '14px', lineHeight: 1 }}>{p.icon || <Icon name="doc" size={13} style={{ color: 'var(--side-text-2)' }} />}</span>
+                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || 'Untitled'}</span>
+                      <span className="t-acts" style={{ display: 'flex', gap: '1px', flexShrink: 0 }}>
+                        <span title="Restore" onClick={() => restorePage(p.id)}
+                          style={{ cursor: 'pointer', padding: '3px 6px', borderRadius: 5, color: 'var(--side-text-2)', display: 'flex', alignItems: 'center' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--side-text-2)' }}>
+                          <Icon name="restore" size={14} />
+                        </span>
+                        <span title="Delete permanently" onClick={() => { if (confirm('Permanently delete this page?')) permanentlyDeletePage(p.id) }}
+                          style={{ cursor: 'pointer', padding: '3px 6px', borderRadius: 5, color: 'var(--side-text-2)', display: 'flex', alignItems: 'center' }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#eb575718'; (e.currentTarget as HTMLElement).style.color = '#eb5757' }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--side-text-2)' }}>
+                          <Icon name="trash" size={14} />
+                        </span>
                       </span>
                     </div>
                   ))}
@@ -1270,7 +1272,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '18px', padding: isMobile ? '10px 12px' : '4px 6px', borderRadius: '4px', lineHeight: 1, flexShrink: 0, touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', minWidth: isMobile ? '44px' : undefined, minHeight: isMobile ? '44px' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
-            title="Toggle sidebar">☰</button>
+            title="Toggle sidebar"><Icon name="menu" size={17} /></button>
 
           {/* Breadcrumb */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '2px', overflow: 'hidden', flex: 1 }}>
@@ -1315,11 +1317,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           {/* Cmd+K button */}
           <button
             onClick={() => setSearchOpen(true)}
-            style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px', padding: isMobile ? '10px 12px' : '5px 12px', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap', transition: 'all 0.15s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', minHeight: isMobile ? '44px' : undefined }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-tertiary)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
+            style={{ background: 'var(--hover)', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '13px', padding: isMobile ? '10px 12px' : '5px 10px', borderRadius: 'var(--radius)', fontFamily: 'var(--font-body)', fontWeight: 400, display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap', transition: 'border-color 0.12s', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', minHeight: isMobile ? '44px' : undefined }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-strong)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
             title="Search pages (⌘K)">
-            {isMobile ? '🔍' : <>🔍 Search <kbd style={{ fontSize: '11px', background: 'var(--border)', border: 'none', borderRadius: '3px', padding: '1px 5px', fontFamily: 'var(--font-sans)', color: 'var(--text-secondary)' }}>⌘K</kbd></>}
+            <Icon name="search" size={14} />
+            {!isMobile && <>Search <span style={{ fontFamily: 'var(--font-mono)', fontSize: '10.5px', padding: '2px 5px', borderRadius: '4px', background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-secondary)', lineHeight: 1 }}>⌘K</span></>}
           </button>
 
           {/* Notification bell */}
@@ -1330,7 +1333,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
               title="Notifications">
-              🔔
+              <Icon name="bell" size={18} />
               {unreadCount > 0 && (
                 <span style={{ position: 'absolute', top: '2px', right: '2px', minWidth: '15px', height: '15px', borderRadius: '50%', background: '#eb5757', color: '#fff', fontSize: '9px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, padding: '0 2px' }}>
                   {unreadCount > 9 ? '9+' : unreadCount}
