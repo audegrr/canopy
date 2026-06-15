@@ -1017,8 +1017,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                 style={{ flex: 1, border: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: 'var(--text)', outline: 'none', borderBottom: '1px solid var(--accent)' }} />
             ) : (
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>{currentWs.name}</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Workspace</div>
+                <div style={{ fontSize: '15px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>{currentWs.name}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>Workspace</div>
               </div>
             )}
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: '1px' }} xmlns="http://www.w3.org/2000/svg">
@@ -1064,12 +1064,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         {/* Quick actions */}
         <div style={{ padding: '6px 10px 8px', display: 'flex', flexDirection: 'column', gap: '1px', flexShrink: 0 }}>
           <QuickBtn onClick={() => createPage(null)} title="New page">
-            <span style={{ fontSize: '14px' }}>📄</span>
-            <span style={{ fontSize: '12.5px' }}>New page</span>
+            <span style={{ fontSize: '15px' }}>📄</span>
+            <span style={{ fontSize: '14px' }}>New page</span>
           </QuickBtn>
           <QuickBtn onClick={() => createDatabase(null)} title="New database">
-            <span style={{ fontSize: '14px' }}>🗄️</span>
-            <span style={{ fontSize: '12.5px' }}>New database</span>
+            <span style={{ fontSize: '15px' }}>🗄️</span>
+            <span style={{ fontSize: '14px' }}>New database</span>
           </QuickBtn>
         </div>
 

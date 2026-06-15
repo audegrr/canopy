@@ -211,7 +211,7 @@ function CalloutView({ node, updateAttributes }: any) {
   const [showPicker, setShowPicker] = useState(false)
   return (
     <NodeViewWrapper>
-      <div style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '6px', padding: '12px 16px', margin: '4px 0', display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+      <div style={{ background: 'var(--accent-light)', border: '1px solid rgba(47,107,79,0.2)', borderRadius: '10px', padding: '12px 16px', margin: '6px 0', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <span onClick={() => setShowPicker(o => !o)} style={{ fontSize: '20px', cursor: 'pointer', userSelect: 'none', lineHeight: 1.4 }}>
             {node.attrs.emoji || '💡'}
