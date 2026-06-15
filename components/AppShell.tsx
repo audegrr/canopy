@@ -139,14 +139,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // Apply workspace accent color
-  useEffect(() => {
-    const color = currentWs.accent_color || '#0b6e99'
-    document.documentElement.style.setProperty('--accent', color)
-    // Derive a lighter tint for accent-light
-    document.documentElement.style.setProperty('--accent-light', color + '18')
-  }, [currentWs.accent_color, currentWs.id])
-
   // Prewarm ALL pages into cache as soon as sidebar loads
   useEffect(() => {
     if (pages.length === 0) return
@@ -979,8 +971,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       {/* SIDEBAR */}
       <aside
         style={{
-          width: sidebarOpen ? '260px' : '0', minWidth: sidebarOpen ? '260px' : '0',
-          background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)',
+          width: sidebarOpen ? '256px' : '0', minWidth: sidebarOpen ? '256px' : '0',
+          background: 'var(--sidebar-bg)', borderRight: '1px solid var(--side-border)',
           display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden',
           transition: 'width 0.2s, min-width 0.2s', flexShrink: 0,
           ...(isMobile ? { position: 'fixed', left: 0, top: 0, bottom: 0, height: 'auto', zIndex: 300, boxShadow: '4px 0 24px rgba(0,0,0,0.15)' } : {}),
@@ -996,11 +988,11 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           {/* Logo row */}
           <div style={{ display: 'flex', alignItems: 'center', padding: '8px 10px 12px' }}>
             <button onClick={() => navigate('/app')}
-              style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', minWidth: 0 }}
+              style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, background: 'none', border: 'none', cursor: 'pointer', minWidth: 0 }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.75' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}>
-              <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 32, height: 32, objectFit: 'contain', flexShrink: 0 }} />
-              <span style={{ fontSize: '18px', fontWeight: 500, color: 'var(--text)', letterSpacing: '-0.01em' }}>Canopy</span>
+              <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 30, height: 30, objectFit: 'contain', flexShrink: 0 }} />
+              <span style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font-head)', letterSpacing: '-0.01em', transform: 'translateY(1.5px)', display: 'inline-block' }}>Canopy</span>
             </button>
             {isMobile && (
               <button
@@ -1015,15 +1007,18 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', userSelect: 'none' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; setWsRowHovered(true) }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; setWsRowHovered(false) }}>
-            <span style={{ fontSize: '22px', lineHeight: 1, borderRadius: '4px', padding: '1px' }}>{currentWs.icon}</span>
+            <div style={{ width: 26, height: 26, borderRadius: '6px', background: 'var(--sidebar-active)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', lineHeight: 1, flexShrink: 0 }}>{currentWs.icon}</div>
             {renamingWs ? (
               <input autoFocus value={wsNameInput} onChange={e => setWsNameInput(e.target.value)}
                 onBlur={() => renameWorkspace(wsNameInput)}
                 onKeyDown={e => { if (e.key === 'Enter') renameWorkspace(wsNameInput); if (e.key === 'Escape') setRenamingWs(false) }}
                 onClick={e => e.stopPropagation()}
-                style={{ flex: 1, border: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '14px', fontWeight: 600, color: 'var(--text)', outline: 'none', borderBottom: '1px solid var(--accent)' }} />
+                style={{ flex: 1, border: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600, color: 'var(--text)', outline: 'none', borderBottom: '1px solid var(--accent)' }} />
             ) : (
-              <span style={{ flex: 1, fontSize: '14px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentWs.name}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>{currentWs.name}</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Workspace</div>
+              </div>
             )}
             {wsRowHovered && (
               <button onClick={e => { e.stopPropagation(); setWsSettingsTab('general'); setWsSettingsOpen(true); setWsMenuOpen(false); loadWsMembers() }}
@@ -1038,7 +1033,11 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           </div>
 
           {wsMenuOpen && (
-            <div style={{ position: 'absolute', top: '54px', left: '8px', width: '250px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 200, padding: '6px' }} className="scale-in">
+            <div style={{ position: 'absolute', top: '54px', left: '8px', width: '250px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)', zIndex: 200, padding: '6px' }} className="scale-in">
+              <MenuItem onClick={() => { setWsMenuOpen(false); setWsSettingsTab('general'); setWsSettingsOpen(true); loadWsMembers() }}>⚙️ Workspace settings</MenuItem>
+              <MenuItem onClick={() => { setWsMenuOpen(false); setWsSettingsTab('members'); setWsSettingsOpen(true); loadWsMembers() }}>👥 Invite members</MenuItem>
+              <MenuItem onClick={() => { setWsMenuOpen(false); createWorkspace() }}>➕ New workspace</MenuItem>
+              <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
               {workspaces.map(ws => (
                 <div key={ws.id} onClick={() => switchWorkspace(ws)}
                   style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', background: ws.id === currentWs.id ? 'var(--sidebar-active)' : 'transparent' }}
@@ -1071,8 +1070,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                   </div>
                 ))}
               </>}
-              <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-              <MenuItem onClick={createWorkspace}>➕ New workspace</MenuItem>
             </div>
           )}
         </div>
@@ -1224,12 +1221,30 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           {userMenuOpen && (
             <>
               <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={() => setUserMenuOpen(false)} />
-              <div style={{ position: 'absolute', bottom: '64px', left: '8px', right: '8px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', boxShadow: 'var(--shadow-lg)', zIndex: 300, padding: '8px' }} className="scale-in">
-                <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', marginBottom: '4px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '2px' }}>{user.name}</div>
-                  <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{user.email}</div>
+              <div style={{ position: 'absolute', bottom: 'calc(100% + 2px)', left: '9px', right: '9px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', boxShadow: '0 -10px 30px rgba(0,0,0,.14)', zIndex: 300, padding: '6px' }} className="scale-in">
+                {/* Avatar header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '6px 7px 8px', borderBottom: '1px solid var(--border)', marginBottom: '4px' }}>
+                  <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 600, color: '#fff', flexShrink: 0 }}>
+                    {user.name[0]?.toUpperCase()}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{user.name}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
+                  </div>
                 </div>
                 <MenuItem onClick={() => { setUserMenuOpen(false); setSettingsTab('profile'); setSettingsOpen(true) }}>⚙️ Settings</MenuItem>
+                {/* Appearance segmented control */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 9px', fontSize: '13px', color: 'var(--text)' }}>
+                  <span>Appearance</span>
+                  <div style={{ display: 'flex', gap: '2px', background: 'var(--sidebar-bg)', borderRadius: '7px', padding: '2px' }}>
+                    {(['light', 'dark'] as const).map(t => (
+                      <button key={t} onClick={() => { setTheme(t); setUserMenuOpen(false) }}
+                        style={{ border: 'none', background: theme === t ? 'var(--bg)' : 'none', fontFamily: 'var(--font-body)', fontSize: '12px', color: 'var(--text)', padding: '4px 10px', borderRadius: '5px', cursor: 'pointer', boxShadow: theme === t ? '0 1px 2px rgba(0,0,0,.14)' : 'none', transition: 'background .1s,box-shadow .1s' }}>
+                        {t === 'light' ? 'Light' : 'Dark'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
                 <MenuItem onClick={() => { handleSignOut(); setUserMenuOpen(false) }}>🚪 Sign out</MenuItem>
               </div>
@@ -1248,7 +1263,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         }}
       >
         {/* Top bar */}
-        <div style={{ height: '48px', padding: '0 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <div style={{ height: '52px', padding: '0 16px', borderBottom: '1px solid var(--border)', background: 'var(--topbar-bg)', backdropFilter: 'saturate(180%) blur(8px)', WebkitBackdropFilter: 'saturate(180%) blur(8px)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0, position: 'sticky', top: 0, zIndex: 10 }}>
           <button onClick={() => setSidebarOpen(o => !o)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '18px', padding: isMobile ? '10px 12px' : '4px 6px', borderRadius: '4px', lineHeight: 1, flexShrink: 0, touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', minWidth: isMobile ? '44px' : undefined, minHeight: isMobile ? '44px' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
@@ -1384,7 +1399,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         </div>
 
         {navigating && (
-          <div style={{ height: '2px', background: 'var(--accent)', position: 'absolute', top: '44px', left: sidebarOpen && !isMobile ? '260px' : '0', right: 0, zIndex: 10, animation: 'loadingBar 0.8s ease-out forwards' }} />
+          <div style={{ height: '2px', background: 'var(--accent)', position: 'absolute', top: '44px', left: sidebarOpen && !isMobile ? '256px' : '0', right: 0, zIndex: 10, animation: 'loadingBar 0.8s ease-out forwards' }} />
         )}
 
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
@@ -2489,9 +2504,19 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
         }}>{badge}</span>
       )}
 
-      {/* Actions row — always on same line */}
-      {(hovered || isFavorite) && !isRenaming && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+      {/* Actions overlay — absolute, fades in on hover, never causes layout shift */}
+      {!isRenaming && (
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)',
+            display: 'flex', alignItems: 'center', gap: '2px',
+            opacity: (hovered || isFavorite) ? 1 : 0,
+            pointerEvents: (hovered || isFavorite) ? 'auto' : 'none',
+            transition: 'opacity .12s',
+            paddingLeft: 20,
+            background: 'linear-gradient(90deg, transparent, var(--side-fade) 38%)',
+          }}>
           {onRemove ? (
             <SbBtn onClick={onRemove} title="Remove">✕</SbBtn>
           ) : (
@@ -2501,8 +2526,8 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
                   <span style={{ color: isFavorite ? '#f59e0b' : undefined }}>{isFavorite ? '★' : '☆'}</span>
                 </SbBtn>
               )}
-              {hovered && onAddSubpage && <SbBtn onClick={onAddSubpage} title="New sub-page">+</SbBtn>}
-              {hovered && <SbBtn onClick={onMoreMenu} title="More options">•••</SbBtn>}
+              {onAddSubpage && <SbBtn onClick={onAddSubpage} title="New sub-page">+</SbBtn>}
+              {onMoreMenu && <SbBtn onClick={onMoreMenu} title="More options">•••</SbBtn>}
             </>
           )}
         </div>
@@ -2540,7 +2565,7 @@ function QuickBtn({ onClick, title, flex, children }: { onClick: () => void; tit
 
 function SectionLabel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
   return (
-    <div style={{ padding: '8px 14px 3px', fontSize: '11px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', userSelect: 'none', ...style }}>
+    <div style={{ padding: '15px 16px 5px', fontFamily: 'var(--font-body)', fontSize: '11px', fontWeight: 600, color: 'var(--side-text-2)', textTransform: 'uppercase', letterSpacing: '.05em', opacity: 0.68, userSelect: 'none', ...style }}>
       {children}
     </div>
   )

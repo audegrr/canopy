@@ -991,7 +991,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       <input ref={importFileRef} type="file" accept=".md,text/markdown,text/plain" style={{ display: 'none' }} onChange={handleMarkdownImport} />
 
       {/* Top bar */}
-      <div style={{ height: focusMode ? 0 : '48px', padding: focusMode ? 0 : '0 12px', borderBottom: focusMode ? 'none' : '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, overflow: focusMode ? 'hidden' : 'visible', transition: 'height 0.2s, padding 0.2s' }}>
+      <div style={{ height: focusMode ? 0 : '48px', padding: focusMode ? 0 : '0 16px', borderBottom: focusMode ? 'none' : '1px solid var(--border)', background: 'var(--bg)', display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0, overflow: focusMode ? 'hidden' : 'visible', transition: 'height 0.2s, padding 0.2s' }}>
 
         {isPublicShare ? (
           /* Public share: Canopy branding left, sign-in CTA right */
@@ -1053,7 +1053,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
           <ExportMenu onPDF={exportPDF} onWord={exportWord} onCSV={exportCSV} onXLSX={page.is_database ? exportXLSX : undefined} onMarkdown={exportMarkdown} isDatabase={!!page.is_database} />
           {!page.is_database && <TopBarBtn onClick={() => setPresentationOpen(true)} iconOnly title="Generate Slides">🎤</TopBarBtn>}
-          <TopBarBtn onClick={exportPDF} iconOnly title="Print / Save as PDF">🖨️</TopBarBtn>
+          <TopBarBtn onClick={exportPDF} iconOnly title="Print">🖨️</TopBarBtn>
           {canEdit && !page.is_database && <TopBarBtn onClick={triggerMarkdownImport} iconOnly title="Import from Markdown">⬇️</TopBarBtn>}
           {canEdit && !page.is_database && <TopBarBtn onClick={saveAsTemplate} iconOnly title="Save as template">📋</TopBarBtn>}
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0 }} />
@@ -1226,7 +1226,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           )}
 
           {/* Page body */}
-          <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? 'min(1800px, calc(100% - 80px))' : 'clamp(900px, 60vw, 1600px)', margin: '0 auto', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 60px 80px') : (isMobile ? '32px 20px 60px' : '64px 60px 80px'), transition: 'max-width 0.3s ease', fontSize: 'calc(1rem * var(--content-zoom, 1))' }}>
+          <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? 'min(1800px, calc(100% - 80px))' : '720px', margin: '0 auto', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 60px 80px') : (isMobile ? '32px 20px 60px' : '64px 60px 80px'), transition: 'max-width 0.3s ease', fontSize: 'calc(1rem * var(--content-zoom, 1))' }}>
 
             {/* Shared-by notice */}
             {!isOwner && ownerName && (
@@ -1303,11 +1303,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                     }
                   }
                 }}
-                className='page-title' style={{ fontSize: '2.5em', fontWeight: 700, color: 'var(--text)', outline: 'none', marginBottom: '2px', lineHeight: 1.2, wordBreak: 'break-word', minHeight: '1.2em', fontFamily: 'var(--font-sans)' }}
+                className='page-title' style={{ fontSize: '2.75rem', fontWeight: 700, color: 'var(--text)', outline: 'none', marginBottom: '2px', lineHeight: 1.1, letterSpacing: '-0.02em', wordBreak: 'break-word', minHeight: '1.1em', fontFamily: 'var(--font-head)' }}
                 data-placeholder="Untitled"
               />
             ) : (
-              <h1 style={{ fontSize: '2.5em', fontWeight: 700, color: 'var(--text)', marginBottom: '2px', lineHeight: 1.2, fontFamily: 'var(--font-sans)' }}>
+              <h1 style={{ fontSize: '2.75rem', fontWeight: 700, color: 'var(--text)', marginBottom: '2px', lineHeight: 1.1, letterSpacing: '-0.02em', fontFamily: 'var(--font-head)' }}>
                 {page.title || 'Untitled'}
               </h1>
             )}
@@ -2216,14 +2216,14 @@ function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, onPresentation, 
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpen(false)} />
           <div style={{ position: 'absolute', top: 'calc(100% + 4px)', right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '6px', boxShadow: 'var(--shadow-lg)', zIndex: 100, minWidth: '190px' }} className="scale-in">
-            {item('📄 Export as PDF', onPDF)}
+            {item('Export as PDF', onPDF)}
             {isDatabase ? (
               <>
-                {item('📊 Export as CSV', onCSV || (() => {}))}
-                {item('📗 Export as Excel', onXLSX || (() => {}))}
+                {item('Export as CSV', onCSV || (() => {}))}
+                {item('Export as Excel', onXLSX || (() => {}))}
               </>
-            ) : item('📝 Export as Word', onWord)}
-            {!isDatabase && item('⬆️ Export as Markdown', onMarkdown || (() => {}))}
+            ) : item('Export as Word', onWord)}
+            {!isDatabase && item('Export as Markdown', onMarkdown || (() => {}))}
           </div>
         </>
       )}
@@ -2263,8 +2263,8 @@ function TopBarBtn({ onClick, active, iconOnly, children, ...props }: { onClick:
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        background: active ? 'var(--accent)' : hovered ? 'var(--sidebar-hover)' : 'transparent',
-        color: active ? '#fff' : hovered ? 'var(--text)' : 'var(--text-secondary)',
+        background: active ? 'var(--accent-light)' : hovered ? 'var(--sidebar-hover)' : 'transparent',
+        color: active ? 'var(--accent)' : hovered ? 'var(--text)' : 'var(--text-secondary)',
         border: active ? '1px solid transparent' : `1px solid ${hovered ? 'var(--border)' : 'transparent'}`,
         padding: iconOnly ? '0 5px' : '0 9px',
         height: '28px',
