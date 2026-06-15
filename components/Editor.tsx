@@ -1599,10 +1599,19 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
               editor.chain().focus().clearNodes().run()
             } else {
               const { from, to } = editor.state.selection
-              const text = from !== to ? editor.state.doc.textBetween(from, to) : ''
+              const inlineContent: any[] = []
+              if (from !== to) {
+                editor.state.doc.slice(from, to).content.forEach((node: any) => {
+                  if (node.isText || node.isInline) {
+                    inlineContent.push(node.toJSON())
+                  } else if (node.isBlock) {
+                    node.content.forEach((child: any) => inlineContent.push(child.toJSON()))
+                  }
+                })
+              }
               editor.chain().focus()
                 .deleteSelection()
-                .insertContent({ type: 'callout', attrs: { emoji: null }, content: text ? [{ type: 'text', text }] : [] })
+                .insertContent({ type: 'callout', attrs: { emoji: null }, content: inlineContent })
                 .run()
             }
           }} active={editor.isActive('callout')} title='Callout'><Icon name="callout" size={14}/></FBtn>
