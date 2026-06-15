@@ -1129,13 +1129,13 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         {/* Trash */}
         <div style={{ borderTop: '1px solid var(--border)', flexShrink: 0 }}>
           <div onClick={() => { setTrashOpen(o => !o); if (!trashOpen) loadTrash() }}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 14px', cursor: 'pointer', fontSize: '13px', color: 'var(--side-text)' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 18px', cursor: 'pointer', color: 'var(--text-secondary)', borderRadius: '5px', margin: '1px 4px' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--side-hover)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-            <Icon name="trash" size={14} style={{ color: 'var(--side-text-2)', flexShrink: 0 }} />
-            <span style={{ flex: 1, fontFamily: 'var(--font-body)', fontSize: '13px' }}>Trash</span>
-            {trashedPages.length > 0 && <span style={{ fontSize: '11px', color: 'var(--side-text-2)' }}>{trashedPages.length}</span>}
-            <span style={{ color: 'var(--side-text-2)', transition: 'transform 0.15s', transform: trashOpen ? 'rotate(90deg)' : 'none', display: 'flex' }}><Icon name="chev-right" size={12} /></span>
+            <Icon name="trash" size={15} style={{ flexShrink: 0 }} />
+            <span style={{ flex: 1, fontFamily: 'var(--font-sans)', fontSize: '14px' }}>Trash</span>
+            {trashedPages.length > 0 && <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{trashedPages.length}</span>}
+            <span style={{ transition: 'transform 0.15s', transform: trashOpen ? 'rotate(90deg)' : 'none', display: 'flex' }}><Icon name="chev-right" size={12} /></span>
           </div>
           {trashOpen && (
             <div style={{ background: 'var(--sidebar-bg)', borderBottom: '1px solid var(--border)', maxHeight: '280px', overflowY: 'auto' }}>
