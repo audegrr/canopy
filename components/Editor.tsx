@@ -213,12 +213,12 @@ function CalloutView({ node, updateAttributes }: any) {
   const emoji = node.attrs.emoji
   return (
     <NodeViewWrapper>
-      <div style={{ background: 'var(--callout-bg)', border: '1px solid var(--border-strong)', borderRadius: '10px', padding: '12px 16px', margin: '6px 0', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+      <div style={{ background: 'var(--callout-bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '12px 16px', margin: '6px 0', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
         <div style={{ position: 'relative', flexShrink: 0 }}>
-          <span onClick={() => setShowPicker(o => !o)} style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', paddingTop: '2px', color: 'var(--text-secondary)' }}>
+          <span onClick={() => setShowPicker(o => !o)} style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', paddingTop: '2px', color: 'var(--text-tertiary)' }}>
             {emoji
               ? <span style={{ fontSize: '20px', lineHeight: 1.4 }}>{emoji}</span>
-              : <Icon name="asterisk" size={20} />
+              : <Icon name="loader" size={20} />
             }
           </span>
           {showPicker && (
