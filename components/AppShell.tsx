@@ -1157,7 +1157,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                     <div key={p.id} className="trash-item" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px 5px 14px', fontSize: '13px', color: 'var(--side-text)', position: 'relative' }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--side-hover)' }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                      <span style={{ flexShrink: 0, fontSize: '14px', lineHeight: 1 }}>{p.icon || <Icon name="doc" size={13} style={{ color: 'var(--side-text-2)' }} />}</span>
+                      <span style={{ flexShrink: 0, fontSize: '14px', lineHeight: 1 }}>{p.icon || (p.is_database ? '🗄️' : '📄')}</span>
                       <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || 'Untitled'}</span>
                       <span className="t-acts" style={{ display: 'flex', gap: '1px', flexShrink: 0 }}>
                         <span title="Restore" onClick={() => restorePage(p.id)}
