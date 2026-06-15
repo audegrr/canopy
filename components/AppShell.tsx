@@ -1239,18 +1239,21 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
           {/* Breadcrumb */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '2px', overflow: 'hidden', flex: 1 }}>
-            {breadcrumbs.map((crumb, i) => (
-              <div key={crumb.id} style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: i < breadcrumbs.length - 1 ? 1 : 0, minWidth: 0 }}>
-                {i > 0 && <span style={{ color: 'var(--text-tertiary)', fontSize: '12px', flexShrink: 0, margin: '0 1px' }}>/</span>}
-                <button onClick={() => navigate(`/app/page/${crumb.id}`)}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px', color: i === breadcrumbs.length - 1 ? 'var(--text)' : 'var(--text-secondary)', padding: '3px 5px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px', maxWidth: i < breadcrumbs.length - 1 ? '100px' : 'none', fontWeight: i === breadcrumbs.length - 1 ? 500 : 400, whiteSpace: 'nowrap', overflow: 'hidden' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                  <span style={{ fontSize: '13px', flexShrink: 0 }}>{crumb.icon}</span>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{crumb.title}</span>
-                </button>
-              </div>
-            ))}
+            {breadcrumbs.map((crumb, i) => {
+              const isLast = i === breadcrumbs.length - 1
+              return (
+                <div key={crumb.id} style={{ display: 'flex', alignItems: 'center', gap: '2px', ...(isLast ? { flex: 1, minWidth: 0 } : { flexShrink: 1, minWidth: 0 }) }}>
+                  {i > 0 && <span style={{ color: 'var(--text-tertiary)', fontSize: '12px', flexShrink: 0, margin: '0 1px' }}>/</span>}
+                  <button onClick={() => navigate(`/app/page/${crumb.id}`)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px', color: isLast ? 'var(--text)' : 'var(--text-secondary)', padding: '3px 5px', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '4px', maxWidth: isLast ? 'none' : '100px', fontWeight: isLast ? 500 : 400, whiteSpace: 'nowrap', overflow: 'hidden', ...(isLast ? { flex: 1, minWidth: 0 } : {}) }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                    <span style={{ fontSize: '13px', flexShrink: 0 }}>{crumb.icon}</span>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', ...(isLast ? { flex: 1, minWidth: 0 } : {}) }}>{crumb.title}</span>
+                  </button>
+                </div>
+              )
+            })}
           </div>
 
           {/* Font zoom controls */}
