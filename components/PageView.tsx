@@ -50,6 +50,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   const lastSaveTimestamp = useRef<string | null>(null)
   const saveTimestamps = useRef(new Set<string>())
   const savedContents = useRef(new Set<string>())
+  // 3-way merge baseline: the last content/title state that is shared with the server
+  const baselineContentRef = useRef<any>(initialPage.content)
+  const baselineTitleRef = useRef<string>(initialPage.title || '')
   const localContentRef = useRef(initialPage.content)
   const editorRef = useRef<any>(null)
   const editorReadyRef = useRef(false)
@@ -253,13 +256,42 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
         if (remote.content && savedContents.current.has(remoteContentStr)) return
         if (!titleChanged && (!remoteIsNew || remoteMatchesCurrent)) return
         if (savedRef.current) {
-          // No unsaved local changes — silently apply remote content
+          // No unsaved local changes — silently apply remote content and advance baseline
           if (remote.content) editorRef.current.commands.setContent(remote.content, false)
           setPage(p => ({ ...p, content: remote.content ?? p.content, title: remote.title ?? p.title }))
           if (remote.title && titleRef.current) titleRef.current.textContent = remote.title
+          if (remote.content) baselineContentRef.current = remote.content
+          if (remote.title) baselineTitleRef.current = remote.title
         } else {
-          // We have unsaved local changes — surface conflict
-          setRemoteConflict({ content: remote.content, title: remote.title })
+          // We have unsaved local changes — try 3-way block-level merge before surfacing a conflict
+          const localTitle = titleRef.current?.textContent ?? page.title
+          const localTitleChanged = localTitle !== baselineTitleRef.current
+          const remoteTitleChanged = !!(remote.title && remote.title !== baselineTitleRef.current)
+          const titleConflict = localTitleChanged && remoteTitleChanged && remote.title !== localTitle
+
+          const mergeResult = remote.content
+            ? tryMergeDocuments(baselineContentRef.current, remote.content, editorRef.current.getJSON())
+            : { merged: null, hasConflict: false }
+
+          if (!mergeResult.hasConflict && !titleConflict) {
+            // Blocks edited by each user don't overlap — merge silently
+            if (mergeResult.merged) {
+              editorRef.current.commands.setContent(mergeResult.merged, false)
+              localContentRef.current = mergeResult.merged
+              baselineContentRef.current = mergeResult.merged
+              // Re-queue save so the merged document gets written to the server
+              scheduleSave({ content: mergeResult.merged })
+            }
+            if (remote.title && !localTitleChanged) {
+              if (titleRef.current) titleRef.current.textContent = remote.title
+              baselineTitleRef.current = remote.title
+              setPage(p => ({ ...p, title: remote.title ?? p.title }))
+            }
+            showToast('Changes from another user were merged')
+          } else {
+            // True conflict — same block(s) changed by both users
+            setRemoteConflict({ content: remote.content, title: remote.title })
+          }
         }
       })
       .on('presence', { event: 'sync' }, () => {
@@ -436,6 +468,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       if (updates.content) setTimeout(() => savedContents.current.delete(contentStr), 20_000)
       setSaved(true)
       savedRef.current = true
+      // Advance the 3-way merge baseline to what was just saved
+      const savedContent = pending.content ?? updates.content
+      if (savedContent) baselineContentRef.current = savedContent
+      const savedTitle = pending.title ?? updates.title
+      if (savedTitle) baselineTitleRef.current = savedTitle
       // Update page state after save (not on every keystroke) to reduce re-renders
       setPage(p => ({ ...p, ...(updates.content ? { content: updates.content } : {}), updated_at: ts }))
       // Save a snapshot every 10 edits (silently ignore if table doesn't exist)
@@ -1861,6 +1898,35 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       )}
     </div>
   )
+}
+
+// 3-way merge at the top-level block granularity.
+// Returns { merged, hasConflict:false } when the sets of blocks changed by remote and local are
+// disjoint (safe to auto-merge), or { merged:null, hasConflict:true } when they overlap.
+function tryMergeDocuments(base: any, remote: any, local: any): { merged: any; hasConflict: boolean } {
+  const getBlocks = (doc: any): any[] =>
+    doc?.type === 'doc' ? (doc.content ?? []) : Array.isArray(doc) ? doc : []
+
+  const baseBlocks  = getBlocks(base)
+  const remoteBlocks = getBlocks(remote)
+  const localBlocks  = getBlocks(local)
+  const maxLen = Math.max(baseBlocks.length, remoteBlocks.length, localBlocks.length)
+
+  const remoteChanged = new Set<number>()
+  const localChanged  = new Set<number>()
+  for (let i = 0; i < maxLen; i++) {
+    if (JSON.stringify(baseBlocks[i]) !== JSON.stringify(remoteBlocks[i])) remoteChanged.add(i)
+    if (JSON.stringify(baseBlocks[i]) !== JSON.stringify(localBlocks[i]))  localChanged.add(i)
+  }
+
+  if ([...remoteChanged].some(i => localChanged.has(i))) return { merged: null, hasConflict: true }
+
+  // Start with remote, overlay blocks that only the local user changed
+  const mergedBlocks = [...remoteBlocks]
+  while (mergedBlocks.length < localBlocks.length) mergedBlocks.push(undefined as any)
+  for (const i of localChanged) mergedBlocks[i] = localBlocks[i]
+
+  return { merged: { type: 'doc', content: mergedBlocks.filter(Boolean) }, hasConflict: false }
 }
 
 function findFirstDifferingBlock(docA: any, docB: any): { mine: string; theirs: string } | null {
