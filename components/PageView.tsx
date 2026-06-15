@@ -10,6 +10,12 @@ import DatabaseView from './DatabaseView'
 import EmojiPicker from './EmojiPicker'
 import { Icon } from './Icons'
 
+declare global {
+  interface Window {
+    __pageCache: Map<string, { page: Page; canEdit: boolean; isOwner: boolean; userId: string }> | undefined
+  }
+}
+
 type Props = {
   page: Page
   canEdit: boolean
@@ -487,8 +493,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   }
 
   function updatePageCache(patch: Partial<Page>) {
-    const wc = (window as any).__pageCache
-    if (wc?.has(page.id)) wc.set(page.id, { ...wc.get(page.id), page: { ...wc.get(page.id).page, ...patch } })
+    const wc = window.__pageCache
+    if (wc?.has(page.id)) wc.set(page.id, { ...wc.get(page.id)!, page: { ...wc.get(page.id)!.page, ...patch } })
   }
 
   function onTitleInput(e: React.FormEvent<HTMLDivElement>) {

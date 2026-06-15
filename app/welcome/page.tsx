@@ -59,16 +59,16 @@ export default function WelcomePage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
       <div style={{ width: '100%', maxWidth: '380px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 48, height: 48, objectFit: 'contain', marginBottom: '8px' }} />
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#37352f', marginBottom: '4px' }}>Welcome to Canopy!</h1>
-          <p style={{ color: '#787774', fontSize: '14px' }}>You&apos;ve been added to a workspace. Set up your account to get started.</p>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)', marginBottom: '4px' }}>Welcome to Canopy!</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>You&apos;ve been added to a workspace. Set up your account to get started.</p>
         </div>
-        <div style={{ background: '#fff', border: '1px solid #e9e9e7', borderRadius: '8px', padding: '28px', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
+        <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '28px', boxShadow: '0 2px 8px rgba(0,0,0,.06)' }}>
           <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#37352f', marginBottom: '6px' }}>Your name</label>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text)', marginBottom: '6px' }}>Your name</label>
             <input
               value={name}
               onChange={e => setName(e.target.value)}
@@ -81,7 +81,7 @@ export default function WelcomePage() {
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: '#37352f', marginBottom: '6px' }}>Password</label>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--text)', marginBottom: '6px' }}>Password</label>
               <input
                 type="password"
                 value={password}
@@ -98,9 +98,9 @@ export default function WelcomePage() {
           </form>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '16px 0' }}>
-            <div style={{ flex: 1, height: '1px', background: '#e9e9e7' }} />
-            <span style={{ color: '#acaba8', fontSize: '12px' }}>or</span>
-            <div style={{ flex: 1, height: '1px', background: '#e9e9e7' }} />
+            <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+            <span style={{ color: 'var(--text-tertiary)', fontSize: '12px' }}>or</span>
+            <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
           </div>
 
           <button onClick={handleGoogle} disabled={loading} style={googleBtn}>
@@ -113,6 +113,6 @@ export default function WelcomePage() {
   )
 }
 
-const inputSt: React.CSSProperties = { width: '100%', padding: '9px 12px', border: '1px solid #e9e9e7', borderRadius: '6px', fontFamily: 'Inter, sans-serif', fontSize: '14px', color: '#37352f', outline: 'none', boxSizing: 'border-box' }
-const primaryBtn: React.CSSProperties = { background: '#2383e2', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', fontFamily: 'Inter, sans-serif', fontSize: '14px', fontWeight: 500, cursor: 'pointer', width: '100%' }
-const googleBtn: React.CSSProperties = { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '9px', border: '1px solid #e9e9e7', borderRadius: '6px', background: '#fff', fontFamily: 'Inter, sans-serif', fontSize: '14px', cursor: 'pointer', color: '#37352f' }
+const inputSt: React.CSSProperties = { width: '100%', padding: '9px 12px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '14px', color: 'var(--text)', outline: 'none', background: 'var(--surface)', boxSizing: 'border-box' }
+const primaryBtn: React.CSSProperties = { background: 'var(--accent)', color: '#fff', border: 'none', padding: '10px', borderRadius: '6px', fontSize: '14px', fontWeight: 500, cursor: 'pointer', width: '100%' }
+const googleBtn: React.CSSProperties = { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', padding: '9px', border: '1px solid var(--border)', borderRadius: '6px', background: 'var(--surface)', fontSize: '14px', cursor: 'pointer', color: 'var(--text)' }
