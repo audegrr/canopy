@@ -1599,20 +1599,16 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
               editor.chain().focus().clearNodes().run()
             } else {
               const { state, view } = editor
-              const { from, to } = state.selection
-              const calloutType = state.schema.nodes.callout
+              const { from } = state.selection
+              const $from = state.doc.resolve(from)
+              const blockStart = $from.before($from.depth)
+              const blockEnd = $from.after($from.depth)
+              const blockNode = $from.node($from.depth)
               const inlineNodes: any[] = []
-              if (from !== to) {
-                state.doc.slice(from, to).content.forEach((node: any) => {
-                  if (node.isText || node.isInline) {
-                    inlineNodes.push(node)
-                  } else if (node.isBlock) {
-                    node.content.forEach((child: any) => inlineNodes.push(child))
-                  }
-                })
-              }
+              blockNode.content.forEach((child: any) => inlineNodes.push(child))
+              const calloutType = state.schema.nodes.callout
               const calloutNode = calloutType.create({ emoji: null }, inlineNodes)
-              view.dispatch(state.tr.replaceWith(from, to, calloutNode))
+              view.dispatch(state.tr.replaceWith(blockStart, blockEnd, calloutNode))
               editor.commands.focus()
             }
           }} active={editor.isActive('callout')} title='Callout'><Icon name="callout" size={14}/></FBtn>
