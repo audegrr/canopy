@@ -1258,7 +1258,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           )}
 
           {/* Page body */}
-          <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? 'min(1800px, calc(100% - 80px))' : 'min(960px, 100%)', margin: '0 auto', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 48px 80px') : (isMobile ? '32px 20px 60px' : '64px 48px 80px'), transition: 'max-width 0.3s ease', fontSize: 'calc(1rem * var(--content-zoom, 1))' }}>
+          <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? 'min(1800px, calc(100% - 80px))' : 'min(960px, 100%)', margin: '0 auto', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 48px 80px') : (isMobile ? '32px 20px 60px' : '48px 48px 80px'), transition: 'max-width 0.3s ease', fontSize: 'calc(1rem * var(--content-zoom, 1))' }}>
 
             {/* Shared-by notice */}
             {!isOwner && ownerName && (
@@ -1281,7 +1281,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
               ) : null}
               {/* Add icon / Add cover buttons — always visible when no icon, cover button always when no cover */}
               {canEdit && (
-                <div data-export-hide className="page-hover-btns" style={{ display: 'flex', gap: '8px', marginBottom: page.icon ? '4px' : '12px' }}>
+                <div data-export-hide className="page-hover-btns" style={{ display: 'flex', gap: '8px', marginBottom: page.icon ? '16px' : '32px' }}>
                   {!page.icon && (
                     <button onClick={() => setShowIconPicker(o => !o)}
                       style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '15px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-body)', padding: '3px 7px', borderRadius: '5px', display: 'flex', alignItems: 'center', gap: '6px', transition: 'background .12s, color .12s' }}
