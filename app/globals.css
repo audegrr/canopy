@@ -17,6 +17,7 @@
   /* ── Accent (forest green) ── */
   --accent: #2f6b4f;
   --accent-light: #eef4f0;
+  --callout-bg: #f0efec;
 
   /* ── Sidebar (old names kept as aliases for inline styles) ── */
   --sidebar-bg: #edf0ec;
@@ -707,6 +708,7 @@ html.theme-transitioning *::after {
 
   --topbar-bg: rgba(26,26,24,.88);
   --red: #f87171;
+  --callout-bg: #242320;
 }
 [data-theme="dark"] body {
   background: var(--bg);

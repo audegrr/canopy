@@ -213,12 +213,12 @@ function CalloutView({ node, updateAttributes }: any) {
   const emoji = node.attrs.emoji
   return (
     <NodeViewWrapper>
-      <div style={{ background: 'var(--accent-light)', border: '1px solid rgba(47,107,79,0.2)', borderRadius: '10px', padding: '12px 16px', margin: '6px 0', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+      <div style={{ background: 'var(--callout-bg)', border: '1px solid var(--border-strong)', borderRadius: '10px', padding: '12px 16px', margin: '6px 0', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
         <div style={{ position: 'relative', flexShrink: 0 }}>
-          <span onClick={() => setShowPicker(o => !o)} style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', paddingTop: '2px', color: 'var(--accent)' }}>
+          <span onClick={() => setShowPicker(o => !o)} style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', paddingTop: '2px', color: 'var(--text-secondary)' }}>
             {emoji
               ? <span style={{ fontSize: '20px', lineHeight: 1.4 }}>{emoji}</span>
-              : <Icon name="sun" size={20} />
+              : <Icon name="asterisk" size={20} />
             }
           </span>
           {showPicker && (
@@ -1595,13 +1595,17 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
             else editor.chain().focus().toggleBlockquote().run()
           }} active={editor.isActive('blockquote')} title='Quote'>❝</FBtn>
           <FBtn onClick={() => {
-            const { from, to } = editor.state.selection
-            const text = from !== to ? editor.state.doc.textBetween(from, to) : ''
-            editor.chain().focus()
-              .deleteSelection()
-              .insertContent({ type: 'callout', attrs: { emoji: '💡' }, content: text ? [{ type: 'text', text }] : [] })
-              .run()
-          }} active={false} title='Callout'>💡</FBtn>
+            if (editor.isActive('callout')) {
+              editor.chain().focus().clearNodes().run()
+            } else {
+              const { from, to } = editor.state.selection
+              const text = from !== to ? editor.state.doc.textBetween(from, to) : ''
+              editor.chain().focus()
+                .deleteSelection()
+                .insertContent({ type: 'callout', attrs: { emoji: null }, content: text ? [{ type: 'text', text }] : [] })
+                .run()
+            }
+          }} active={editor.isActive('callout')} title='Callout'>💡</FBtn>
           <FBtn onClick={() => {
             if (inHeading) editor.chain().focus().clearNodes().toggleCodeBlock().run()
             else if (inBlockquote) editor.chain().focus().toggleBlockquote().toggleCodeBlock().run()
