@@ -142,6 +142,30 @@ const ICONS: Record<string, () => React.ReactNode> = {
     <circle cx="8.5" cy="8.5" r="1.5"/>
     <path d="M21 15l-5-5L5 21"/>
   </>,
+  list: () => <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>,
+  'list-ordered': () => <>
+    <path d="M10 6h11M10 12h11M10 18h11"/>
+    <path d="M4 3.5v5M3 4l1-1M3 8.5h2"/>
+    <path d="M3 11a1.5 1.5 0 0 1 3 0c0 1-3 1.5-3 3h3"/>
+    <path d="M3 16.5a1.5 1.5 0 0 1 1.5-1.5 1.5 1.5 0 0 1 1.5 1.5 1.5 1.5 0 0 1-1.5 1.5H3h1.5a1.5 1.5 0 0 1 1.5 1.5 1.5 1.5 0 0 1-1.5 1.5H3"/>
+  </>,
+  'list-todo': () => <>
+    <rect x="3" y="4" width="5" height="5" rx="1"/>
+    <path d="m3.5 6.5 1.5 1.5 2-2.5M11 6h10M3 14h18M3 19h18"/>
+  </>,
+  quote: () => <>
+    <rect x="2.5" y="4" width="3" height="16" rx="1.5" fill="currentColor" stroke="none"/>
+    <path d="M9 8h12M9 12h12M9 16h8"/>
+  </>,
+  callout: () => <>
+    <circle cx="12" cy="12" r="10"/>
+    <path d="M12 16v-4M12 8h.01"/>
+  </>,
+  'code-block': () => <path d="m7 8-4 4 4 4M17 8l4 4-4 4M14 4l-4 16"/>,
+  'align-left': () => <path d="M3 6h18M3 12h12M3 18h15"/>,
+  'align-center': () => <path d="M3 6h18M6 12h12M4.5 18h15"/>,
+  'align-right': () => <path d="M3 6h18M9 12h12M6 18h15"/>,
+  sparkle: () => <path fill="currentColor" stroke="none" d="M12 2l2 8 8 2-8 2-2 8-2-8-8-2 8-2z"/>,
 }
 
 export function Icon({ name, size = 16, style, className }: { name: string; size?: number; style?: React.CSSProperties; className?: string }) {

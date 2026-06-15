@@ -1503,11 +1503,11 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
           {/* Image-only controls */}
           {editor.isActive('image') && <>
             <FBtn title="Align left" onClick={() => editor.chain().focus().updateAttributes('image', { align: 'left' }).run()}
-              active={editor.getAttributes('image').align === 'left' || !editor.getAttributes('image').align}>⬅</FBtn>
+              active={editor.getAttributes('image').align === 'left' || !editor.getAttributes('image').align}><Icon name="align-left" size={14}/></FBtn>
             <FBtn title="Center" onClick={() => editor.chain().focus().updateAttributes('image', { align: 'center' }).run()}
-              active={editor.getAttributes('image').align === 'center'}>↔</FBtn>
+              active={editor.getAttributes('image').align === 'center'}><Icon name="align-center" size={14}/></FBtn>
             <FBtn title="Align right" onClick={() => editor.chain().focus().updateAttributes('image', { align: 'right' }).run()}
-              active={editor.getAttributes('image').align === 'right'}>➡</FBtn>
+              active={editor.getAttributes('image').align === 'right'}><Icon name="align-right" size={14}/></FBtn>
           </>}
           {/* All other controls — hidden for images */}
           {!editor.isActive('image') && <>
@@ -1578,22 +1578,22 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
             if (inHeading || inCodeBlock) editor.chain().focus().clearNodes().toggleBulletList().run()
             else if (inBlockquote) editor.chain().focus().toggleBlockquote().toggleBulletList().run()
             else editor.chain().focus().toggleBulletList().run()
-          }} active={editor.isActive('bulletList')} title='Bullet list'>•</FBtn>
+          }} active={editor.isActive('bulletList')} title='Bullet list'><Icon name="list" size={14}/></FBtn>
           <FBtn onClick={() => {
             if (inHeading || inCodeBlock) editor.chain().focus().clearNodes().toggleOrderedList().run()
             else if (inBlockquote) editor.chain().focus().toggleBlockquote().toggleOrderedList().run()
             else editor.chain().focus().toggleOrderedList().run()
-          }} active={editor.isActive('orderedList')} title='Numbered list'>1.</FBtn>
+          }} active={editor.isActive('orderedList')} title='Numbered list'><Icon name="list-ordered" size={14}/></FBtn>
           <FBtn onClick={() => {
             if (inHeading || inCodeBlock) editor.chain().focus().clearNodes().toggleTaskList().run()
             else if (inBlockquote) editor.chain().focus().toggleBlockquote().toggleTaskList().run()
             else editor.chain().focus().toggleTaskList().run()
             setTimeout(() => editor.commands.focus(), 0)
-          }} active={editor.isActive('taskList')} title='To-do list'>☑</FBtn>
+          }} active={editor.isActive('taskList')} title='To-do list'><Icon name="list-todo" size={14}/></FBtn>
           <FBtn onClick={() => {
             if (inHeading || inCodeBlock) editor.chain().focus().clearNodes().toggleBlockquote().run()
             else editor.chain().focus().toggleBlockquote().run()
-          }} active={editor.isActive('blockquote')} title='Quote'>❝</FBtn>
+          }} active={editor.isActive('blockquote')} title='Quote'><Icon name="quote" size={14}/></FBtn>
           <FBtn onClick={() => {
             if (editor.isActive('callout')) {
               editor.chain().focus().clearNodes().run()
@@ -1605,12 +1605,12 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
                 .insertContent({ type: 'callout', attrs: { emoji: null }, content: text ? [{ type: 'text', text }] : [] })
                 .run()
             }
-          }} active={editor.isActive('callout')} title='Callout'>💡</FBtn>
+          }} active={editor.isActive('callout')} title='Callout'><Icon name="callout" size={14}/></FBtn>
           <FBtn onClick={() => {
             if (inHeading) editor.chain().focus().clearNodes().toggleCodeBlock().run()
             else if (inBlockquote) editor.chain().focus().toggleBlockquote().toggleCodeBlock().run()
             else editor.chain().focus().toggleCodeBlock().run()
-          }} active={editor.isActive('codeBlock')} title='Code block'>{'<>'}</FBtn>
+          }} active={editor.isActive('codeBlock')} title='Code block'><Icon name="code-block" size={14}/></FBtn>
           {/* Link and alignment — always shown */}
           <>
             <div className="floating-sep" />
@@ -1619,11 +1619,11 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
               const url = window.prompt('URL:', prev || 'https://')
               if (url === null) return
               url === '' ? editor.chain().focus().unsetLink().run() : editor.chain().focus().setLink({ href: url }).run()
-            }} active={editor.isActive('link')} title='Link'>🔗</FBtn>
+            }} active={editor.isActive('link')} title='Link'><Icon name="link" size={14}/></FBtn>
             <div className="floating-sep" />
-            <FBtn onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title='Align left'>⬅</FBtn>
-            <FBtn onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} title='Center'>↔</FBtn>
-            <FBtn onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} title='Align right'>➡</FBtn>
+            <FBtn onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title='Align left'><Icon name="align-left" size={14}/></FBtn>
+            <FBtn onClick={() => editor.chain().focus().setTextAlign('center').run()} active={editor.isActive({ textAlign: 'center' })} title='Center'><Icon name="align-center" size={14}/></FBtn>
+            <FBtn onClick={() => editor.chain().focus().setTextAlign('right').run()} active={editor.isActive({ textAlign: 'right' })} title='Align right'><Icon name="align-right" size={14}/></FBtn>
             <div className="floating-sep" />
             <FBtn btnRef={aiBtnRef} onClick={() => {
                 const { from, to } = editor.state.selection
@@ -1634,7 +1634,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
                 }
                 setShowAiMenu(o => !o)
               }} active={showAiMenu} title='AI rewrite' disabled={aiLoading}>
-                {aiLoading ? '…' : '✨ AI'}
+                {aiLoading ? '…' : <><Icon name="sparkle" size={12}/> AI</>}
               </FBtn>
             {editable && !editor.state.selection.empty && !inCodeBlock && (
               <FBtn onClick={() => {
@@ -1643,7 +1643,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
                 const { from, to } = editor.state.selection
                 const text = editor.state.doc.textBetween(from, to)
                 window.dispatchEvent(new CustomEvent('canopy:addComment', { detail: { anchorId, text } }))
-              }} active={editor.isActive('comment')} title='Add comment'>💬</FBtn>
+              }} active={editor.isActive('comment')} title='Add comment'><Icon name="comment" size={14}/></FBtn>
             )}
           </>
           </>}
