@@ -1609,9 +1609,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
               const calloutType = state.schema.nodes.callout
               const calloutNode = calloutType.create({ emoji: null }, inlineNodes)
               const tr = state.tr.replaceWith(blockStart, blockEnd, calloutNode)
-              const newFrom = tr.mapping.map(from)
-              const newTo = tr.mapping.map(state.selection.to)
-              tr.setSelection(TextSelection.create(tr.doc, newFrom, newTo))
+              tr.setSelection(TextSelection.create(tr.doc, from, state.selection.to))
               view.dispatch(tr)
             }
           }} active={editor.isActive('callout')} title='Callout'><Icon name="callout" size={14}/></FBtn>
