@@ -1608,8 +1608,9 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
               blockNode.content.forEach((child: any) => inlineNodes.push(child))
               const calloutType = state.schema.nodes.callout
               const calloutNode = calloutType.create({ emoji: null }, inlineNodes)
-              view.dispatch(state.tr.replaceWith(blockStart, blockEnd, calloutNode))
-              editor.commands.focus()
+              const tr = state.tr.replaceWith(blockStart, blockEnd, calloutNode)
+              tr.setSelection(TextSelection.near(tr.doc.resolve(blockStart + 1)))
+              view.dispatch(tr)
             }
           }} active={editor.isActive('callout')} title='Callout'><Icon name="callout" size={14}/></FBtn>
           <FBtn onClick={() => {
