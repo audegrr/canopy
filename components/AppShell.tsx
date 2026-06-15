@@ -1064,11 +1064,11 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         {/* Quick actions */}
         <div style={{ padding: '6px 10px 8px', display: 'flex', flexDirection: 'column', gap: '1px', flexShrink: 0 }}>
           <QuickBtn onClick={() => createPage(null)} title="New page">
-            <span style={{ fontSize: '15px' }}>📄</span>
+            <Icon name="doc" size={15} />
             <span style={{ fontSize: '14px' }}>New page</span>
           </QuickBtn>
           <QuickBtn onClick={() => createDatabase(null)} title="New database">
-            <span style={{ fontSize: '15px' }}>🗄️</span>
+            <Icon name="db" size={15} />
             <span style={{ fontSize: '14px' }}>New database</span>
           </QuickBtn>
         </div>
