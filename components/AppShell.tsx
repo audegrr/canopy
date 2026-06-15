@@ -1004,7 +1004,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               >×</button>
             )}
           </div>
-          <div style={{ height: '1px', background: 'var(--text-tertiary)', margin: '0 4px 4px', opacity: 0.3 }} />
           <div onClick={() => setWsMenuOpen(o => !o)}
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', userSelect: 'none' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; setWsRowHovered(true) }}
@@ -1062,16 +1061,14 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             </div>
           )}
         </div>
-        <div style={{ height: '1px', background: 'var(--text-tertiary)', margin: '0 12px', opacity: 0.3 }} />
-
         {/* Quick actions */}
         <div style={{ padding: '8px 10px 8px', display: 'flex', gap: '4px', flexShrink: 0 }}>
           <QuickBtn onClick={() => createPage(null)} title="New page" flex>
-            <Icon name="doc" size={15} />
+            <span style={{ fontSize: '14px' }}>📄</span>
             <span style={{ fontSize: '12.5px' }}>New page</span>
           </QuickBtn>
           <QuickBtn onClick={() => createDatabase(null)} title="New database" flex>
-            <Icon name="db" size={15} />
+            <span style={{ fontSize: '14px' }}>🗄️</span>
             <span style={{ fontSize: '12.5px' }}>New database</span>
           </QuickBtn>
         </div>
@@ -1261,20 +1258,20 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             <button
               onClick={() => { const i = ZOOM_LEVELS.indexOf(zoom); if (i > 0) { const v = ZOOM_LEVELS[i-1]; setZoom(v); localStorage.setItem('canopy_zoom', String(v)) } }}
               disabled={zoom === ZOOM_LEVELS[0]}
-              style={{ background: 'none', border: 'none', cursor: zoom === ZOOM_LEVELS[0] ? 'default' : 'pointer', color: zoom === ZOOM_LEVELS[0] ? 'var(--text-tertiary)' : 'var(--text-secondary)', fontSize: isMobile ? '16px' : '14px', fontWeight: 400, padding: isMobile ? '10px 14px' : '4px 8px', fontFamily: 'var(--font-sans)', lineHeight: 1, borderRight: '1px solid var(--border)', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' as any, minWidth: isMobile ? '44px' : undefined, minHeight: isMobile ? '44px' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{ background: 'none', border: 'none', cursor: zoom === ZOOM_LEVELS[0] ? 'default' : 'pointer', color: zoom === ZOOM_LEVELS[0] ? 'var(--text-tertiary)' : 'var(--text-secondary)', fontSize: isMobile ? '16px' : '14px', fontWeight: 400, padding: isMobile ? '10px 14px' : '5px 8px', fontFamily: 'var(--font-sans)', lineHeight: 1, borderRight: '1px solid var(--border)', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' as any, minWidth: isMobile ? '44px' : undefined, minHeight: isMobile ? '44px' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               onMouseEnter={e => { if (zoom !== ZOOM_LEVELS[0]) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
               title="Smaller text">−</button>
             {!isMobile && (
               <button
                 onClick={() => { setZoom(1.0); localStorage.setItem('canopy_zoom', '1') }}
-                style={{ background: zoom !== 1.0 ? 'var(--accent-light)' : 'none', border: 'none', cursor: zoom !== 1.0 ? 'pointer' : 'default', color: zoom !== 1.0 ? 'var(--accent)' : 'var(--text-tertiary)', fontSize: '11px', fontWeight: 500, padding: '4px 6px', fontFamily: 'var(--font-sans)', lineHeight: 1, minWidth: '34px', textAlign: 'center' }}
+                style={{ background: zoom !== 1.0 ? 'var(--accent-light)' : 'none', border: 'none', cursor: zoom !== 1.0 ? 'pointer' : 'default', color: zoom !== 1.0 ? 'var(--accent)' : 'var(--text-tertiary)', fontSize: '11px', fontWeight: 500, padding: '5px 6px', fontFamily: 'var(--font-sans)', lineHeight: 1, minWidth: '34px', textAlign: 'center' }}
                 title={zoom !== 1.0 ? 'Reset to 100%' : 'Text size'}>{Math.round(zoom * 100)}%</button>
             )}
             <button
               onClick={() => { const i = ZOOM_LEVELS.indexOf(zoom); if (i < ZOOM_LEVELS.length - 1) { const v = ZOOM_LEVELS[i+1]; setZoom(v); localStorage.setItem('canopy_zoom', String(v)) } }}
               disabled={zoom === ZOOM_LEVELS[ZOOM_LEVELS.length - 1]}
-              style={{ background: 'none', border: 'none', cursor: zoom === ZOOM_LEVELS[ZOOM_LEVELS.length-1] ? 'default' : 'pointer', color: zoom === ZOOM_LEVELS[ZOOM_LEVELS.length-1] ? 'var(--text-tertiary)' : 'var(--text-secondary)', fontSize: isMobile ? '16px' : '14px', fontWeight: 400, padding: isMobile ? '10px 14px' : '4px 8px', fontFamily: 'var(--font-sans)', lineHeight: 1, borderLeft: '1px solid var(--border)', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' as any, minWidth: isMobile ? '44px' : undefined, minHeight: isMobile ? '44px' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{ background: 'none', border: 'none', cursor: zoom === ZOOM_LEVELS[ZOOM_LEVELS.length-1] ? 'default' : 'pointer', color: zoom === ZOOM_LEVELS[ZOOM_LEVELS.length-1] ? 'var(--text-tertiary)' : 'var(--text-secondary)', fontSize: isMobile ? '16px' : '14px', fontWeight: 400, padding: isMobile ? '10px 14px' : '5px 8px', fontFamily: 'var(--font-sans)', lineHeight: 1, borderLeft: '1px solid var(--border)', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' as any, minWidth: isMobile ? '44px' : undefined, minHeight: isMobile ? '44px' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               onMouseEnter={e => { if (zoom !== ZOOM_LEVELS[ZOOM_LEVELS.length-1]) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}
               title="Larger text">+</button>
@@ -1349,7 +1346,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                       onMouseEnter={e => { if (isClickable) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = n.read ? 'transparent' : 'var(--accent-light)' }}>
                       <div style={{ fontSize: '13px', fontWeight: n.read ? 400 : 600, color: 'var(--text)', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 15, flexShrink: 0 }}>{n.type === 'mention' ? '💬' : n.type === 'comment' ? '🗨️' : n.type === 'invite' ? '📨' : '🔔'}</span>
+                        <span style={{ flexShrink: 0, color: 'var(--accent)' }}><Icon name={n.type === 'mention' || n.type === 'comment' ? 'comment' : n.type === 'invite' ? 'users' : 'bell'} size={14} /></span>
                         {n.title}
                       </div>
                       {n.body && <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{n.body}</div>}
@@ -1512,31 +1509,32 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                 setRenamingPageId(contextMenu.pageId)
                 setRenameVal(pages.find(p => p.id === contextMenu.pageId)?.title ?? ctxShared?.title ?? '')
                 setContextMenu(null)
-              }}>✏️ Rename</MenuItem>
+              }}><Icon name="edit" size={15} /> Rename</MenuItem>
             )}
-            {isFullyOwn && <MenuItem onClick={() => duplicatePage(contextMenu.pageId)}>📋 Duplicate</MenuItem>}
+            {isFullyOwn && <MenuItem onClick={() => duplicatePage(contextMenu.pageId)}><Icon name="copy" size={15} /> Duplicate</MenuItem>}
             {(isFullyOwn || canEditShared) && <>
-              <MenuItem onClick={() => createPage(contextMenu.pageId)}>📄 Add sub-page</MenuItem>
-              <MenuItem onClick={() => createDatabase(contextMenu.pageId)}>🗄️ Add database</MenuItem>
+              <MenuItem onClick={() => createPage(contextMenu.pageId)}><span style={{ fontSize: '14px' }}>📄</span> Add sub-page</MenuItem>
+              <MenuItem onClick={() => createDatabase(contextMenu.pageId)}><span style={{ fontSize: '14px' }}>🗄️</span> Add database</MenuItem>
             </>}
             <MenuItem onClick={() => { toggleFavorite(contextMenu.pageId); setContextMenu(null) }}>
-              {favoriteIds.has(contextMenu.pageId) ? '⭐ Remove from favorites' : '⭐ Add to favorites'}
+              <Icon name={favoriteIds.has(contextMenu.pageId) ? 'star-fill' : 'star'} size={15} style={{ color: favoriteIds.has(contextMenu.pageId) ? '#f59e0b' : undefined }} />
+              {favoriteIds.has(contextMenu.pageId) ? 'Remove from favorites' : 'Add to favorites'}
             </MenuItem>
-            <MenuItem onClick={() => copyPageUrl(contextMenu.pageId)}>🔗 Copy URL</MenuItem>
+            <MenuItem onClick={() => copyPageUrl(contextMenu.pageId)}><Icon name="link" size={15} /> Copy URL</MenuItem>
             {/* Move to workspace: only for fully own pages */}
             {isFullyOwn && workspaces.length > 1 && (
-              <MenuItem onClick={() => { setMoveToWsMenu(contextMenu.pageId); setContextMenu(null) }}>📦 Move to workspace…</MenuItem>
+              <MenuItem onClick={() => { setMoveToWsMenu(contextMenu.pageId); setContextMenu(null) }}><Icon name="box" size={15} /> Move to workspace…</MenuItem>
             )}
             {/* Shared page actions (including sub-pages the user created under shared parents) */}
             {ctxShared && (
               <>
-                <MenuItem onClick={() => duplicateSharedPage(contextMenu.pageId)}>📋 Duplicate to my workspace</MenuItem>
-                <MenuItem onClick={() => { removeSharedPage(contextMenu.pageId) }}>🚫 Remove from my workspace</MenuItem>
+                <MenuItem onClick={() => duplicateSharedPage(contextMenu.pageId)}><Icon name="copy" size={15} /> Duplicate to my workspace</MenuItem>
+                <MenuItem onClick={() => { removeSharedPage(contextMenu.pageId) }}><Icon name="ban" size={15} /> Remove from my workspace</MenuItem>
               </>
             )}
             {isFullyOwn && <>
               <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-              <MenuItem danger onClick={() => deletePage(contextMenu.pageId)}>🗑️ Delete</MenuItem>
+              <MenuItem danger onClick={() => deletePage(contextMenu.pageId)}><Icon name="trash" size={15} /> Delete</MenuItem>
             </>}
           </div>
         </>
@@ -2439,14 +2437,10 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
         {hasChildren && <Icon name="chev-right" size={12} />}
       </span>
 
-      {/* Page icon — emoji if set, else SVG fallback */}
-      {page.icon ? (
-        <span style={{ fontSize: '15px', flexShrink: 0, width: '17px', textAlign: 'center', lineHeight: 1 }}>{page.icon}</span>
-      ) : (
-        <span style={{ flexShrink: 0, width: '17px', display: 'flex', justifyContent: 'center', color: 'var(--side-text-2)' }}>
-          <Icon name={page.is_database ? 'db' : 'doc'} size={15} />
-        </span>
-      )}
+      {/* Page icon — emoji if set, else emoji fallback */}
+      <span style={{ fontSize: '14px', flexShrink: 0, width: '17px', textAlign: 'center', lineHeight: 1 }}>
+        {page.icon || (page.is_database ? '🗄️' : '📄')}
+      </span>
 
       {/* Title or rename input */}
       {isRenaming ? (
@@ -2485,16 +2479,16 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
             background: 'linear-gradient(90deg, transparent, var(--side-fade) 38%)',
           }}>
           {onRemove ? (
-            <SbBtn onClick={onRemove} title="Remove">✕</SbBtn>
+            <SbBtn onClick={onRemove} title="Remove"><span style={{ fontSize: '12px', lineHeight: 1 }}>✕</span></SbBtn>
           ) : (
             <>
               {onToggleFavorite && (
                 <SbBtn onClick={onToggleFavorite} title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}>
-                  <span style={{ color: isFavorite ? '#f59e0b' : undefined }}>{isFavorite ? '★' : '☆'}</span>
+                  <Icon name={isFavorite ? 'star-fill' : 'star'} size={14} style={{ color: isFavorite ? '#f59e0b' : undefined }} />
                 </SbBtn>
               )}
-              {onAddSubpage && <SbBtn onClick={onAddSubpage} title="New sub-page">+</SbBtn>}
-              {onMoreMenu && <SbBtn onClick={onMoreMenu} title="More options">•••</SbBtn>}
+              {onAddSubpage && <SbBtn onClick={onAddSubpage} title="New sub-page"><Icon name="plus" size={14} /></SbBtn>}
+              {onMoreMenu && <SbBtn onClick={onMoreMenu} title="More options"><Icon name="more" size={14} /></SbBtn>}
             </>
           )}
         </div>

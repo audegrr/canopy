@@ -19,17 +19,17 @@
   --accent-light: #eef4f0;
 
   /* ── Sidebar (old names kept as aliases for inline styles) ── */
-  --sidebar-bg: #fafaf8;
+  --sidebar-bg: #f3f6f2;
   --sidebar-hover: rgba(40,38,32,.05);
   --sidebar-active: rgba(40,38,32,.075);
   /* new Clairière sidebar tokens */
-  --side-bg: #fafaf8;
+  --side-bg: #f3f6f2;
   --side-text: #45433d;
   --side-text-2: #8d8b82;
   --side-hover: rgba(40,38,32,.05);
   --side-active: rgba(40,38,32,.075);
   --side-border: #eeede9;
-  --side-fade: #f2f1ee;
+  --side-fade: #f0f3ef;
   --side-accent: #2f6b4f;
 
   /* ── Typography ── */
@@ -68,7 +68,7 @@ html, body {
   font-family: var(--font-sans);
   background: var(--bg);
   color: var(--text);
-  font-size: 15px;
+  font-size: 15.5px;
   -webkit-font-smoothing: antialiased;
   line-height: 1.5;
   height: 100%;
@@ -100,7 +100,7 @@ html, body {
 .tiptap ul, .tiptap ol { padding-left: 1.5rem; margin: 2px 0; }
 .tiptap li { margin: 1px 0; line-height: 1.65; }
 .tiptap li p { margin: 0; }
-.tiptap blockquote { border-left: 3px solid var(--text-tertiary); padding: 4px 16px; color: var(--text-secondary); margin: 6px 0; font-style: italic; }
+.tiptap blockquote { background: var(--accent-light); border: 1px solid rgba(47,107,79,0.18); border-radius: var(--radius); padding: 10px 14px; color: var(--text); margin: 8px 0; font-style: normal; }
 .tiptap code { background: rgba(135,131,120,.15); padding: 2px 5px; border-radius: 3px; font-family: 'Fira Code', 'Cascadia Code', monospace; font-size: 0.875em; color: #eb5757; }
 .tiptap pre { background: #1e1e2e; color: #cdd6f4; padding: 1rem; border-radius: var(--radius); overflow-x: auto; margin: 6px 0; }
 .tiptap pre code { background: none; color: inherit; padding: 0; font-size: 0.85em; }

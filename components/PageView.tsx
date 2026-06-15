@@ -1052,7 +1052,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           {canEdit && !page.is_database && <TopBarBtn onClick={triggerMarkdownImport} iconOnly title="Import from Markdown"><Icon name="import" size={16} /></TopBarBtn>}
           {canEdit && !page.is_database && <TopBarBtn onClick={saveAsTemplate} iconOnly title="Save as template"><Icon name="template" size={16} /></TopBarBtn>}
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0, margin: '0 4px' }} />
-          {!page.is_database && headings.length > 0 && (
+          {!page.is_database && (
             <TopBarBtn onClick={() => setTocOpen(o => !o)} active={tocOpen} iconOnly title="Table of contents"><Icon name="toc" size={16} /></TopBarBtn>
           )}
           {canEdit && <TopBarBtn onClick={() => { setHistoryOpen(o => !o); if (!historyOpen) loadSnapshots() }} active={historyOpen} iconOnly title="Version history"><Icon name="history" size={16} /></TopBarBtn>}
@@ -1221,7 +1221,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           )}
 
           {/* Page body */}
-          <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? 'min(1800px, calc(100% - 80px))' : '100%', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 48px 80px') : (isMobile ? '32px 20px 60px' : '64px 48px 80px'), transition: 'max-width 0.3s ease', fontSize: 'calc(1rem * var(--content-zoom, 1))' }}>
+          <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? 'min(1800px, calc(100% - 80px))' : 'min(740px, 100%)', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 48px 80px') : (isMobile ? '32px 20px 60px' : '64px 48px 80px'), transition: 'max-width 0.3s ease', fontSize: 'calc(1rem * var(--content-zoom, 1))' }}>
 
             {/* Shared-by notice */}
             {!isOwner && ownerName && (
