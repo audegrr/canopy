@@ -145,21 +145,23 @@ const ICONS: Record<string, () => React.ReactNode> = {
   list: () => <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>,
   'list-ordered': () => <>
     <path d="M10 6h11M10 12h11M10 18h11"/>
-    <path d="M4 3.5v5M3 4l1-1M3 8.5h2"/>
-    <path d="M3 11a1.5 1.5 0 0 1 3 0c0 1-3 1.5-3 3h3"/>
-    <path d="M3 16.5a1.5 1.5 0 0 1 1.5-1.5 1.5 1.5 0 0 1 1.5 1.5 1.5 1.5 0 0 1-1.5 1.5H3h1.5a1.5 1.5 0 0 1 1.5 1.5 1.5 1.5 0 0 1-1.5 1.5H3"/>
+    <path d="M5 3v7M3 5l2-2M3 10h5"/>
+    <path d="M2 10.5c0-2.5 6-2.5 6 0c0 2-6 3-6 5h6"/>
+    <path d="M2 15.5h6c2 0 2 3 0 3H2h6c2 0 2 3 0 3H2"/>
   </>,
   'list-todo': () => <>
-    <rect x="3" y="4" width="5" height="5" rx="1"/>
-    <path d="m3.5 6.5 1.5 1.5 2-2.5M11 6h10M3 14h18M3 19h18"/>
+    <rect x="2" y="3" width="6" height="6" rx="1"/>
+    <path d="m3 6 1.5 1.5 3-3.5"/>
+    <path d="M11 6h10M3 14h18M3 19.5h16"/>
   </>,
   quote: () => <>
-    <rect x="2.5" y="4" width="3" height="16" rx="1.5" fill="currentColor" stroke="none"/>
-    <path d="M9 8h12M9 12h12M9 16h8"/>
+    <path d="M5 3v18" strokeWidth={3.5}/>
+    <path d="M10 7h11M10 12h11M10 17h7"/>
   </>,
   callout: () => <>
     <circle cx="12" cy="12" r="10"/>
-    <path d="M12 16v-4M12 8h.01"/>
+    <path d="M12 17v-5"/>
+    <path d="M12 8h.01" strokeWidth={3}/>
   </>,
   'code-block': () => <path d="m7 8-4 4 4 4M17 8l4 4-4 4M14 4l-4 16"/>,
   'align-left': () => <path d="M3 6h18M3 12h12M3 18h15"/>,
