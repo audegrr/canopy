@@ -1062,12 +1062,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           )}
         </div>
         {/* Quick actions */}
-        <div style={{ padding: '8px 10px 8px', display: 'flex', gap: '4px', flexShrink: 0 }}>
-          <QuickBtn onClick={() => createPage(null)} title="New page" flex>
+        <div style={{ padding: '6px 10px 8px', display: 'flex', flexDirection: 'column', gap: '1px', flexShrink: 0 }}>
+          <QuickBtn onClick={() => createPage(null)} title="New page">
             <span style={{ fontSize: '14px' }}>📄</span>
             <span style={{ fontSize: '12.5px' }}>New page</span>
           </QuickBtn>
-          <QuickBtn onClick={() => createDatabase(null)} title="New database" flex>
+          <QuickBtn onClick={() => createDatabase(null)} title="New database">
             <span style={{ fontSize: '14px' }}>🗄️</span>
             <span style={{ fontSize: '12.5px' }}>New database</span>
           </QuickBtn>
@@ -1513,8 +1513,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             )}
             {isFullyOwn && <MenuItem onClick={() => duplicatePage(contextMenu.pageId)}><Icon name="copy" size={15} /> Duplicate</MenuItem>}
             {(isFullyOwn || canEditShared) && <>
-              <MenuItem onClick={() => createPage(contextMenu.pageId)}><span style={{ fontSize: '14px' }}>📄</span> Add sub-page</MenuItem>
-              <MenuItem onClick={() => createDatabase(contextMenu.pageId)}><span style={{ fontSize: '14px' }}>🗄️</span> Add database</MenuItem>
+              <MenuItem onClick={() => createPage(contextMenu.pageId)}><Icon name="doc" size={15} /> Add sub-page</MenuItem>
+              <MenuItem onClick={() => createDatabase(contextMenu.pageId)}><Icon name="db" size={15} /> Add database</MenuItem>
             </>}
             <MenuItem onClick={() => { toggleFavorite(contextMenu.pageId); setContextMenu(null) }}>
               <Icon name={favoriteIds.has(contextMenu.pageId) ? 'star-fill' : 'star'} size={15} style={{ color: favoriteIds.has(contextMenu.pageId) ? '#f59e0b' : undefined }} />
@@ -2450,7 +2450,7 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
           onClick={e => e.stopPropagation()}
           style={{ flex: 1, border: 'none', borderBottom: '1px solid var(--accent)', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: '13.5px', color: 'var(--text)', outline: 'none', padding: '0 2px' }} />
       ) : (
-        <span style={{ flex: 1, fontSize: '13.5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        <span style={{ flex: 1, fontSize: '13.5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: hovered ? '72px' : '0', transition: 'padding-right 0.1s' }}>
           {page.title || 'Untitled'}
         </span>
       )}
@@ -2516,7 +2516,7 @@ function SbBtn({ onClick, title, children }: { onClick?: (e: React.MouseEvent) =
 function QuickBtn({ onClick, title, flex, children }: { onClick: () => void; title: string; flex?: boolean; children: React.ReactNode }) {
   return (
     <button onClick={onClick} title={title}
-      style={{ flex: flex ? 1 : 'none', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '5px 8px', borderRadius: '5px', fontSize: '13px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
+      style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '5px 8px', borderRadius: '5px', fontSize: '13px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
       {children}

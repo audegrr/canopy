@@ -1221,7 +1221,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           )}
 
           {/* Page body */}
-          <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? 'min(1800px, calc(100% - 80px))' : 'min(740px, 100%)', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 48px 80px') : (isMobile ? '32px 20px 60px' : '64px 48px 80px'), transition: 'max-width 0.3s ease', fontSize: 'calc(1rem * var(--content-zoom, 1))' }}>
+          <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? 'min(1800px, calc(100% - 80px))' : 'min(960px, 100%)', margin: '0 auto', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 48px 80px') : (isMobile ? '32px 20px 60px' : '64px 48px 80px'), transition: 'max-width 0.3s ease', fontSize: 'calc(1rem * var(--content-zoom, 1))' }}>
 
             {/* Shared-by notice */}
             {!isOwner && ownerName && (

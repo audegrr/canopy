@@ -19,17 +19,17 @@
   --accent-light: #eef4f0;
 
   /* ── Sidebar (old names kept as aliases for inline styles) ── */
-  --sidebar-bg: #f3f6f2;
+  --sidebar-bg: #edf0ec;
   --sidebar-hover: rgba(40,38,32,.05);
   --sidebar-active: rgba(40,38,32,.075);
   /* new Clairière sidebar tokens */
-  --side-bg: #f3f6f2;
+  --side-bg: #edf0ec;
   --side-text: #45433d;
   --side-text-2: #8d8b82;
   --side-hover: rgba(40,38,32,.05);
   --side-active: rgba(40,38,32,.075);
   --side-border: #eeede9;
-  --side-fade: #f0f3ef;
+  --side-fade: #eaede9;
   --side-accent: #2f6b4f;
 
   /* ── Typography ── */
@@ -68,7 +68,7 @@ html, body {
   font-family: var(--font-sans);
   background: var(--bg);
   color: var(--text);
-  font-size: 15.5px;
+  font-size: 16px;
   -webkit-font-smoothing: antialiased;
   line-height: 1.5;
   height: 100%;
