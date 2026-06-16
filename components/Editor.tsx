@@ -215,9 +215,9 @@ function CalloutView({ node, updateAttributes }: any) {
     <NodeViewWrapper>
       <div style={{ background: 'var(--accent-light)', border: '1px solid rgba(47,107,79,0.2)', borderRadius: '10px', padding: '12px 16px', margin: '6px 0', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
         <div style={{ position: 'relative', flexShrink: 0 }}>
-          <span onClick={() => setShowPicker(o => !o)} style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', paddingTop: '2px', color: 'var(--accent)' }}>
+          <span onClick={() => setShowPicker(o => !o)} style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '1.65em', lineHeight: '1.65em', color: 'var(--accent)' }}>
             {emoji
-              ? <span style={{ fontSize: '20px', lineHeight: 1.4 }}>{emoji}</span>
+              ? <span style={{ fontSize: '20px', lineHeight: 1 }}>{emoji}</span>
               : <Icon name="loader" size={20} />
             }
           </span>
@@ -1489,6 +1489,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   const inHeading = editor.isActive('heading')
   const inCodeBlock = editor.isActive('codeBlock')
   const inBlockquote = editor.isActive('blockquote')
+  const inCallout = editor.isActive('callout')
 
   const main = (
     <div style={{ position: 'relative' }}>
@@ -1591,13 +1592,14 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
             setTimeout(() => editor.commands.focus(), 0)
           }} active={editor.isActive('taskList')} title='To-do list'><Icon name="list-todo" size={14}/></FBtn>
           <FBtn onClick={() => {
-            if (inHeading || inCodeBlock) editor.chain().focus().clearNodes().toggleBlockquote().run()
+            if (inHeading || inCodeBlock || inCallout) editor.chain().focus().clearNodes().toggleBlockquote().run()
             else editor.chain().focus().toggleBlockquote().run()
           }} active={editor.isActive('blockquote')} title='Quote'><Icon name="quote" size={14}/></FBtn>
           <FBtn onClick={() => {
             if (editor.isActive('callout')) {
               editor.chain().focus().clearNodes().run()
             } else {
+              if (inBlockquote) editor.chain().focus().toggleBlockquote().run()
               const { state, view } = editor
               const { from } = state.selection
               const $from = state.doc.resolve(from)
