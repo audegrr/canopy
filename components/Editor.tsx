@@ -1533,7 +1533,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
             <FBtn onClick={() => {
               if (inCodeBlock) editor.chain().focus().clearNodes().toggleCode().run()
               else editor.chain().focus().toggleCode().run()
-            }} active={editor.isActive('code')} title='Inline code'><b style={{ fontSize: 17 }}>{'`'}</b></FBtn>
+            }} active={editor.isActive('code')} title='Inline code'><b style={{ fontSize: 17, position: 'relative', top: 4 }}>{'`'}</b></FBtn>
             <div className="floating-sep" />
             <FBtn btnRef={colorBtnRef} onClick={() => {
               const { from, to } = editor.state.selection
