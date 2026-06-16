@@ -1430,19 +1430,19 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           <div style={isMobile ? mobilePanel : { width: '220px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
             {isMobile && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 199 }} onClick={() => setTocOpen(false)} />}
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <span style={{ fontWeight: 600, fontSize: 'calc(13px * var(--content-zoom, 1))' }}>Contents</span>
+              <span style={{ fontWeight: 600, fontSize: 'calc(15px * var(--content-zoom, 1))' }}>Contents</span>
               <button onClick={() => setTocOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 'calc(16px * var(--content-zoom, 1))' }}>✕</button>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
               {headings.length === 0
-                ? <div style={{ padding: '16px', fontSize: 'calc(12px * var(--content-zoom, 1))', color: 'var(--text-tertiary)' }}>No headings yet.</div>
+                ? <div style={{ padding: '16px', fontSize: 'calc(14px * var(--content-zoom, 1))', color: 'var(--text-tertiary)' }}>No headings yet.</div>
                 : headings.map((h, i) => (
                   <div key={i}
                     onClick={() => {
                       const els = document.querySelectorAll('.tiptap h1,.tiptap h2,.tiptap h3')
                       els[h.idx]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                     }}
-                    style={{ padding: `5px 16px 5px ${8 + (h.level - 1) * 12}px`, cursor: 'pointer', fontSize: 'calc(12px * var(--content-zoom, 1))', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderLeft: '2px solid transparent' }}
+                    style={{ padding: `5px 16px 5px ${8 + (h.level - 1) * 12}px`, cursor: 'pointer', fontSize: 'calc(14px * var(--content-zoom, 1))', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderLeft: '2px solid transparent' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)'; (e.currentTarget as HTMLElement).style.borderLeftColor = 'var(--accent)'; (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; (e.currentTarget as HTMLElement).style.borderLeftColor = 'transparent'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
                     {h.text}
