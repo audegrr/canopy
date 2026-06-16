@@ -215,9 +215,9 @@ function CalloutView({ node, updateAttributes }: any) {
     <NodeViewWrapper>
       <div style={{ background: 'var(--accent-light)', border: '1px solid rgba(47,107,79,0.2)', borderRadius: '10px', padding: '12px 16px', margin: '6px 0', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
         <div style={{ position: 'relative', flexShrink: 0 }}>
-          <span onClick={() => setShowPicker(o => !o)} style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '1.65em', lineHeight: '1.65em', color: 'var(--accent)' }}>
+          <span onClick={() => setShowPicker(o => !o)} style={{ cursor: 'pointer', userSelect: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '1.5em', lineHeight: '1.5em', color: 'var(--accent)' }}>
             {emoji
-              ? <span style={{ fontSize: '20px', lineHeight: 1 }}>{emoji}</span>
+              ? <span style={{ fontSize: '20px', lineHeight: 1, transform: 'translateY(-1px)' }}>{emoji}</span>
               : <Icon name="loader" size={20} />
             }
           </span>
@@ -1032,7 +1032,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       Color,
       Highlight.configure({ multicolor: true }),
       TaskList,
-      TaskItem.extend({ content: 'paragraph' }),
+      TaskItem.extend({ content: 'paragraph+' }),
       Table.configure({ resizable: true }),
       TableRow, TableCell, TableHeader,
       ResizableImage,
