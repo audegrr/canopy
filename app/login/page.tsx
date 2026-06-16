@@ -55,7 +55,7 @@ export default function LoginPage() {
       <div style={{ width: '100%', maxWidth: '380px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 48, height: 48, objectFit: 'contain', marginBottom: '8px' }} />
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)', marginBottom: '4px' }}>Canopy</h1>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)', marginBottom: '4px', fontFamily: 'var(--font-head)' }}>Canopy</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Welcome back</p>
         </div>
         <Suspense>
