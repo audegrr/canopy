@@ -145,9 +145,9 @@ const ICONS: Record<string, () => React.ReactNode> = {
   list: () => <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>,
   'list-ordered': () => <>
     <path d="M12 6h9M12 12h9M12 18h9"/>
-    <path d="M6 2v7"/>
-    <path d="M4 4 6 2"/>
-    <path d="M2.7 14.6c0-1.8 1.3-2.9 2.8-2.9s2.8.9 2.8 2c0 2-3.3 2.9-5.5 5.4h5.5"/>
+    <path d="M6 2v7" strokeWidth={1.3}/>
+    <path d="M4 4 6 2" strokeWidth={1.3}/>
+    <path d="M2.7 14.6c0-1.8 1.3-2.9 2.8-2.9s2.8.9 2.8 2c0 2-3.3 2.9-5.5 5.4h5.5" strokeWidth={1.3}/>
   </>,
   'list-todo': () => <>
     <rect x="3" y="5" width="6" height="6" rx="1"/>
