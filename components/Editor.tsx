@@ -223,7 +223,7 @@ function CalloutView({ node, updateAttributes }: any) {
           </span>
           {showPicker && (
             <EmojiPicker
-              onSelect={em => { if (em) updateAttributes({ emoji: em }) }}
+              onSelect={em => updateAttributes({ emoji: em || null })}
               onClose={() => setShowPicker(false)}
               style={{ top: '28px', left: 0 }}
             />
