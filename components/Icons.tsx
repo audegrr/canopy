@@ -155,8 +155,10 @@ const ICONS: Record<string, () => React.ReactNode> = {
     <path d="M13 6h8M13 12h8M13 18h8"/>
   </>,
   quote: () => <>
-    <path fill="currentColor" stroke="none" d="M9.2 9 A3.2 3.2 0 1 1 4.2 9 C3.3 12.3 1.6 15.5 -0.4 17.4 C4.0 16.3 7.7 12.7 9.2 9 Z"/>
-    <path fill="currentColor" stroke="none" d="M20 9 A3.2 3.2 0 1 1 15 9 C14.1 12.3 12.4 15.5 10.4 17.4 C14.8 16.3 18.5 12.7 20 9 Z"/>
+    <circle cx="6.8" cy="14.7" r="2.7" fill="currentColor" stroke="none"/>
+    <line x1="7.5" y1="13" x2="9.2" y2="9.3" stroke="currentColor" strokeWidth={2.7} strokeLinecap="round"/>
+    <circle cx="15.4" cy="14.7" r="2.7" fill="currentColor" stroke="none"/>
+    <line x1="16.1" y1="13" x2="17.8" y2="9.3" stroke="currentColor" strokeWidth={2.7} strokeLinecap="round"/>
   </>,
   callout: () => <>
     <circle cx="12" cy="12" r="10"/>
