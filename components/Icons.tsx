@@ -144,17 +144,20 @@ const ICONS: Record<string, () => React.ReactNode> = {
   </>,
   list: () => <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>,
   'list-ordered': () => <>
-    <path d="M10 6h11M10 12h11M10 18h11"/>
-    <text x="1.5" y="9" fontSize="9" fill="currentColor" stroke="none" fontFamily="Arial, sans-serif" fontWeight="bold">1</text>
-    <text x="1.5" y="15" fontSize="9" fill="currentColor" stroke="none" fontFamily="Arial, sans-serif" fontWeight="bold">2</text>
-    <text x="1.5" y="21" fontSize="9" fill="currentColor" stroke="none" fontFamily="Arial, sans-serif" fontWeight="bold">3</text>
+    <path d="M12 6h9M12 12h9M12 18h9"/>
+    <path d="M6 2v7"/>
+    <path d="M4 4 6 2"/>
+    <path d="M2.7 14.6c0-1.8 1.3-2.9 2.8-2.9s2.8.9 2.8 2c0 2-3.3 2.9-5.5 5.4h5.5"/>
   </>,
   'list-todo': () => <>
-    <rect x="2" y="3" width="6" height="6" rx="1"/>
-    <path d="m3 6 1.5 1.5 3-3.5"/>
-    <path d="M11 6h10M3 14h18M3 19.5h16"/>
+    <rect x="3" y="5" width="6" height="6" rx="1"/>
+    <path d="m3 17 2 2 4-4"/>
+    <path d="M13 6h8M13 12h8M13 18h8"/>
   </>,
-  quote: () => <path d="M7 7c-2 0-3 1.3-3 3.2S5 13 7 13M7 7v3.2A3.3 3.3 0 0 1 4 13.3M15 7c-2 0-3 1.3-3 3.2s1 3 3 3M15 7v3.2a3.3 3.3 0 0 1-3 3.1"/>,
+  quote: () => <>
+    <path fill="currentColor" stroke="none" d="M9.2 9 A3.2 3.2 0 1 1 4.2 9 C3.3 12.3 1.6 15.5 -0.4 17.4 C4.0 16.3 7.7 12.7 9.2 9 Z"/>
+    <path fill="currentColor" stroke="none" d="M20 9 A3.2 3.2 0 1 1 15 9 C14.1 12.3 12.4 15.5 10.4 17.4 C14.8 16.3 18.5 12.7 20 9 Z"/>
+  </>,
   callout: () => <>
     <circle cx="12" cy="12" r="10"/>
     <path d="M12 17v-5"/>
