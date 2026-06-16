@@ -717,12 +717,6 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     showToast('Saved as template!')
   }
 
-  async function deletePage() {
-    if (!confirm('Delete this page and all its sub-pages?')) return
-    await supabase.from('pages').delete().eq('id', page.id)
-    router.push('/app')
-  }
-
   async function duplicatePage() {
     let targetWorkspaceId = page.workspace_id
     let targetParentId: string | null = page.parent_id

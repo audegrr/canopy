@@ -100,12 +100,12 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
 
 function InviteError({ message }: { message: string }) {
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
       <div style={{ textAlign: 'center', padding: 40 }}>
         <div style={{ fontSize: 40, marginBottom: 16 }}>🔗</div>
-        <h1 style={{ fontSize: 20, fontWeight: 600, marginBottom: 8 }}>Invite unavailable</h1>
-        <p style={{ color: '#787774', marginBottom: 24 }}>{message}</p>
-        <a href="/app" style={{ background: '#0b6e99', color: '#fff', padding: '8px 20px', borderRadius: 6, textDecoration: 'none', fontSize: 14 }}>Go to app</a>
+        <h1 style={{ fontSize: 20, fontWeight: 600, marginBottom: 8, color: 'var(--text)' }}>Invite unavailable</h1>
+        <p style={{ color: 'var(--text-secondary)', marginBottom: 24 }}>{message}</p>
+        <a href="/app" style={{ background: 'var(--accent)', color: '#fff', padding: '8px 20px', borderRadius: 6, textDecoration: 'none', fontSize: 14 }}>Go to app</a>
       </div>
     </div>
   )

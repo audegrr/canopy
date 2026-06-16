@@ -74,6 +74,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [exportMenu, setExportMenu] = useState<{ x: number; y: number; pageId: string } | null>(null)
   const [moveToWsMenu, setMoveToWsMenu] = useState<string | null>(null)
   const [newWsModal, setNewWsModal] = useState(false)
+  const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
   const ZOOM_LEVELS = [0.8, 0.9, 1.0, 1.1, 1.2]
   const [zoom, setZoom] = useState<number>(() => {
@@ -625,7 +626,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }
 
   async function deleteWorkspace(wsId: string) {
-    if (!confirm('Delete this workspace and all its pages? This cannot be undone.')) return
     const { error: pagesErr } = await supabase.from('pages').delete().eq('workspace_id', wsId)
     if (pagesErr) { showError('Failed to delete workspace pages'); return }
     const { error } = await supabase.from('workspaces').delete().eq('id', wsId)
@@ -750,7 +750,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   async function handleSignOut() { await supabase.auth.signOut(); router.push('/login') }
 
   async function handleDeleteAccount() {
-    if (!confirm('Delete your account permanently? All your data will be lost.')) return
     // Delete all user data then sign out
     await supabase.from('pages').delete().eq('owner_id', user.id)
     await supabase.from('workspaces').delete().eq('owner_id', user.id)
@@ -1146,7 +1145,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               ) : (
                 <>
                   <div style={{ padding: '6px 14px', display: 'flex', justifyContent: 'flex-end' }}>
-                    <span onClick={() => { if (confirm('Permanently delete all trashed pages? This cannot be undone.')) emptyTrash() }}
+                    <span onClick={() => setConfirmDialog({ message: 'Permanently delete all trashed pages? This cannot be undone.', onConfirm: emptyTrash })}
                       style={{ fontSize: '11px', color: 'var(--text-tertiary)', cursor: 'pointer', padding: '2px 6px', borderRadius: 4 }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#eb5757' }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>
@@ -1166,7 +1165,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--side-text-2)' }}>
                           <Icon name="restore" size={14} />
                         </span>
-                        <span title="Delete permanently" onClick={() => { if (confirm('Permanently delete this page?')) permanentlyDeletePage(p.id) }}
+                        <span title="Delete permanently" onClick={() => setConfirmDialog({ message: 'Permanently delete this page?', onConfirm: () => permanentlyDeletePage(p.id) })}
                           style={{ cursor: 'pointer', padding: '3px 6px', borderRadius: 5, color: 'var(--side-text-2)', display: 'flex', alignItems: 'center' }}
                           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#eb575718'; (e.currentTarget as HTMLElement).style.color = '#eb5757' }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--side-text-2)' }}>
@@ -1471,7 +1470,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           onInviteEmailChange={setInviteEmail}
           onInviteRoleChange={setInviteRole}
           onInvite={inviteMember}
-          onDelete={() => { if (confirm('Delete this workspace and all its pages?')) deleteWorkspace(currentWs.id) }}
+          onDelete={() => setConfirmDialog({ message: 'Delete this workspace and all its pages? This cannot be undone.', onConfirm: () => deleteWorkspace(currentWs.id) })}
           onClose={() => setWsSettingsOpen(false)}
         />
       )}
@@ -1556,6 +1555,23 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
               <button onClick={() => setShowDeleteAccount(false)} style={{ background: 'var(--sidebar-bg)', border: 'none', padding: '8px 16px', borderRadius: '7px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px' }}>Cancel</button>
               <button onClick={handleDeleteAccount} style={{ background: 'var(--red)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '7px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600 }}>Delete permanently</button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Generic destructive-action confirmation */}
+      {confirmDialog && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 500 }} onClick={() => setConfirmDialog(null)} />
+          <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '28px', width: 'min(380px, calc(100vw - 24px))', boxShadow: 'var(--shadow-lg)', zIndex: 501 }} className="scale-in-center"
+            onClick={e => e.stopPropagation()}>
+            <p style={{ fontSize: '14px', color: 'var(--text)', marginBottom: '20px', lineHeight: 1.5 }}>
+              {confirmDialog.message}
+            </p>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setConfirmDialog(null)} style={{ background: 'var(--sidebar-bg)', border: 'none', padding: '8px 16px', borderRadius: '7px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px' }}>Cancel</button>
+              <button onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null) }} style={{ background: 'var(--red)', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '7px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '13px', fontWeight: 600 }}>Delete</button>
             </div>
           </div>
         </>
