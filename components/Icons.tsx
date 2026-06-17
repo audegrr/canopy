@@ -170,6 +170,17 @@ const ICONS: Record<string, () => React.ReactNode> = {
   'align-center': () => <path d="M3 6h18M6 12h12M4.5 18h15"/>,
   'align-right': () => <path d="M3 6h18M9 12h12M6 18h15"/>,
   sparkle: () => <path fill="currentColor" stroke="none" d="M12 2l2 8 8 2-8 2-2 8-2-8-8-2 8-2z"/>,
+  video: () => <>
+    <rect x="2" y="7" width="13" height="10" rx="2"/>
+    <path d="M15 10l5-3v10l-5-3"/>
+  </>,
+  paperclip: () => <path d="M21 11.5 12.3 20.2a5 5 0 0 1-7.07-7.07l8.49-8.49a3 3 0 0 1 4.24 4.24l-8.5 8.49a1 1 0 0 1-1.41-1.41l7.78-7.79"/>,
+  bookmark: () => <path d="M19 21 12 16 5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2Z"/>,
+  globe: () => <>
+    <circle cx="12" cy="12" r="10"/>
+    <path d="M2 12h20"/>
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+  </>,
   'divider': () => <>
     <path d="M3 12h18"/>
     <path d="M7 8l-4 4 4 4M17 8l4 4-4 4" strokeWidth="1.3"/>
