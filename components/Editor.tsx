@@ -20,6 +20,7 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { createLowlight, all as allLangs } from 'lowlight'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
+import { createRoot } from 'react-dom/client'
 import { createClient } from '@/lib/supabase/client'
 
 // ── Video node ─────────────────────────────────────────
@@ -299,8 +300,7 @@ const TocExtension = Node.create({
   addNodeView() {
     return ({ editor }: any) => {
       const dom = document.createElement('div')
-      const ReactDOM = require('react-dom/client')
-      const root = ReactDOM.createRoot(dom)
+      const root = createRoot(dom)
       root.render(<TocView editor={editor} />)
       return { dom, destroy: () => root.unmount() }
     }

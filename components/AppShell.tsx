@@ -2,7 +2,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { Workspace, Page, SharedPage, User, MemberWorkspace, WsMember, PendingInvite } from '@/lib/types'
+import type { Workspace, Page, SharedPage, User, MemberWorkspace, WsMember, PendingInvite, TiptapContent } from '@/lib/types'
 import PageView from './PageView'
 import CommandPalette from './CommandPalette'
 import SearchModal from './SearchModal'
@@ -23,7 +23,7 @@ type Props = {
   children: React.ReactNode
 }
 
-function InstantPageView({ data, onNavigate, isFavorite, onToggleFavorite }: { data: any; onNavigate: (path: string) => void; isFavorite?: boolean; onToggleFavorite?: () => void }) {
+function InstantPageView({ data, isFavorite, onToggleFavorite }: { data: any; isFavorite?: boolean; onToggleFavorite?: () => void }) {
   return (
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden', animation: 'fadeIn 0.12s ease' }}>
       <PageView
@@ -94,6 +94,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [favoritesCollapsed, setFavoritesCollapsed] = useState(false)
   const [keyFocusId, setKeyFocusId] = useState<string | null>(null)
   const sidebarTreeRef = useRef<HTMLDivElement>(null)
+  const sidebarSwipeStartX = useRef(0)
+  const mainSwipeStartX = useRef(999)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
@@ -978,10 +980,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           transition: 'width 0.2s, min-width 0.2s', flexShrink: 0,
           ...(isMobile ? { position: 'fixed', left: 0, top: 0, bottom: 0, height: 'auto', zIndex: 300, boxShadow: '4px 0 24px rgba(0,0,0,0.15)' } : {}),
         }}
-        onTouchStart={isMobile ? e => { (e.currentTarget as any)._swipeStartX = e.touches[0].clientX } : undefined}
+        onTouchStart={isMobile ? e => { sidebarSwipeStartX.current = e.touches[0].clientX } : undefined}
         onTouchEnd={isMobile ? e => {
-          const startX = (e.currentTarget as any)._swipeStartX ?? 0
-          if (e.changedTouches[0].clientX - startX < -50) setSidebarOpen(false)
+          if (e.changedTouches[0].clientX - sidebarSwipeStartX.current < -50) setSidebarOpen(false)
         } : undefined}
       >
         {/* Home + Workspace switcher */}
@@ -1041,7 +1042,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                   {ws.id === currentWs.id && <span style={{ fontSize: '14px', color: 'var(--accent)', fontWeight: 700, lineHeight: 1 }}>✓</span>}
                 </div>
               ))}
-              <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
               {memberWorkspaces.length > 0 && <>
                 <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
                 <div style={{ padding: '4px 12px 2px', fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Shared with me</div>
@@ -1222,10 +1222,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       {/* MAIN */}
       <main
         style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}
-        onTouchStart={e => { (e.currentTarget as any)._touchStartX = e.touches[0].clientX }}
+        onTouchStart={e => { mainSwipeStartX.current = e.touches[0].clientX }}
         onTouchEnd={e => {
-          const startX = (e.currentTarget as any)._touchStartX ?? 999
-          if (isMobile && !sidebarOpen && startX < 24 && e.changedTouches[0].clientX - startX > 60) setSidebarOpen(true)
+          if (isMobile && !sidebarOpen && mainSwipeStartX.current < 24 && e.changedTouches[0].clientX - mainSwipeStartX.current > 60) setSidebarOpen(true)
         }}
       >
         {/* Top bar */}
@@ -1374,7 +1373,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
           {instantPage
-            ? <InstantPageView key={instantPage.page.id} data={instantPage} onNavigate={navigate} isFavorite={favoriteIds.has(instantPage.page.id)} onToggleFavorite={() => toggleFavorite(instantPage.page.id)} />
+            ? <InstantPageView key={instantPage.page.id} data={instantPage} isFavorite={favoriteIds.has(instantPage.page.id)} onToggleFavorite={() => toggleFavorite(instantPage.page.id)} />
             : children}
         </div>
       </main>
@@ -1615,7 +1614,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 }
 
 // ── PAGE TEMPLATES ───────────────────────────────────────────
-export type PageTemplate = { title: string; icon: string; description: string; content: any }
+export type PageTemplate = { title: string; icon: string; description: string; content: TiptapContent }
 
 const PAGE_TEMPLATES: PageTemplate[] = [
   {
