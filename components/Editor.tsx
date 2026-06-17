@@ -570,10 +570,18 @@ const EmbedNode = Node.create({
 })
 
 // ── SLASH ITEMS ────────────────────────────────────────────────────────
+const SECTION_COLORS: Record<string, string> = {
+  'Basic blocks': 'rgba(59,130,246,0.12)',
+  'Advanced':     'rgba(139,92,246,0.13)',
+  'Media':        'rgba(245,158,11,0.13)',
+  'AI':           'rgba(168,85,247,0.15)',
+  'Layout':       'rgba(16,185,129,0.13)',
+}
+
 const SLASH_ITEMS = [
-  { id: 'h1', label: 'Heading 1', hint: 'Big section heading', icon: <Icon name="heading-1" size={18}/>, section: 'Basic blocks' },
-  { id: 'h2', label: 'Heading 2', hint: 'Medium heading', icon: <Icon name="heading-2" size={18}/>, section: 'Basic blocks' },
-  { id: 'h3', label: 'Heading 3', hint: 'Small heading', icon: <Icon name="heading-3" size={18}/>, section: 'Basic blocks' },
+  { id: 'h1', label: 'Heading 1', hint: 'Big section heading', icon: <span style={{ fontWeight: 800, fontSize: '13px', letterSpacing: '-0.4px' }}>H1</span>, section: 'Basic blocks' },
+  { id: 'h2', label: 'Heading 2', hint: 'Medium heading', icon: <span style={{ fontWeight: 700, fontSize: '12px', letterSpacing: '-0.3px' }}>H2</span>, section: 'Basic blocks' },
+  { id: 'h3', label: 'Heading 3', hint: 'Small heading', icon: <span style={{ fontWeight: 600, fontSize: '11px', letterSpacing: '-0.2px' }}>H3</span>, section: 'Basic blocks' },
   { id: 'bullet', label: 'Bulleted list', hint: 'Simple bullet list', icon: <Icon name="list" size={18}/>, section: 'Basic blocks' },
   { id: 'numbered', label: 'Numbered list', hint: 'Numbered list', icon: <Icon name="list-ordered" size={18}/>, section: 'Basic blocks' },
   { id: 'todo', label: 'To-do list', hint: 'Track tasks', icon: <Icon name="list-todo" size={18}/>, section: 'Basic blocks' },
@@ -1774,7 +1782,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
                       <div className={`slash-menu-item ${i === slashIndex ? 'active' : ''}`}
                         onMouseEnter={() => setSlashIndex(i)}
                         onClick={() => runCmd(item.id, slashMenu.fromPos, slashMenu.query)}>
-                        <div className="icon">{item.icon}</div>
+                        <div className="icon" style={{ background: SECTION_COLORS[item.section] }}>{item.icon}</div>
                         <div>
                           <div className="label">{item.label}</div>
                           <div className="hint">{item.hint}</div>
