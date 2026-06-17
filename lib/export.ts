@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { TiptapNode, TiptapMark } from '@/lib/types'
+import type { TiptapNode, TiptapMark, DbField, DbRecord } from '@/lib/types'
 
 function renderNodes(nodes: TiptapNode[]): string {
   if (!nodes) return ''
@@ -85,9 +85,10 @@ export async function exportPageAsCSV(pageId: string, supabase: SupabaseClient, 
     supabase.from('pages').select('title').eq('id', pageId).single(),
   ])
   if (!fields) return
-  const header = fields.map((f: any) => `"${f.name.replace(/"/g, '""')}"`).join(',')
-  const rows = (records || []).map((rec: any) =>
-    fields.map((f: any) => `"${String(rec.data?.[f.id] ?? '').replace(/"/g, '""')}"`)
+  const typedFields = fields as DbField[]
+  const header = typedFields.map(f => `"${f.name.replace(/"/g, '""')}"`).join(',')
+  const rows = ((records || []) as DbRecord[]).map(rec =>
+    typedFields.map(f => `"${String(rec.data?.[f.id] ?? '').replace(/"/g, '""')}"`)
       .join(',')
   )
   const csv = [header, ...rows].join('\n')

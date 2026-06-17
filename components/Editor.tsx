@@ -383,7 +383,7 @@ function PageMentionView({ node }: any) {
   return (
     <NodeViewWrapper as="span" style={{ display: 'inline' }}>
       <a ref={ref} href={`/app/page/${node.attrs.pageId}`}
-        onClick={e => { e.preventDefault(); window.location.href = `/app/page/${node.attrs.pageId}` }}
+        onClick={e => { e.preventDefault(); window.dispatchEvent(new CustomEvent('canopy:navigate', { detail: { path: `/app/page/${node.attrs.pageId}` } })) }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={() => setHovered(false)}
         style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', background: hovered ? 'var(--accent)' : 'var(--accent-light)', color: hovered ? '#fff' : 'var(--accent)', borderRadius: '4px', padding: '1px 7px', fontSize: '0.92em', textDecoration: 'none', cursor: 'pointer', fontWeight: 500, transition: 'background 0.12s,color 0.12s' }}>
