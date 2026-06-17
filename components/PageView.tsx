@@ -40,7 +40,6 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   const [showSubpagePicker, setShowSubpagePicker] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [mediaTab, setMediaTab] = useState<'image'|'video'|'file'>('image')
-  const [imagePickerCallback, setImagePickerCallback] = useState<{ onUrl: (u: string) => void; onFile: (s: string) => void } | null>(null)
   const imagePickerCallbackRef = useRef<{ onUrl: (u: string) => void; onFile: (s: string) => void } | null>(null)
   const [imageUrl, setImageUrl] = useState('')
   const [subpagePickerCallback, setSubpagePickerCallback] = useState<((id: string) => void) | null>(null)
@@ -348,9 +347,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       setMediaTab(e.detail?.tab || 'image')
       // Callback comes from Editor via ref, stored in event detail or separately
       if (e.detail?.onUrl) {
-        const cb = { onUrl: e.detail.onUrl, onFile: e.detail.onFile }
-        setImagePickerCallback(cb)
-        imagePickerCallbackRef.current = cb
+        imagePickerCallbackRef.current = { onUrl: e.detail.onUrl, onFile: e.detail.onFile }
       }
       setImageUrl('')
       setShowImagePicker(true)
@@ -648,10 +645,6 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
     setPage(p => ({ ...p, link_permission: inviteRole === 'edit' ? 'edit' : (p as any).link_permission === 'edit' ? 'edit' : 'view' }) as any)
   }
 
-  async function removeShare(uid: string) {
-    await removeUserShare(uid)
-  }
-
   async function updateLinkPerm(perm: string) {
     await supabase.from('pages').update({ link_permission: perm }).eq('id', page.id)
     setPage(p => ({ ...p, link_permission: perm }) as Page)
@@ -669,7 +662,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
   }
 
   async function createSubPage() {
-    const maxPos = subPages.reduce((m, p) => Math.max(m, 0), 0)
+    const maxPos = subPages.length
     const { data } = await supabase.from('pages').insert({
       workspace_id: page.workspace_id,
       parent_id: page.id,
@@ -1674,7 +1667,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                         <div style={{ fontSize: '12px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.email}</div>
                       </div>
                       <span style={{ fontSize: '11px', background: s.permission === 'edit' ? '#dbeafe' : '#f3f4f6', color: s.permission === 'edit' ? '#1d4ed8' : '#6b7280', padding: '1px 6px', borderRadius: '8px', flexShrink: 0, fontWeight: 500 }}>{s.permission === 'edit' ? 'Can edit' : 'Can view'}</span>
-                      <button onClick={() => removeShare(s.user_id)} title="Remove access"
+                      <button onClick={() => removeUserShare(s.user_id)} title="Remove access"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '14px', lineHeight: 1, padding: '2px', borderRadius: '3px' }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)'; (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; (e.currentTarget as HTMLElement).style.background = 'none' }}>✕</button>
@@ -1705,7 +1698,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                   onKeyDown={e => {
                     if (e.key === 'Enter' && imageUrl.trim()) {
                       const url = imageUrl.trim()
-                      const cb = imagePickerCallbackRef.current || imagePickerCallback
+                      const cb = imagePickerCallbackRef.current
                       if (mediaTab === 'image') { if (cb?.onUrl) cb.onUrl(url); else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } })) }
                       else if (mediaTab === 'video') { if (cb?.onUrl) cb.onUrl(url); else window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } })) }
                       else { if (cb?.onUrl) (cb.onUrl as any)(url); else window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: url.split('/').pop() } })) }
@@ -1717,7 +1710,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                 <button onClick={() => {
                     const url = imageUrl.trim()
                     if (!url) return
-                    const cb = imagePickerCallbackRef.current || imagePickerCallback
+                    const cb = imagePickerCallbackRef.current
                     if (mediaTab === 'image') {
                       if (cb?.onUrl) cb.onUrl(url)
                       else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
@@ -1753,7 +1746,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                 if (!file) return
                 const url = await uploadFile(file)
                 if (!url) return
-                const cb = imagePickerCallbackRef.current || imagePickerCallback
+                const cb = imagePickerCallbackRef.current
                 imagePickerCallbackRef.current = null
                 setShowImagePicker(false)
                 setTimeout(() => {
@@ -1779,7 +1772,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                 if (!file) return
                 const url = await uploadFile(file)
                 if (!url) return
-                const cb = imagePickerCallbackRef.current || imagePickerCallback
+                const cb = imagePickerCallbackRef.current
                 imagePickerCallbackRef.current = null
                 setShowImagePicker(false)
                 setTimeout(() => {

@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PageView from '@/components/PageView'
@@ -77,15 +77,8 @@ export default function PageRoute() {
           .eq('user_id', user.id)
       ])
 
-      // If page not found, might be a workspace member page — RLS allows it
-      // but only if workspace_members RLS is working correctly
+      if (!page && !share) { setError(true); return }
       let resolvedPage = page
-      if (!resolvedPage) {
-        // Try again — the page might be accessible via workspace membership
-        const { data: p2 } = await supabase.from('pages').select('*').eq('id', id).single()
-        resolvedPage = p2
-      }
-      if (!resolvedPage && !share) { setError(true); return }
       if (!resolvedPage) { router.push(`/share/${id}`); return }
 
       const isOwner = resolvedPage.owner_id === user.id

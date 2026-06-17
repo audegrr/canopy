@@ -52,6 +52,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const [showImport, setShowImport] = useState(false)
   const [dbSearch, setDbSearch] = useState('')
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
+  const relatedFieldsRef = useRef<Record<string, DbField[]>>({})
   const supabase = createClient()
 
   useEffect(() => { loadData() }, [page.id])
@@ -94,7 +95,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
       setRelatedRecords(rRecs)
       // Store related fields for first-column lookup (include self)
       rFields[page.id] = fieldsData
-      ;(window as any).__relatedFields = rFields
+      relatedFieldsRef.current = rFields
     }
   }
 
@@ -161,7 +162,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
     const targetPageId = field.relation_page_id
     if (!targetPageId) return
     const isSelf = targetPageId === page.id
-    const targetFields: DbField[] = isSelf ? fields : ((window as any).__relatedFields?.[targetPageId] || [])
+    const targetFields: DbField[] = isSelf ? fields : (relatedFieldsRef.current[targetPageId] || [])
     const firstField = targetFields[0]
     const newData = firstField ? { [firstField.id]: name } : {}
     const allTargetRecs = isSelf ? records : (relatedRecords[targetPageId] || [])
@@ -337,7 +338,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
         const relPage = isSelf ? page : (relatedPages.find(p => p.id === field.relation_page_id) ?? null)
         const recs = isSelf ? records : (relatedRecords[field.relation_page_id || ''] || [])
         const activeRelIds = relations.filter(r => r.field_id === field.id && r.from_record_id === rec.id).map(r => r.to_record_id)
-        const relFieldsList: DbField[] = isSelf ? fields : ((window as any).__relatedFields?.[field.relation_page_id || ''] || [])
+        const relFieldsList: DbField[] = isSelf ? fields : (relatedFieldsRef.current[field.relation_page_id || ''] || [])
         const firstTextField = relFieldsList.length > 0 ? relFieldsList[0].id : null
         const cellEl5 = document.querySelector(`[data-cell="${rec.id}-${field.id}"]`) as HTMLElement
         const cellRect5 = cellEl5?.getBoundingClientRect() ?? null
@@ -369,7 +370,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                 </select>
                 {field.rollup_relation && (() => {
                   const rf = fields.find(f => f.id === field.rollup_relation)
-                  const rfList: DbField[] = (window as any).__relatedFields?.[rf?.relation_page_id || ''] || []
+                  const rfList: DbField[] = relatedFieldsRef.current[rf?.relation_page_id || ''] || []
                   return (
                     <select value={field.rollup_field || ''} onChange={e => updateField(field.id, { rollup_field: e.target.value })} style={ctrlSt}>
                       <option value="">Field to aggregate…</option>
@@ -413,7 +414,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
       const isSelf2 = field.relation_page_id === page.id
       const allRelRecs = isSelf2 ? records : (relatedRecords[field.relation_page_id || ''] || [])
       const linkedRecs = allRelRecs.filter(r => activeRelIds.includes(r.id))
-      const relFieldsList2: DbField[] = isSelf2 ? fields : ((window as any).__relatedFields?.[field.relation_page_id || ''] || [])
+      const relFieldsList2: DbField[] = isSelf2 ? fields : (relatedFieldsRef.current[field.relation_page_id || ''] || [])
       const firstField = relFieldsList2.length > 0 ? relFieldsList2[0].id : null
       const relPage2 = isSelf2 ? page : (relatedPages.find(p => p.id === field.relation_page_id))
       return (
