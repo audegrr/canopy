@@ -20,8 +20,8 @@ self.addEventListener('push', e => {
   e.waitUntil(
     self.registration.showNotification(data.title || 'Canopy', {
       body: data.body || '',
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
+      icon: '/canopy_favicon_no_bg.ico',
+      badge: '/canopy_favicon_no_bg.ico',
       data: { url: data.url || '/app' },
     })
   )

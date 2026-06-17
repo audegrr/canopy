@@ -83,7 +83,7 @@ export function useNotifications(userId: string, supabase: SupabaseClient) {
               Notification.permission === 'granted' &&
               !document.hasFocus()
             ) {
-              new Notification(notif.title, { body: notif.body ?? undefined, icon: '/icon-192.png' })
+              new Notification(notif.title, { body: notif.body ?? undefined, icon: '/canopy_favicon_no_bg.ico' })
             }
           })
           .subscribe()
