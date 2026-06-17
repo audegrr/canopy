@@ -170,6 +170,42 @@ const ICONS: Record<string, () => React.ReactNode> = {
   'align-center': () => <path d="M3 6h18M6 12h12M4.5 18h15"/>,
   'align-right': () => <path d="M3 6h18M9 12h12M6 18h15"/>,
   sparkle: () => <path fill="currentColor" stroke="none" d="M12 2l2 8 8 2-8 2-2 8-2-8-8-2 8-2z"/>,
+  'heading-1': () => <>
+    <path d="M3 5v14M10 5v14M3 12h7" strokeWidth="2.5"/>
+    <text x="14" y="17.5" fontSize="11" fontWeight="800" fill="currentColor" stroke="none" fontFamily="system-ui,sans-serif">1</text>
+  </>,
+  'heading-2': () => <>
+    <path d="M3 5v14M10 5v14M3 12h7" strokeWidth="2"/>
+    <text x="13.5" y="17.5" fontSize="11" fontWeight="800" fill="currentColor" stroke="none" fontFamily="system-ui,sans-serif">2</text>
+  </>,
+  'heading-3': () => <>
+    <path d="M3 5v14M10 5v14M3 12h7"/>
+    <text x="13.5" y="17.5" fontSize="11" fontWeight="800" fill="currentColor" stroke="none" fontFamily="system-ui,sans-serif">3</text>
+  </>,
+  'divider': () => <>
+    <path d="M3 12h18"/>
+    <path d="M7 8l-4 4 4 4M17 8l4 4-4 4" strokeWidth="1.3"/>
+  </>,
+  'table': () => <>
+    <rect x="2" y="4" width="20" height="16" rx="1.5"/>
+    <path d="M2 9.5h20M8 9.5v10.5"/>
+  </>,
+  'columns-2': () => <>
+    <rect x="2" y="4" width="9" height="16" rx="1.5"/>
+    <rect x="13" y="4" width="9" height="16" rx="1.5"/>
+  </>,
+  'columns-3': () => <>
+    <rect x="2" y="4" width="5.5" height="16" rx="1"/>
+    <rect x="9.3" y="4" width="5.5" height="16" rx="1"/>
+    <rect x="16.5" y="4" width="5.5" height="16" rx="1"/>
+  </>,
+  'math': () => <>
+    <path d="M18 7H6l6 5-6 5h12"/>
+  </>,
+  'math-block': () => <>
+    <path d="M17 9H7l5 3.5-5 3.5h10"/>
+    <path d="M3 5h18M3 19h18"/>
+  </>,
 }
 
 export function Icon({ name, size = 16, style, className }: { name: string; size?: number; style?: React.CSSProperties; className?: string }) {
