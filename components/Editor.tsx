@@ -570,25 +570,25 @@ const EmbedNode = Node.create({
 })
 
 // ── SLASH ITEMS ────────────────────────────────────────────────────────
-const SECTION_COLORS: Record<string, string> = {
-  'Basic blocks': 'rgba(59,130,246,0.12)',
-  'Advanced':     'rgba(139,92,246,0.13)',
-  'Media':        'rgba(245,158,11,0.13)',
-  'AI':           'rgba(168,85,247,0.15)',
-  'Layout':       'rgba(16,185,129,0.13)',
+const SECTION_THEME: Record<string, { bg: string; color: string }> = {
+  'Basic blocks': { bg: 'rgba(59,130,246,0.12)',  color: '#3b82f6' },
+  'Advanced':     { bg: 'rgba(139,92,246,0.13)',  color: '#8b5cf6' },
+  'Media':        { bg: 'rgba(245,158,11,0.13)',  color: '#d97706' },
+  'AI':           { bg: 'rgba(168,85,247,0.15)',  color: '#a855f7' },
+  'Layout':       { bg: 'rgba(16,185,129,0.13)',  color: '#10b981' },
 }
 
 const SLASH_ITEMS = [
-  { id: 'h1', label: 'Heading 1', hint: 'Big section heading', icon: <span style={{ fontWeight: 800, fontSize: '13px', letterSpacing: '-0.4px' }}>H1</span>, section: 'Basic blocks' },
-  { id: 'h2', label: 'Heading 2', hint: 'Medium heading', icon: <span style={{ fontWeight: 700, fontSize: '12px', letterSpacing: '-0.3px' }}>H2</span>, section: 'Basic blocks' },
-  { id: 'h3', label: 'Heading 3', hint: 'Small heading', icon: <span style={{ fontWeight: 600, fontSize: '11px', letterSpacing: '-0.2px' }}>H3</span>, section: 'Basic blocks' },
-  { id: 'bullet', label: 'Bulleted list', hint: 'Simple bullet list', icon: <Icon name="list" size={18}/>, section: 'Basic blocks' },
-  { id: 'numbered', label: 'Numbered list', hint: 'Numbered list', icon: <Icon name="list-ordered" size={18}/>, section: 'Basic blocks' },
-  { id: 'todo', label: 'To-do list', hint: 'Track tasks', icon: <Icon name="list-todo" size={18}/>, section: 'Basic blocks' },
-  { id: 'quote', label: 'Quote', hint: 'Capture a quote', icon: <Icon name="quote" size={18}/>, section: 'Basic blocks' },
+  { id: 'h1', label: 'Heading 1', hint: 'Big section heading', shortcut: '#', icon: <span style={{ fontWeight: 800, fontSize: '13px', letterSpacing: '-0.4px' }}>H1</span>, section: 'Basic blocks' },
+  { id: 'h2', label: 'Heading 2', hint: 'Medium heading', shortcut: '##', icon: <span style={{ fontWeight: 700, fontSize: '12px', letterSpacing: '-0.3px' }}>H2</span>, section: 'Basic blocks' },
+  { id: 'h3', label: 'Heading 3', hint: 'Small heading', shortcut: '###', icon: <span style={{ fontWeight: 600, fontSize: '11px', letterSpacing: '-0.2px' }}>H3</span>, section: 'Basic blocks' },
+  { id: 'bullet', label: 'Bulleted list', hint: 'Simple bullet list', shortcut: '-', icon: <Icon name="list" size={18}/>, section: 'Basic blocks' },
+  { id: 'numbered', label: 'Numbered list', hint: 'Numbered list', shortcut: '1.', icon: <Icon name="list-ordered" size={18}/>, section: 'Basic blocks' },
+  { id: 'todo', label: 'To-do list', hint: 'Track tasks', shortcut: '[ ]', icon: <Icon name="list-todo" size={18}/>, section: 'Basic blocks' },
+  { id: 'quote', label: 'Quote', hint: 'Capture a quote', shortcut: '>', icon: <Icon name="quote" size={18}/>, section: 'Basic blocks' },
   { id: 'callout', label: 'Callout', hint: 'Make writing stand out', icon: <Icon name="callout" size={18}/>, section: 'Basic blocks' },
-  { id: 'code', label: 'Code block', hint: 'Capture a code snippet', icon: <Icon name="code-block" size={18}/>, section: 'Basic blocks' },
-  { id: 'divider', label: 'Divider', hint: 'Visual divider', icon: <Icon name="divider" size={18}/>, section: 'Basic blocks' },
+  { id: 'code', label: 'Code block', hint: 'Capture a code snippet', shortcut: '```', icon: <Icon name="code-block" size={18}/>, section: 'Basic blocks' },
+  { id: 'divider', label: 'Divider', hint: 'Visual divider', shortcut: '---', icon: <Icon name="divider" size={18}/>, section: 'Basic blocks' },
   { id: 'toc', label: 'Table of contents', hint: 'Show page headings', icon: <Icon name="toc" size={18}/>, section: 'Advanced' },
   { id: 'table', label: 'Table', hint: 'Insert a table', icon: <Icon name="table" size={18}/>, section: 'Advanced' },
   { id: 'image', label: 'Image', hint: 'Upload or embed an image', icon: <Icon name="image" size={18}/>, section: 'Media' },
@@ -1771,27 +1771,34 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
           <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setSlashMenu(null)} />
           <div className="slash-menu fade-in"
             style={{ position: 'fixed', left: Math.min(slashMenu.x, window.innerWidth - 260), top: Math.min(slashMenu.y, window.innerHeight - 360), zIndex: 999 }}>
+            <div className="slash-menu-list">
             {items.length === 0
-              ? <div style={{ padding: '10px 12px', color: 'var(--text-tertiary)', fontSize: '13px' }}>No results</div>
+              ? <div style={{ padding: '4px 4px 4px', color: 'var(--text-tertiary)', fontSize: '13px' }}>No results</div>
               : items.map((item, i) => {
                   const showSec = item.section !== lastSection
                   lastSection = item.section
+                  const theme = SECTION_THEME[item.section]
                   return (
                     <div key={item.id}>
                       {showSec && <div className="slash-menu-section">{item.section}</div>}
                       <div className={`slash-menu-item ${i === slashIndex ? 'active' : ''}`}
                         onMouseEnter={() => setSlashIndex(i)}
                         onClick={() => runCmd(item.id, slashMenu.fromPos, slashMenu.query)}>
-                        <div className="icon" style={{ background: SECTION_COLORS[item.section] }}>{item.icon}</div>
+                        <div className="icon" style={{ background: theme?.bg, color: theme?.color }}>{item.icon}</div>
                         <div>
                           <div className="label">{item.label}</div>
-                          <div className="hint">{item.hint}</div>
+                          <div className="hint">
+                            {item.hint}
+                            {'shortcut' in item && <code className="slash-shortcut">{(item as { shortcut: string }).shortcut}</code>}
+                          </div>
                         </div>
                       </div>
                     </div>
                   )
                 })
             }
+            </div>
+            {items.length > 0 && <div className="slash-menu-bottom-fade"/>}
           </div>
         </>
       )}

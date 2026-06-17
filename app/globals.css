@@ -172,11 +172,18 @@ html, body {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
-  padding: 6px;
   min-width: 240px;
-  max-height: 340px;
-  overflow-y: auto;
+  position: relative;
+  overflow: hidden;
   z-index: 1000;
+}
+.slash-menu-list { padding: 6px; max-height: 340px; overflow-y: auto; scrollbar-width: none; }
+.slash-menu-list::-webkit-scrollbar { display: none; }
+.slash-menu-bottom-fade {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 40px;
+  background: linear-gradient(transparent, var(--surface));
+  pointer-events: none;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 }
 .slash-menu-item {
   display: flex; align-items: center; gap: 10px;
@@ -185,9 +192,10 @@ html, body {
   transition: background 0.1s;
 }
 .slash-menu-item:hover, .slash-menu-item.active { background: var(--sidebar-hover); }
-.slash-menu-item .icon { width: 30px; height: 30px; border-radius: var(--radius-sm); background: var(--sidebar-bg); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+.slash-menu-item .icon { width: 30px; height: 30px; border-radius: var(--radius-sm); display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
 .slash-menu-item .label { font-weight: 500; font-size: 13px; }
-.slash-menu-item .hint { font-size: 11px; color: var(--text-tertiary); }
+.slash-menu-item .hint { font-size: 11px; color: var(--text-tertiary); display: flex; align-items: center; gap: 5px; }
+.slash-shortcut { padding: 1px 4px; border-radius: 3px; background: var(--sidebar-bg); border: 1px solid var(--border); font-size: 10px; font-family: var(--font-mono, monospace); color: var(--text-tertiary); white-space: nowrap; }
 .slash-menu-section { font-size: 11px; font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: 0.5px; padding: 8px 8px 4px; }
 
 /* ── CONTEXT MENU ───────────────────────────────────────────── */
