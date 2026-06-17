@@ -1,11 +1,11 @@
-// @ts-nocheck
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
+import type { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AppShell from '@/components/AppShell'
 
-export default async function AppLayout({ children }) {
+export default async function AppLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')

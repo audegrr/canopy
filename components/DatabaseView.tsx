@@ -58,44 +58,49 @@ export default function DatabaseView({ page, canEdit }: Props) {
   useEffect(() => { loadData() }, [page.id])
 
   async function loadData() {
-    const [{ data: f }, { data: r }, { data: rel }] = await Promise.all([
-      supabase.from('db_fields').select('*').eq('page_id', page.id).order('position'),
-      supabase.from('db_records').select('*').eq('page_id', page.id).order('position'),
-      supabase.from('db_relations').select('*')
-    ])
-    const fieldsData = f || []
-    setFields(fieldsData)
-    setRecords(r || [])
-    setRelations(rel || [])
+    try {
+      const [{ data: f, error: fErr }, { data: r, error: rErr }, { data: rel }] = await Promise.all([
+        supabase.from('db_fields').select('*').eq('page_id', page.id).order('position'),
+        supabase.from('db_records').select('*').eq('page_id', page.id).order('position'),
+        supabase.from('db_relations').select('*')
+      ])
+      if (fErr || rErr) { setToast('Failed to load database'); return }
+      const fieldsData = f || []
+      setFields(fieldsData)
+      setRecords(r || [])
+      setRelations(rel || [])
 
-    const relFields = fieldsData.filter((x: DbField) => x.type === 'relation' && x.relation_page_id)
-    // Also include current page if any relation points to itself
-    const pageIds = relFields.length > 0
-      ? [...new Set(relFields.map((x: DbField) => x.relation_page_id!))]
-      : []
-    if (pageIds.length > 0) {
-      const { data: rPages } = await supabase.from('pages').select('id, title, icon').in('id', pageIds)
-      setRelatedPages(rPages || [])
-      const rRecs: Record<string, DbRecord[]> = {}
-      const rFields: Record<string, DbField[]> = {}
-      for (const pid of pageIds) {
-        // Use current records if linking to self
-        if (pid === page.id) {
-          rRecs[pid] = r || []
-          rFields[pid] = fieldsData
-        } else {
-          const [{ data: rr }, { data: rf }] = await Promise.all([
-            supabase.from('db_records').select('*').eq('page_id', pid),
-            supabase.from('db_fields').select('*').eq('page_id', pid).order('position')
-          ])
-          rRecs[pid] = rr || []
-          rFields[pid] = rf || []
+      const relFields = fieldsData.filter((x: DbField) => x.type === 'relation' && x.relation_page_id)
+      // Also include current page if any relation points to itself
+      const pageIds = relFields.length > 0
+        ? [...new Set(relFields.map((x: DbField) => x.relation_page_id!))]
+        : []
+      if (pageIds.length > 0) {
+        const { data: rPages } = await supabase.from('pages').select('id, title, icon').in('id', pageIds)
+        setRelatedPages(rPages || [])
+        const rRecs: Record<string, DbRecord[]> = {}
+        const rFields: Record<string, DbField[]> = {}
+        for (const pid of pageIds) {
+          // Use current records if linking to self
+          if (pid === page.id) {
+            rRecs[pid] = r || []
+            rFields[pid] = fieldsData
+          } else {
+            const [{ data: rr }, { data: rf }] = await Promise.all([
+              supabase.from('db_records').select('*').eq('page_id', pid),
+              supabase.from('db_fields').select('*').eq('page_id', pid).order('position')
+            ])
+            rRecs[pid] = rr || []
+            rFields[pid] = rf || []
+          }
         }
+        setRelatedRecords(rRecs)
+        // Store related fields for first-column lookup (include self)
+        rFields[page.id] = fieldsData
+        relatedFieldsRef.current = rFields
       }
-      setRelatedRecords(rRecs)
-      // Store related fields for first-column lookup (include self)
-      rFields[page.id] = fieldsData
-      relatedFieldsRef.current = rFields
+    } catch {
+      setToast('Failed to load database')
     }
   }
 
