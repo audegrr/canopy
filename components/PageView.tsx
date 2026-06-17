@@ -1,5 +1,5 @@
 'use client'
-import { useState, useRef, useEffect, useCallback, ChangeEvent } from 'react'
+import { useState, useRef, useEffect, ChangeEvent } from 'react'
 import { mdToTiptap } from '@/lib/mdToTiptap'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'

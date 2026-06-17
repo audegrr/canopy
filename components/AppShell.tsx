@@ -60,7 +60,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [profileName, setProfileName] = useState(user.name)
   const [renamingWs, setRenamingWs] = useState(false)
   const [wsNameInput, setWsNameInput] = useState('')
-  const [wsRowHovered, setWsRowHovered] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; pageId: string } | null>(null)
   const [draggingId, setDraggingId] = useState<string | null>(null)
   const [dragOverId, setDragOverId] = useState<string | null>(null)
@@ -1006,8 +1005,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           </div>
           <div onClick={() => setWsMenuOpen(o => !o)}
             style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '6px', cursor: 'pointer', userSelect: 'none' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; setWsRowHovered(true) }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; setWsRowHovered(false) }}>
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
             <div style={{ width: 26, height: 26, borderRadius: '6px', background: 'var(--sidebar-active)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', lineHeight: 1, flexShrink: 0 }}>{currentWs.icon}</div>
             {renamingWs ? (
               <input autoFocus value={wsNameInput} onChange={e => setWsNameInput(e.target.value)}

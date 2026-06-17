@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -89,11 +89,7 @@ export default function CommandPalette({ workspaceId, onCreatePage, onCreateData
     if (e.key === 'Escape') setOpen(false)
   }
 
-  if (!open) return (
-    <div style={{ position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)', zIndex: 10, pointerEvents: 'none' }}>
-      {/* Invisible trigger */}
-    </div>
-  )
+  if (!open) return null
 
   let lastSection = ''
 

@@ -1,5 +1,4 @@
 const CACHE = 'canopy-v1'
-const OFFLINE_FALLBACK = '/offline'
 
 // Cache essential app shell files on install
 self.addEventListener('install', e => {
