@@ -4,6 +4,10 @@ import type { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import AppShell from '@/components/AppShell'
+import type { Workspace, MemberWorkspace, SharedPage, Page } from '@/lib/types'
+
+type MembershipRow = { workspace_id: string; role: string }
+type ProfileRow = { id: string; full_name: string | null; email: string | null }
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient()
@@ -30,40 +34,41 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   }
 
   // Fetch shared workspace objects separately (avoids PostgREST join issues)
-  let memberWorkspaces: any[] = []
-  const memberships = membershipsResult.data || []
+  let memberWorkspaces: MemberWorkspace[] = []
+  const memberships: MembershipRow[] = (membershipsResult.data as MembershipRow[]) || []
   if (memberships.length > 0) {
-    const wsIds = memberships.map((m: any) => m.workspace_id)
+    const wsIds = memberships.map(m => m.workspace_id)
     const { data: wsData } = await supabase.from('workspaces').select('*').in('id', wsIds)
     if (wsData) {
-      memberWorkspaces = wsData.map((ws: any) => ({
+      memberWorkspaces = (wsData as Workspace[]).map(ws => ({
         ...ws,
-        _memberRole: memberships.find((m: any) => m.workspace_id === ws.id)?.role || 'member'
+        _memberRole: (memberships.find(m => m.workspace_id === ws.id)?.role || 'member') as MemberWorkspace['_memberRole']
       }))
     }
   }
 
-  const pages = (pagesResult.data || []).map((p: any) => ({
+  const pages = (pagesResult.data || []).map((p: Record<string, unknown>) => ({
     ...p,
-    content: [], cover_url: '', created_at: '', updated_at: '',
-    icon: p.icon || '', parent_id: p.parent_id ?? null,
-    link_permission: p.link_permission || 'none',
-  }))
+    content: [] as [], cover_url: '', created_at: '', updated_at: '',
+    icon: (p.icon as string) || '', parent_id: (p.parent_id as string | null) ?? null,
+    link_permission: ((p.link_permission as string) || 'none') as Page['link_permission'],
+  })) as unknown as Page[]
 
   // Fetch owner names for shared pages
-  const ownerIds = [...new Set((sharedResult.data || []).map((p: any) => p.owner_id).filter(Boolean))]
+  const rawShared: Record<string, unknown>[] = (sharedResult.data as Record<string, unknown>[]) || []
+  const ownerIds = [...new Set(rawShared.map(p => p.owner_id as string).filter(Boolean))]
   let ownerProfiles: Record<string, string> = {}
   if (ownerIds.length > 0) {
     const { data: profiles } = await supabase.from('profiles').select('id, full_name, email').in('id', ownerIds)
-    ownerProfiles = Object.fromEntries((profiles || []).map((p: any) => [p.id, p.full_name || p.email?.split('@')[0] || 'Unknown']))
+    ownerProfiles = Object.fromEntries((profiles as ProfileRow[] || []).map(p => [p.id, p.full_name || p.email?.split('@')[0] || 'Unknown']))
   }
 
-  const sharedPages = (sharedResult.data || []).map((p: any) => ({
-    id: p.id, title: p.title, icon: p.icon || '',
-    owner_id: p.owner_id, owner_name: ownerProfiles[p.owner_id] ?? null,
-    permission: p.permission, parent_id: p.parent_id ?? null,
-    workspace_id: p.workspace_id ?? undefined,
-    is_database: p.is_database ?? false
+  const sharedPages: SharedPage[] = rawShared.map(p => ({
+    id: p.id as string, title: p.title as string, icon: (p.icon as string) || '',
+    owner_id: p.owner_id as string, owner_name: ownerProfiles[p.owner_id as string] ?? null,
+    permission: p.permission as 'view' | 'edit', parent_id: (p.parent_id as string) ?? null,
+    workspace_id: (p.workspace_id as string) ?? undefined,
+    is_database: (p.is_database as boolean) ?? false
   }))
 
   return (

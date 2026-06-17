@@ -951,7 +951,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
       setCommentLoading(false)
       return
     }
-    if (!error && data) {
+    if (data) {
       const profile = myPresenceRef.current.name
         ? { full_name: myPresenceRef.current.name, email: '' }
         : null
@@ -1495,7 +1495,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
               )}
               {backlinks.map(b => (
                 <div key={b.id}
-                  onClick={() => { window.location.href = `/app/page/${b.id}` }}
+                  onClick={() => window.dispatchEvent(new CustomEvent('canopy:navigate', { detail: { path: `/app/page/${b.id}` } }))}
                   style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', cursor: 'pointer' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>

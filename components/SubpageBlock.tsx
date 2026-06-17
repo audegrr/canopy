@@ -62,7 +62,7 @@ export default function SubpageBlock({ node, updateAttributes, deleteNode, selec
           <span onClick={toggle} style={{ fontSize: 11, color: 'var(--text-tertiary)', transition: 'transform 0.15s', display: 'inline-block', transform: expanded ? 'rotate(90deg)' : 'none', flexShrink: 0, width: 18, textAlign: 'center', cursor: 'pointer' }}>▶</span>
           <span style={{ fontSize: 16, flexShrink: 0 }}>{page.icon || '📄'}</span>
           <span onClick={toggle} style={{ flex: 1, fontSize: 13.5, fontWeight: 500 }}>{page.title || 'Untitled'}</span>
-          <button onClick={() => window.location.href = `/app/page/${page.id}`}
+          <button onClick={() => window.dispatchEvent(new CustomEvent('canopy:navigate', { detail: { path: `/app/page/${page.id}` } }))}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 11, padding: '2px 8px', borderRadius: 4, fontFamily: 'var(--font-sans)' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
-import type { TiptapNode } from '@/lib/types'
+import type { TiptapNode, TiptapMark } from '@/lib/types'
 
 function renderNodes(nodes: TiptapNode[]): string {
   if (!nodes) return ''
@@ -9,7 +9,7 @@ function renderNodes(nodes: TiptapNode[]): string {
       case 'paragraph': return `<p>${renderNodes(node.content || [])}</p>`
       case 'text': {
         let t = node.text || ''
-        if (node.marks) node.marks.forEach((m: any) => {
+        if (node.marks) node.marks.forEach((m: TiptapMark) => {
           if (m.type === 'bold') t = `<strong>${t}</strong>`
           if (m.type === 'italic') t = `<em>${t}</em>`
           if (m.type === 'underline') t = `<u>${t}</u>`

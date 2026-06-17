@@ -14,7 +14,7 @@ export default function DragHandle({ editor }: Props) {
     srcIdx: -1,
     dstIdx: -1,
     dragging: false,
-    hideTimer: null as any,
+    hideTimer: undefined as ReturnType<typeof setTimeout> | undefined,
   })
 
   // Re-attach listeners whenever editor changes
