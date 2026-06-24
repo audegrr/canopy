@@ -770,6 +770,7 @@ const collapsePlugin = new Plugin({
             const btn = document.createElement('span')
             btn.className = `heading-toggle${collapsed ? ' heading-toggle--collapsed' : ''}`
             btn.setAttribute('contenteditable', 'false')
+            btn.textContent = '▶'
             btn.addEventListener('mousedown', (e) => {
               e.preventDefault()
               e.stopPropagation()
