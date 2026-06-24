@@ -214,10 +214,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   // Realtime sync: new pages/databases created by other members appear instantly
   useEffect(() => {
     if (!currentWs.id) return
-    const channel = supabase.channel(`ws_pages_${currentWs.id}`)
+    const wsId = currentWs.id  // capture for closures
+
+    const channel = supabase.channel(`ws_pages_${wsId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pages' }, (payload: any) => {
         const p = payload.new
-        if (p.workspace_id !== currentWs.id) return
+        if (p.workspace_id !== wsId) return
         setPages(prev => {
           if (prev.find(x => x.id === p.id)) return prev
           return [...prev, {
@@ -231,26 +233,45 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pages' }, (payload: any) => {
         const p = payload.new
         if (!p.id) return  // payload masked by RLS — ignore
-        if (p.workspace_id !== currentWs.id) return
+        // Don't check workspace_id here: Supabase may omit unchanged columns
+        // from payload.new, so workspace_id might be missing even when valid.
+        // Instead, only update pages already present in our workspace state.
         if (p.deleted_at) {
           setPages(prev => prev.filter(x => x.id !== p.id))
         } else {
-          // Apply hierarchy/metadata changes so other members see them instantly
-          setPages(prev => prev.map(x => x.id !== p.id ? x : {
-            ...x,
-            parent_id: p.parent_id ?? null,
-            position: p.position,
-            title: p.title ?? x.title,
-            icon: p.icon ?? x.icon,
-            is_locked: p.is_locked ?? x.is_locked,
-            link_permission: p.link_permission ?? x.link_permission,
-          }))
+          setPages(prev => {
+            if (!prev.some(x => x.id === p.id)) return prev  // not our workspace
+            return prev.map(x => x.id !== p.id ? x : {
+              ...x,
+              ...(p.parent_id !== undefined  && { parent_id: p.parent_id ?? null }),
+              ...(p.position   !== undefined  && { position: p.position }),
+              ...(p.title      !== undefined  && { title: p.title }),
+              ...(p.icon       !== undefined  && { icon: p.icon || '' }),
+              ...(p.is_locked  !== undefined  && { is_locked: p.is_locked }),
+              ...(p.link_permission !== undefined && { link_permission: p.link_permission }),
+            })
+          })
         }
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pages' }, (payload: any) => {
         const p = payload.old
-        if (p.workspace_id !== currentWs.id) return
+        if (p.workspace_id && p.workspace_id !== wsId) return
         setPages(prev => prev.filter(x => x.id !== p.id))
+      })
+      // Broadcast: explicit hierarchy updates sent by the user who did the move.
+      // More reliable than postgres_changes for parent_id / position changes because
+      // those events may arrive with incomplete payloads due to RLS / partial WAL.
+      .on('broadcast', { event: 'hierarchy_update' }, async ({ payload }: any) => {
+        if (payload?.userId === user.id) return  // own change, already applied locally
+        // Re-fetch workspace pages to get the latest hierarchy
+        const freshData = await fetchWorkspacePages(wsId)
+        if (freshData.length > 0) {
+          setPages(freshData.map((p: any) => ({
+            ...p, content: [], cover_url: '', created_at: '', updated_at: '',
+            icon: p.icon || '', parent_id: p.parent_id ?? null,
+            link_permission: p.link_permission || 'none',
+          })))
+        }
       })
       .subscribe()
     return () => { channel.unsubscribe() }
@@ -572,6 +593,14 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     setRenamingPageId(null)
   }
 
+  function broadcastHierarchyUpdate() {
+    supabase.channel(`ws_pages_${currentWs.id}`).send({
+      type: 'broadcast',
+      event: 'hierarchy_update',
+      payload: { userId: user.id },
+    })
+  }
+
   async function movePage(pageId: string, newParentId: string | null) {
     if (pageId === newParentId) return
     await supabase.from('pages').update({ parent_id: newParentId }).eq('id', pageId)
@@ -830,6 +859,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         return idx >= 0 ? { ...x, position: (idx + 1) * 10 } : x
       }))
     }
+    broadcastHierarchyUpdate()
     resetDrag()
   }
 
@@ -838,7 +868,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   function handleDrop(e: React.DragEvent, targetId: string | null) {
     e.preventDefault()
     const id = e.dataTransfer.getData('pageId')
-    if (id && id !== targetId) movePage(id, targetId)
+    if (id && id !== targetId) {
+      movePage(id, targetId).then(() => broadcastHierarchyUpdate())
+    }
     resetDrag()
   }
 
