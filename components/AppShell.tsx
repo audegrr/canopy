@@ -601,10 +601,25 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     })
   }
 
-  async function movePage(pageId: string, newParentId: string | null) {
+  async function movePage(pageId: string, newParentId: string | null, positionUpdates?: { id: string; position: number }[]) {
     if (pageId === newParentId) return
-    await supabase.from('pages').update({ parent_id: newParentId }).eq('id', pageId)
-    setPages(p => p.map(x => x.id === pageId ? { ...x, parent_id: newParentId } : x))
+    // Use the server-side admin route: RLS UPDATE only allows owner_id = auth.uid(),
+    // so workspace members/owners can't move pages they don't personally own.
+    await fetch('/api/move-page', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pageId, newParentId, positionUpdates }),
+    })
+    setPages(p => {
+      let next = p.map(x => x.id === pageId ? { ...x, parent_id: newParentId } : x)
+      if (positionUpdates?.length) {
+        next = next.map(x => {
+          const u = positionUpdates.find(u => u.id === x.id)
+          return u ? { ...x, position: u.position } : x
+        })
+      }
+      return next
+    })
   }
 
   function copyPageUrl(pageId: string) {
@@ -834,30 +849,20 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     if (!pos) { resetDrag(); return }
 
     if (pos.side === 'inside') {
-      // Nest inside target
       await movePage(draggedId, targetPageId)
     } else {
-      // Reorder: move to same parent as target, adjust position
+      // Reorder: same parent as target, with new position order
       const target = pages.find(p => p.id === targetPageId)
       if (!target) { resetDrag(); return }
-      await movePage(draggedId, target.parent_id ?? null)
-      // Update positions
-      const siblings = pages.filter(p => p.parent_id === (target.parent_id ?? null) && p.id !== draggedId)
+      const newParentId = target.parent_id ?? null
+      const siblings = pages
+        .filter(p => p.parent_id === newParentId && p.id !== draggedId)
         .sort((a, b) => a.position - b.position)
       const targetIdx = siblings.findIndex(p => p.id === targetPageId)
       const insertIdx = pos.side === 'above' ? targetIdx : targetIdx + 1
-      const newOrder = [...siblings.slice(0, insertIdx), { id: draggedId, position: 0 }, ...siblings.slice(insertIdx)]
-      for (let i = 0; i < newOrder.length; i++) {
-        if (newOrder[i].id !== draggedId) {
-          await supabase.from('pages').update({ position: (i + 1) * 10 }).eq('id', newOrder[i].id)
-        } else {
-          await supabase.from('pages').update({ position: (i + 1) * 10 }).eq('id', draggedId)
-        }
-      }
-      setPages(p => p.map(x => {
-        const idx = newOrder.findIndex(n => n.id === x.id)
-        return idx >= 0 ? { ...x, position: (idx + 1) * 10 } : x
-      }))
+      const newOrder = [...siblings.slice(0, insertIdx), { id: draggedId }, ...siblings.slice(insertIdx)]
+      const positionUpdates = newOrder.map((p, i) => ({ id: p.id, position: (i + 1) * 10 }))
+      await movePage(draggedId, newParentId, positionUpdates)
     }
     broadcastHierarchyUpdate()
     resetDrag()
