@@ -183,20 +183,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     if (savedWs) {
       const found = ([...workspaces, ...memberWorkspaces] as Workspace[]).find(w => w.id === savedWs)
       if (found && found.id !== currentWs.id) {
-        // Load all pages for workspace (including those created by other members)
-        supabase.from('pages')
-          .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
-          .eq('workspace_id', found.id)
-          .is('deleted_at', null)
-          .order('position')
-          .then(({ data }) => {
-          if (data) {
-            setPages(data.map(p => ({
-              ...p, content: [], cover_url: '', created_at: '', updated_at: '',
-              icon: p.icon || '', parent_id: p.parent_id ?? null,
-              link_permission: p.link_permission || 'none',
-            })))
-          }
+        fetchWorkspacePages(found.id).then(data => {
+          setPages(data.map((p: any) => ({
+            ...p, content: [], cover_url: '', created_at: '', updated_at: '',
+            icon: p.icon || '', parent_id: p.parent_id ?? null,
+            link_permission: p.link_permission || 'none',
+          })))
           setCurrentWs(found)
           if (savedPage && savedPage !== '/app' && pathname === '/app') {
             router.replace(savedPage)
@@ -643,20 +635,22 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     setRenamingWs(false)
   }
 
+  async function fetchWorkspacePages(wsId: string): Promise<any[]> {
+    const res = await fetch(`/api/workspace-pages?ws_id=${wsId}`)
+    if (!res.ok) return []
+    return res.json()
+  }
+
   async function switchWorkspace(ws: Workspace | MemberWorkspace) {
     setCurrentWs(ws)
     localStorage.setItem('canopy_workspace', ws.id)
     setWsMenuOpen(false)
     setNavigating(true)
 
-    // Load all pages for workspace (including those created by other members)
-    const { data: wsPages } = await supabase
-      .from('pages')
-      .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
-      .eq('workspace_id', ws.id)
-      .is('deleted_at', null)
-      .order('position')
-    setPages((wsPages || []).map(p => ({
+    // Use the server-side route that bypasses RLS to get all workspace pages
+    // (including pages created by other members that RLS might otherwise hide)
+    const wsPages = await fetchWorkspacePages(ws.id)
+    setPages(wsPages.map((p: any) => ({
       ...p,
       content: [], cover_url: '', created_at: '', updated_at: '',
       icon: p.icon || '', parent_id: p.parent_id ?? null,

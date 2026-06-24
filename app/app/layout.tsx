@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 import type { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/server'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { redirect } from 'next/navigation'
 import AppShell from '@/components/AppShell'
 import type { Workspace, MemberWorkspace, SharedPage, Page } from '@/lib/types'
@@ -28,9 +29,15 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     if (ws) workspaces = [ws]
   }
 
-  // Fetch all pages in owned workspaces so workspace owners see pages created by members
+  // Use service role to bypass RLS — user ownership already verified above via workspaces query.
+  // RLS on `pages` may not cover workspace owners reading member-created pages, so we
+  // explicitly verify ownership and use admin access.
+  const adminSupabase = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
   const ownedWsIds = workspaces.map((w: Workspace) => w.id)
-  const { data: pagesData } = await supabase.from('pages')
+  const { data: pagesData } = await adminSupabase.from('pages')
     .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
     .in('workspace_id', ownedWsIds.length > 0 ? ownedWsIds : ['00000000-0000-0000-0000-000000000000'])
     .is('deleted_at', null)
