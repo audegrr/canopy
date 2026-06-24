@@ -230,8 +230,22 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pages' }, (payload: any) => {
         const p = payload.new
+        if (!p.id) return  // payload masked by RLS — ignore
         if (p.workspace_id !== currentWs.id) return
-        if (p.deleted_at) setPages(prev => prev.filter(x => x.id !== p.id))
+        if (p.deleted_at) {
+          setPages(prev => prev.filter(x => x.id !== p.id))
+        } else {
+          // Apply hierarchy/metadata changes so other members see them instantly
+          setPages(prev => prev.map(x => x.id !== p.id ? x : {
+            ...x,
+            parent_id: p.parent_id ?? null,
+            position: p.position,
+            title: p.title ?? x.title,
+            icon: p.icon ?? x.icon,
+            is_locked: p.is_locked ?? x.is_locked,
+            link_permission: p.link_permission ?? x.link_permission,
+          }))
+        }
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pages' }, (payload: any) => {
         const p = payload.old
