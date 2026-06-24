@@ -42,6 +42,7 @@ function InstantPageView({ data, isFavorite, onToggleFavorite }: { data: any; is
 export default function AppShell({ user, workspaces: initWS, currentWorkspace: initCWS, pages: initPages, sharedPages: initSharedPages, memberWorkspaces = [], children }: Props) {
   const [workspaces, setWorkspaces] = useState(initWS)
   const [currentWs, setCurrentWs] = useState(initCWS)
+  const wsChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
   const [pages, setPages] = useState(initPages)
   const [sharedPages, setSharedPages] = useState(initSharedPages)
   const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set())
@@ -216,7 +217,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     if (!currentWs.id) return
     const wsId = currentWs.id  // capture for closures
 
-    const channel = supabase.channel(`ws_pages_${wsId}`)
+    const channel = supabase.channel(`ws_pages_${wsId}`, { config: { broadcast: { self: false } } })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pages' }, (payload: any) => {
         const p = payload.new
         if (p.workspace_id !== wsId) return
@@ -261,8 +262,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       // Broadcast: explicit hierarchy updates sent by the user who did the move.
       // More reliable than postgres_changes for parent_id / position changes because
       // those events may arrive with incomplete payloads due to RLS / partial WAL.
-      .on('broadcast', { event: 'hierarchy_update' }, async ({ payload }: any) => {
-        if (payload?.userId === user.id) return  // own change, already applied locally
+      .on('broadcast', { event: 'hierarchy_update' }, async () => {
         // Re-fetch workspace pages to get the latest hierarchy
         const freshData = await fetchWorkspacePages(wsId)
         if (freshData.length > 0) {
@@ -273,8 +273,17 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           })))
         }
       })
+      .on('broadcast', { event: 'metadata_update' }, ({ payload }: any) => {
+        if (!payload?.pageId) return
+        setPages(prev => prev.map(x => x.id !== payload.pageId ? x : {
+          ...x,
+          ...(payload.title !== undefined && { title: payload.title }),
+          ...(payload.icon  !== undefined && { icon: payload.icon ?? '' }),
+        }))
+      })
       .subscribe()
-    return () => { channel.unsubscribe() }
+    wsChannelRef.current = channel
+    return () => { channel.unsubscribe(); wsChannelRef.current = null }
   }, [currentWs.id])
 
   // Remove pages from "Shared with me" when the owner revokes access or deletes the page
@@ -590,14 +599,19 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     setPages(p => p.map(x => x.id === pageId ? { ...x, title } : x))
     setSharedPages(sp => sp.map(x => x.id === pageId ? { ...x, title } : x))
     window.dispatchEvent(new CustomEvent('canopy:pageUpdate', { detail: { id: pageId, title } }))
+    broadcastMetadataUpdate(pageId, title)
     setRenamingPageId(null)
   }
 
   function broadcastHierarchyUpdate() {
-    supabase.channel(`ws_pages_${currentWs.id}`).send({
+    wsChannelRef.current?.send({ type: 'broadcast', event: 'hierarchy_update', payload: {} })
+  }
+
+  function broadcastMetadataUpdate(pageId: string, title?: string, icon?: string) {
+    wsChannelRef.current?.send({
       type: 'broadcast',
-      event: 'hierarchy_update',
-      payload: { userId: user.id },
+      event: 'metadata_update',
+      payload: { pageId, ...(title !== undefined && { title }), ...(icon !== undefined && { icon }) },
     })
   }
 
