@@ -17,6 +17,7 @@ import Image from '@tiptap/extension-image'
 import { Node, Mark, mergeAttributes } from '@tiptap/core'
 import { TextSelection, Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import HeadingBase from '@tiptap/extension-heading'
 import { createLowlight, all as allLangs } from 'lowlight'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
@@ -745,6 +746,83 @@ const MathBlockNode = Node.create({
   addNodeView() { return ReactNodeViewRenderer(MathBlockView) },
 })
 
+// ── COLLAPSIBLE HEADING ───────────────────────────────────────────────────────
+const collapsePluginKey = new PluginKey('headingCollapse')
+
+const collapsePlugin = new Plugin({
+  key: collapsePluginKey,
+  props: {
+    decorations(state) {
+      const { doc } = state
+      const decos: Decoration[] = []
+      const topNodes: { node: any; pos: number }[] = []
+      doc.forEach((node: any, pos: number) => { topNodes.push({ node, pos }) })
+
+      for (let i = 0; i < topNodes.length; i++) {
+        const { node, pos } = topNodes[i]
+        if (node.type.name !== 'heading') continue
+
+        const collapsed = !!node.attrs.collapsed
+        const level = node.attrs.level as number
+
+        decos.push(
+          Decoration.widget(pos + 1, (view, getPos) => {
+            const btn = document.createElement('span')
+            btn.className = `heading-toggle${collapsed ? ' heading-toggle--collapsed' : ''}`
+            btn.setAttribute('contenteditable', 'false')
+            btn.addEventListener('mousedown', (e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              if (!view.editable) return
+              const wPos = getPos()
+              if (wPos === undefined) return
+              const $p = view.state.doc.resolve(wPos)
+              const nodePos = $p.before($p.depth)
+              const n = $p.node($p.depth)
+              if (!n || n.type.name !== 'heading') return
+              view.dispatch(
+                view.state.tr.setNodeMarkup(nodePos, undefined, {
+                  ...n.attrs,
+                  collapsed: !n.attrs.collapsed,
+                })
+              )
+            })
+            return btn
+          }, { side: -1, key: `heading-toggle-${pos}` })
+        )
+
+        if (!collapsed) continue
+
+        for (let j = i + 1; j < topNodes.length; j++) {
+          const sib = topNodes[j]
+          if (sib.node.type.name === 'heading' && sib.node.attrs.level <= level) break
+          decos.push(
+            Decoration.node(sib.pos, sib.pos + sib.node.nodeSize, { style: 'display:none' })
+          )
+        }
+      }
+
+      return DecorationSet.create(doc, decos)
+    },
+  },
+})
+
+const CollapsibleHeading = HeadingBase.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      collapsed: {
+        default: false,
+        parseHTML: el => el.getAttribute('data-collapsed') === 'true',
+        renderHTML: attrs => attrs.collapsed ? { 'data-collapsed': 'true' } : {},
+      },
+    }
+  },
+  addProseMirrorPlugins() {
+    return [...(this.parent?.() ?? []), collapsePlugin]
+  },
+})
+
 // ── COMMENT MARK ─────────────────────────────────────────────────────────────
 const CommentMark = Mark.create({
   name: 'comment',
@@ -1030,7 +1108,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] }, codeBlock: false }),
+      StarterKit.configure({ heading: false, codeBlock: false }),
+      CollapsibleHeading.configure({ levels: [1, 2, 3] }),
       CustomCodeBlock,
       Placeholder.configure({
         placeholder: ({ node }) => node.type.name === 'heading' ? 'Heading' : "Type '/' for commands…"
