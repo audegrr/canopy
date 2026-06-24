@@ -102,7 +102,7 @@ html, body {
 /* Collapsible heading toggle — absolute so it never shifts heading text */
 .heading-toggle {
   position: absolute;
-  left: -18px;
+  left: -22px;
   top: 50%;
   transform: translateY(-50%) rotate(90deg);
   opacity: 0;
