@@ -765,26 +765,28 @@ const collapsePlugin = new Plugin({
         const collapsed = !!node.attrs.collapsed
         const level = node.attrs.level as number
 
+        const headingPos = pos
         decos.push(
-          Decoration.widget(pos + 1, (view, getPos) => {
+          Decoration.widget(pos + 1, (view) => {
             const btn = document.createElement('span')
             btn.className = `heading-toggle${collapsed ? ' heading-toggle--collapsed' : ''}`
             btn.setAttribute('contenteditable', 'false')
             btn.textContent = '▶'
+            // Prevent ProseMirror from moving the cursor on mousedown
             btn.addEventListener('mousedown', (e) => {
               e.preventDefault()
               e.stopPropagation()
+            })
+            btn.addEventListener('click', (e) => {
+              e.preventDefault()
+              e.stopPropagation()
               if (!view.editable) return
-              const wPos = getPos()
-              if (wPos === undefined) return
-              const $p = view.state.doc.resolve(wPos)
-              const nodePos = $p.before($p.depth)
-              const n = $p.node($p.depth)
-              if (!n || n.type.name !== 'heading') return
+              const node = view.state.doc.nodeAt(headingPos)
+              if (!node || node.type.name !== 'heading') return
               view.dispatch(
-                view.state.tr.setNodeMarkup(nodePos, undefined, {
-                  ...n.attrs,
-                  collapsed: !n.attrs.collapsed,
+                view.state.tr.setNodeMarkup(headingPos, undefined, {
+                  ...node.attrs,
+                  collapsed: !node.attrs.collapsed,
                 })
               )
             })
