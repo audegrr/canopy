@@ -176,11 +176,15 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     setTimeout(warmNext, 500)
   }, [currentWs.id, pages.length])
 
-  // Restore last active workspace + page from localStorage
+  // Restore last active workspace + page from localStorage.
+  // Also syncs the canopy_workspace cookie so the server can read it on the
+  // next reload and skip the flash entirely.
   useEffect(() => {
     const savedWs = localStorage.getItem('canopy_workspace')
     const savedPage = localStorage.getItem('canopy_last_page')
     if (savedWs) {
+      // Always keep cookie in sync so next full reload lands on the right workspace
+      setWorkspaceCookie(savedWs)
       const found = ([...workspaces, ...memberWorkspaces] as Workspace[]).find(w => w.id === savedWs)
       if (found && found.id !== currentWs.id) {
         fetchWorkspacePages(found.id).then(data => {
@@ -641,9 +645,14 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     return res.json()
   }
 
+  function setWorkspaceCookie(wsId: string) {
+    document.cookie = `canopy_workspace=${wsId}; path=/; max-age=31536000; SameSite=Lax`
+  }
+
   async function switchWorkspace(ws: Workspace | MemberWorkspace) {
     setCurrentWs(ws)
     localStorage.setItem('canopy_workspace', ws.id)
+    setWorkspaceCookie(ws.id)
     setWsMenuOpen(false)
     setNavigating(true)
 

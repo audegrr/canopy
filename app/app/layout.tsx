@@ -3,6 +3,7 @@ export const revalidate = 0
 import type { ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import AppShell from '@/components/AppShell'
 import type { Workspace, MemberWorkspace, SharedPage, Page } from '@/lib/types'
@@ -29,21 +30,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     if (ws) workspaces = [ws]
   }
 
-  // Use service role to bypass RLS — user ownership already verified above via workspaces query.
-  // RLS on `pages` may not cover workspace owners reading member-created pages, so we
-  // explicitly verify ownership and use admin access.
-  const adminSupabase = createAdminClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  )
-  const ownedWsIds = workspaces.map((w: Workspace) => w.id)
-  const { data: pagesData } = await adminSupabase.from('pages')
-    .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
-    .in('workspace_id', ownedWsIds.length > 0 ? ownedWsIds : ['00000000-0000-0000-0000-000000000000'])
-    .is('deleted_at', null)
-    .order('position')
-
-  // Fetch shared workspace objects separately (avoids PostgREST join issues)
+  // Fetch shared workspace objects so we can resolve the current workspace from the cookie
   let memberWorkspaces: MemberWorkspace[] = []
   const memberships: MembershipRow[] = (membershipsResult.data as MembershipRow[]) || []
   if (memberships.length > 0) {
@@ -56,6 +43,26 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       }))
     }
   }
+
+  // Determine the workspace the user was last on from the cookie (set by AppShell on each switch).
+  // This lets the server render with the correct workspace immediately, eliminating the flash.
+  const cookieStore = await cookies()
+  const savedWsId = cookieStore.get('canopy_workspace')?.value
+  const allAvailableWs = [...workspaces, ...memberWorkspaces] as Workspace[]
+  const currentWorkspace = (savedWsId && allAvailableWs.find(w => w.id === savedWsId)) || workspaces[0]
+    || { id: '', name: 'Workspace', icon: '🌿', owner_id: user.id, created_at: '' }
+
+  // Use service role to bypass RLS — access is verified above (workspace owner or member).
+  // The user's session RLS may not allow workspace owners to read pages created by members.
+  const adminSupabase = createAdminClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+  const { data: pagesData } = await adminSupabase.from('pages')
+    .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
+    .eq('workspace_id', currentWorkspace.id)
+    .is('deleted_at', null)
+    .order('position')
 
   const pages = (pagesData || []).map((p: Record<string, unknown>) => ({
     ...p,
@@ -86,7 +93,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       user={{ id: user.id, email: user.email || '', name: user.user_metadata?.full_name || user.email || '' }}
       workspaces={workspaces}
       memberWorkspaces={memberWorkspaces}
-      currentWorkspace={workspaces[0] || { id: '', name: 'Workspace', icon: '🌿', owner_id: user.id, created_at: '' }}
+      currentWorkspace={currentWorkspace}
       pages={pages}
       sharedPages={sharedPages}
     >

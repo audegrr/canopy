@@ -79,7 +79,23 @@ export default function PageRoute() {
           .eq('user_id', user.id)
       ])
 
-      if (!page && !share) { setError(true); return }
+      // If RLS blocked the page read (e.g. workspace owner reading a member's page),
+      // fall back to the admin API route which bypasses RLS after verifying access.
+      if (!page && !share) {
+        const res = await fetch(`/api/page-data?id=${id}`)
+        if (res.ok) {
+          const data = await res.json()
+          const result = { page: data.page, canEdit: data.canEdit, isOwner: data.isOwner, isWorkspaceMember: data.isWorkspaceMember, userId: data.userId }
+          cache.set(id, result)
+          ;(window as any).__pageCache = (window as any).__pageCache || new Map()
+          ;(window as any).__pageCache.set(id, result)
+          setState(result)
+          document.title = (data.page.title || 'Untitled') + ' — Canopy'
+          return
+        }
+        // Page not accessible at all
+        setError(true); return
+      }
       let resolvedPage = page
       if (!resolvedPage) { router.push(`/share/${id}`); return }
 
