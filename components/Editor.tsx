@@ -789,7 +789,7 @@ const collapsePlugin = new Plugin({
               )
             })
             return btn
-          }, { side: -1, key: `heading-toggle-${pos}` })
+          }, { side: -1, key: `heading-toggle-${pos}-${collapsed}` })
         )
 
         if (!collapsed) continue
