@@ -31,7 +31,9 @@ if (typeof window !== 'undefined') {
         || share?.permission === 'edit'
         || page.link_permission === 'edit'
         || (wsMem || []).some((m: any) => m.workspace_id === page.workspace_id && ['owner','member'].includes(m.role))
-      const result = { page, canEdit, isOwner, userId: user.id }
+      const isMember = (wsMem || []).some((m: any) => m.workspace_id === page.workspace_id)
+      const isWorkspaceMember = isWsOwner || isMember
+      const result = { page, canEdit, isOwner, isWorkspaceMember, userId: user.id }
       cache.set(pid, result)
       // Also sync to window.__pageCache so instant navigation uses correct permissions
       ;(window as any).__pageCache = (window as any).__pageCache || new Map()
@@ -45,7 +47,7 @@ export default function PageRoute() {
   const id = params?.id as string
   const router = useRouter()
   const [state, setState] = useState<{
-    page: any; canEdit: boolean; isOwner: boolean; userId: string
+    page: any; canEdit: boolean; isOwner: boolean; isWorkspaceMember: boolean; userId: string
   } | null>(null)
   const [error, setError] = useState(false)
 
@@ -98,7 +100,8 @@ export default function PageRoute() {
         || share?.permission === 'edit'
         || resolvedPage.link_permission === 'edit'
         || (wsMember || []).some((m: any) => m.workspace_id === resolvedPage.workspace_id && ['owner','member'].includes(m.role))
-      const result = { page: resolvedPage, canEdit, isOwner, userId: user.id }
+      const isWorkspaceMember = isWsOwner || isMember
+      const result = { page: resolvedPage, canEdit, isOwner, isWorkspaceMember, userId: user.id }
       cache.set(id, result)
       // Keep window.__pageCache in sync so future instant navigations use real permissions
       ;(window as any).__pageCache = (window as any).__pageCache || new Map()
@@ -135,5 +138,5 @@ export default function PageRoute() {
     </div>
   )
 
-  return <PageView page={state.page} canEdit={state.canEdit} isOwner={state.isOwner} userId={state.userId} />
+  return <PageView page={state.page} canEdit={state.canEdit} isOwner={state.isOwner} isWorkspaceMember={state.isWorkspaceMember} userId={state.userId} />
 }

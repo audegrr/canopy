@@ -14,13 +14,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [workspacesResult, pagesResult, sharedResult, membershipsResult] = await Promise.all([
+  const [workspacesResult, sharedResult, membershipsResult] = await Promise.all([
     supabase.from('workspaces').select('*').eq('owner_id', user.id).order('created_at'),
-    supabase.from('pages')
-      .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
-      .eq('owner_id', user.id)
-      .is('deleted_at', null)
-      .order('position'),
     supabase.rpc('get_shared_pages', { user_uuid: user.id }),
     supabase.from('workspace_members').select('workspace_id, role').eq('user_id', user.id)
   ])
@@ -32,6 +27,14 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
       .select().single()
     if (ws) workspaces = [ws]
   }
+
+  // Fetch all pages in owned workspaces so workspace owners see pages created by members
+  const ownedWsIds = workspaces.map((w: Workspace) => w.id)
+  const { data: pagesData } = await supabase.from('pages')
+    .select('id, workspace_id, parent_id, title, icon, position, is_database, link_permission, owner_id')
+    .in('workspace_id', ownedWsIds.length > 0 ? ownedWsIds : ['00000000-0000-0000-0000-000000000000'])
+    .is('deleted_at', null)
+    .order('position')
 
   // Fetch shared workspace objects separately (avoids PostgREST join issues)
   let memberWorkspaces: MemberWorkspace[] = []
@@ -47,7 +50,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     }
   }
 
-  const pages = (pagesResult.data || []).map((p: Record<string, unknown>) => ({
+  const pages = (pagesData || []).map((p: Record<string, unknown>) => ({
     ...p,
     content: [] as [], cover_url: '', created_at: '', updated_at: '',
     icon: (p.icon as string) || '', parent_id: (p.parent_id as string | null) ?? null,

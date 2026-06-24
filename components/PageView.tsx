@@ -12,7 +12,7 @@ import { Icon } from './Icons'
 
 declare global {
   interface Window {
-    __pageCache: Map<string, { page: Page; canEdit: boolean; isOwner: boolean; userId: string }> | undefined
+    __pageCache: Map<string, { page: Page; canEdit: boolean; isOwner: boolean; isWorkspaceMember?: boolean; userId: string }> | undefined
   }
 }
 
@@ -20,13 +20,14 @@ type Props = {
   page: Page
   canEdit: boolean
   isOwner: boolean
+  isWorkspaceMember?: boolean
   userId?: string
   isPublicShare?: boolean
   isFavorite?: boolean
   onToggleFavorite?: () => void
 }
 
-export default function PageView({ page: initialPage, canEdit, isOwner, userId = '', isPublicShare = false, isFavorite, onToggleFavorite }: Props) {
+export default function PageView({ page: initialPage, canEdit, isOwner, isWorkspaceMember = false, userId = '', isPublicShare = false, isFavorite, onToggleFavorite }: Props) {
   const [page, setPage] = useState(initialPage)
   const initialContentRef = useRef(initialPage.content)
   const [saved, setSaved] = useState(true)
@@ -1253,8 +1254,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
           {/* Page body */}
           <div className='page-body-padding print-content' style={{ maxWidth: focusMode ? 'min(1800px, calc(100% - 80px))' : 'min(960px, 100%)', margin: '0 auto', padding: page.cover_url ? (isMobile ? '16px 20px 60px' : '24px 48px 80px') : (isMobile ? '32px 20px 60px' : '48px 48px 80px'), transition: 'max-width 0.3s ease', fontSize: 'calc(1rem * var(--content-zoom, 1))' }}>
 
-            {/* Shared-by notice */}
-            {!isOwner && ownerName && (
+            {/* Shared-by notice — only for individually shared pages, not workspace members */}
+            {!isOwner && !isWorkspaceMember && ownerName && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 20, color: 'var(--text-tertiary)', fontSize: 12 }}>
                 <span>👤</span>
                 <span>Shared by <strong style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>{ownerName}</strong></span>

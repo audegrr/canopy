@@ -30,6 +30,7 @@ function InstantPageView({ data, isFavorite, onToggleFavorite }: { data: any; is
         page={data.page}
         canEdit={data.canEdit}
         isOwner={data.isOwner}
+        isWorkspaceMember={data.isWorkspaceMember ?? false}
         userId={data.userId}
         isFavorite={isFavorite}
         onToggleFavorite={onToggleFavorite}
