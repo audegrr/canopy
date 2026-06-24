@@ -1742,14 +1742,14 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
               onDragLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.background = 'none' }}
               onDrop={async e => {
                 e.preventDefault()
-                const file = e.dataTransfer.files[0]
-                if (!file) return
-                const url = await uploadFile(file)
-                if (!url) return
+                const files = Array.from(e.dataTransfer.files)
+                if (!files.length) return
                 const cb = imagePickerCallbackRef.current
                 imagePickerCallbackRef.current = null
                 setShowImagePicker(false)
-                setTimeout(() => {
+                const results = await Promise.all(files.map(async file => ({ file, url: await uploadFile(file) })))
+                for (const { file, url } of results) {
+                  if (!url) continue
                   if (mediaTab === 'image' || file.type.startsWith('image/')) {
                     if (cb?.onFile) cb.onFile(url)
                     else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
@@ -1760,22 +1760,22 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                     if (cb?.onFile) (cb.onFile as any)(url, file.name, file.size, file.type)
                     else window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: file.name, size: file.size } }))
                   }
-                }, 50)
+                }
               }}>
               <div style={{ fontSize: '28px', marginBottom: '8px' }}>{mediaTab === 'image' ? '🖼️' : mediaTab === 'video' ? '🎬' : '📎'}</div>
               <div style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Drag & drop here</div>
-              <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>or click to browse</div>
-              <input type="file"
+              <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>or click to browse — multiple files supported</div>
+              <input type="file" multiple
                 accept={mediaTab === 'image' ? 'image/*' : mediaTab === 'video' ? 'video/*' : '*/*'}
                 style={{ display: 'none' }} onChange={async e => {
-                const file = e.target.files?.[0]
-                if (!file) return
-                const url = await uploadFile(file)
-                if (!url) return
+                const files = Array.from(e.target.files || [])
+                if (!files.length) return
                 const cb = imagePickerCallbackRef.current
                 imagePickerCallbackRef.current = null
                 setShowImagePicker(false)
-                setTimeout(() => {
+                const results = await Promise.all(files.map(async file => ({ file, url: await uploadFile(file) })))
+                for (const { file, url } of results) {
+                  if (!url) continue
                   if (mediaTab === 'image') {
                     if (cb?.onFile) cb.onFile(url)
                     else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } }))
@@ -1786,7 +1786,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, userId =
                     if (cb?.onFile) (cb.onFile as any)(url, file.name, file.size, file.type)
                     else window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: file.name, size: file.size } }))
                   }
-                }, 50)
+                }
               }} />
             </label>
             <button onClick={() => setShowImagePicker(false)} style={{ marginTop: '12px', width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', padding: '4px' }}>Cancel</button>
