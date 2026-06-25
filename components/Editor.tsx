@@ -33,21 +33,26 @@ const VideoNode = Node.create({
   addNodeView() {
     return ({ node }: any) => {
       const dom = document.createElement('div')
-      dom.style.cssText = 'margin: 8px 0; border-radius: 8px; overflow: hidden;'
+      dom.style.cssText = 'margin: 8px 0; border-radius: 8px;'
       // Try to embed as video — works for direct video URLs
       const isYt = /youtube|youtu\.be/.test(node.attrs.src)
       if (isYt) {
-        const iframe = document.createElement('iframe')
         const ytId = node.attrs.src.match(/(?:v=|youtu\.be\/)([^&?/]+)/)?.[1]
         if (!ytId) {
           dom.textContent = 'Invalid YouTube URL'
           return { dom }
         }
+        // padding-bottom technique: more reliable than aspect-ratio for iframes across all browsers
+        const wrapper = document.createElement('div')
+        wrapper.style.cssText = 'position:relative;padding-bottom:56.25%;height:0;border-radius:8px;overflow:hidden;'
+        const iframe = document.createElement('iframe')
         iframe.src = `https://www.youtube-nocookie.com/embed/${ytId}`
-        iframe.style.cssText = 'width:100%;aspect-ratio:16/9;border:none;border-radius:8px;'
+        iframe.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;border:none;'
         iframe.allowFullscreen = true
         iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share')
-        dom.appendChild(iframe)
+        iframe.setAttribute('title', 'YouTube video')
+        wrapper.appendChild(iframe)
+        dom.appendChild(wrapper)
       } else {
         const video = document.createElement('video')
         video.src = node.attrs.src
