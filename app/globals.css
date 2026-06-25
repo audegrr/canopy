@@ -113,7 +113,6 @@ html, body {
   transform: rotate(90deg);
 }
 .heading-toggle--collapsed {
-  opacity: 0.65 !important;
   transform: rotate(0deg) !important;
 }
 .tiptap h1:hover .heading-toggle,
