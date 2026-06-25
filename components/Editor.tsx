@@ -39,9 +39,14 @@ const VideoNode = Node.create({
       if (isYt) {
         const iframe = document.createElement('iframe')
         const ytId = node.attrs.src.match(/(?:v=|youtu\.be\/)([^&?/]+)/)?.[1]
+        if (!ytId) {
+          dom.textContent = 'Invalid YouTube URL'
+          return { dom }
+        }
         iframe.src = `https://www.youtube.com/embed/${ytId}`
         iframe.style.cssText = 'width:100%;aspect-ratio:16/9;border:none;border-radius:8px;'
         iframe.allowFullscreen = true
+        iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share')
         dom.appendChild(iframe)
       } else {
         const video = document.createElement('video')
