@@ -1449,17 +1449,10 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       }
       case 'video': {
         const insertVideoFn = (src: string) => {
-          editor.chain().focus().insertContent({ type: 'video', attrs: { src } }).run()
-          setTimeout(() => {
-            try {
-              const pos = editor.state.selection.to
-              if (pos < editor.state.doc.content.size) {
-                editor.chain().focus().insertContentAt(pos + 1, { type: 'paragraph' }).run()
-              } else {
-                editor.commands.insertContent({ type: 'paragraph' })
-              }
-            } catch {}
-          }, 50)
+          editor.chain().focus().insertContent([
+            { type: 'video', attrs: { src } },
+            { type: 'paragraph' },
+          ]).run()
         }
         window.dispatchEvent(new CustomEvent('canopy:showImagePicker', { detail: { tab: 'video', onUrl: insertVideoFn, onFile: insertVideoFn } }))
         break
