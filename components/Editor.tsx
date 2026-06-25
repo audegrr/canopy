@@ -767,7 +767,7 @@ const collapsePlugin = new Plugin({
 
         const headingPos = pos
         decos.push(
-          Decoration.widget(pos + 1, (view) => {
+          Decoration.widget(pos + node.nodeSize - 1, (view) => {
             const btn = document.createElement('span')
             btn.className = `heading-toggle${collapsed ? ' heading-toggle--collapsed' : ''}`
             btn.setAttribute('contenteditable', 'false')
@@ -791,7 +791,7 @@ const collapsePlugin = new Plugin({
               )
             })
             return btn
-          }, { side: -1, key: `heading-toggle-${pos}-${collapsed}` })
+          }, { side: 1, key: `heading-toggle-${pos}-${collapsed}` })
         )
 
         if (!collapsed) continue

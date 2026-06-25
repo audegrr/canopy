@@ -95,30 +95,26 @@ html, body {
   float: left;
   height: 0;
 }
-.tiptap h1 { font-family: var(--font-head); font-size: 2.2em; font-weight: 700; margin: 2rem 0 14px; line-height: 1.2; letter-spacing: -.02em; position: relative; padding-left: 18px; }
-.tiptap h2 { font-family: var(--font-head); font-size: 1.73em; font-weight: 600; margin: 2.2rem 0 12px; line-height: 1.3; letter-spacing: -.01em; border-bottom: 1px solid var(--border); padding-bottom: 6px; position: relative; padding-left: 18px; }
-.tiptap h3 { font-family: var(--font-head); font-size: 1.43em; font-weight: 600; margin: 1.6rem 0 10px; line-height: 1.3; position: relative; padding-left: 18px; }
+.tiptap h1 { font-family: var(--font-head); font-size: 2.2em; font-weight: 700; margin: 2rem 0 14px; line-height: 1.2; letter-spacing: -.02em; }
+.tiptap h2 { font-family: var(--font-head); font-size: 1.73em; font-weight: 600; margin: 2.2rem 0 12px; line-height: 1.3; letter-spacing: -.01em; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+.tiptap h3 { font-family: var(--font-head); font-size: 1.43em; font-weight: 600; margin: 1.6rem 0 10px; line-height: 1.3; }
 
-/* Toggle inside the heading's padding zone — never conflicts with the drag handle */
+/* Collapse toggle — inline after heading text, no positional conflict possible */
 .heading-toggle {
-  position: absolute;
-  left: 1px;
-  top: 50%;
-  transform: translateY(-50%) rotate(90deg);
+  display: inline-block;
+  margin-left: 8px;
+  vertical-align: middle;
   opacity: 0;
   transition: opacity 0.12s, transform 0.15s;
   cursor: pointer;
   user-select: none;
   color: var(--text-tertiary);
   font-size: 0.5em;
-  line-height: 1;
-  padding: 2px;
-  width: 14px;
-  text-align: center;
+  transform: rotate(90deg);
 }
 .heading-toggle--collapsed {
-  transform: translateY(-50%) rotate(0deg) !important;
   opacity: 0.65 !important;
+  transform: rotate(0deg) !important;
 }
 .tiptap h1:hover .heading-toggle,
 .tiptap h2:hover .heading-toggle,
