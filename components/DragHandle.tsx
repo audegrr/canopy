@@ -5,14 +5,12 @@ type Props = { editor: any }
 
 export default function DragHandle({ editor }: Props) {
   const [handleTop, setHandleTop] = useState(0)
-  const [handleLeft, setHandleLeft] = useState(-26)
   const [visible, setVisible] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [dropLineTop, setDropLineTop] = useState<number | null>(null)
 
   const state = useRef({
     hoverIdx: -1,
-    hoverType: '',
     srcIdx: -1,
     dstIdx: -1,
     dragging: false,
@@ -49,10 +47,8 @@ export default function DragHandle({ editor }: Props) {
       }
       if (found >= 0) {
         state.current.hoverIdx = found
-        state.current.hoverType = blocks[found].node.type.name
         const r = blocks[found].rect
         setHandleTop(r.top - pr.top + r.height / 2 - 10)
-        setHandleLeft(state.current.hoverType === 'heading' ? -44 : -26)
         setVisible(true)
       } else {
         state.current.hoverIdx = -1
@@ -168,7 +164,7 @@ export default function DragHandle({ editor }: Props) {
           }
         }}
         style={{
-          position: 'absolute', left: handleLeft, top: handleTop,
+          position: 'absolute', left: -26, top: handleTop,
           width: 20, height: 20,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           cursor: dragging ? 'grabbing' : 'grab',
