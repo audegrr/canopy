@@ -43,7 +43,7 @@ const VideoNode = Node.create({
           dom.textContent = 'Invalid YouTube URL'
           return { dom }
         }
-        iframe.src = `https://www.youtube.com/embed/${ytId}`
+        iframe.src = `https://www.youtube-nocookie.com/embed/${ytId}`
         iframe.style.cssText = 'width:100%;aspect-ratio:16/9;border:none;border-radius:8px;'
         iframe.allowFullscreen = true
         iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share')
