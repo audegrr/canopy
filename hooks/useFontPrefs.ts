@@ -2,7 +2,9 @@
 import { useState, useEffect } from 'react'
 
 export type HeadingFont = 'newsreader' | 'lora' | 'playfair' | 'merriweather' | 'source-serif'
+  | 'fraunces' | 'libre-baskerville' | 'dm-serif-display' | 'ibm-plex-serif'
 export type BodyFont = 'hanken' | 'inter' | 'work-sans' | 'nunito-sans' | 'manrope'
+  | 'geist' | 'plus-jakarta-sans' | 'dm-sans' | 'space-grotesk'
 
 export const HEADING_FONTS: { id: HeadingFont; label: string; stack: string }[] = [
   { id: 'newsreader', label: 'Newsreader', stack: 'var(--newsreader), Georgia, serif' },
@@ -10,6 +12,10 @@ export const HEADING_FONTS: { id: HeadingFont; label: string; stack: string }[] 
   { id: 'playfair', label: 'Playfair Display', stack: 'var(--playfair), Georgia, serif' },
   { id: 'merriweather', label: 'Merriweather', stack: 'var(--merriweather), Georgia, serif' },
   { id: 'source-serif', label: 'Source Serif 4', stack: 'var(--source-serif), Georgia, serif' },
+  { id: 'fraunces', label: 'Fraunces', stack: 'var(--fraunces), Georgia, serif' },
+  { id: 'libre-baskerville', label: 'Libre Baskerville', stack: 'var(--libre-baskerville), Georgia, serif' },
+  { id: 'dm-serif-display', label: 'DM Serif Display', stack: 'var(--dm-serif-display), Georgia, serif' },
+  { id: 'ibm-plex-serif', label: 'IBM Plex Serif', stack: 'var(--ibm-plex-serif), Georgia, serif' },
 ]
 
 export const BODY_FONTS: { id: BodyFont; label: string; stack: string }[] = [
@@ -18,6 +24,10 @@ export const BODY_FONTS: { id: BodyFont; label: string; stack: string }[] = [
   { id: 'work-sans', label: 'Work Sans', stack: 'var(--work-sans), -apple-system, BlinkMacSystemFont, sans-serif' },
   { id: 'nunito-sans', label: 'Nunito Sans', stack: 'var(--nunito-sans), -apple-system, BlinkMacSystemFont, sans-serif' },
   { id: 'manrope', label: 'Manrope', stack: 'var(--manrope), -apple-system, BlinkMacSystemFont, sans-serif' },
+  { id: 'geist', label: 'Geist', stack: 'var(--geist), -apple-system, BlinkMacSystemFont, sans-serif' },
+  { id: 'plus-jakarta-sans', label: 'Plus Jakarta Sans', stack: 'var(--plus-jakarta-sans), -apple-system, BlinkMacSystemFont, sans-serif' },
+  { id: 'dm-sans', label: 'DM Sans', stack: 'var(--dm-sans), -apple-system, BlinkMacSystemFont, sans-serif' },
+  { id: 'space-grotesk', label: 'Space Grotesk', stack: 'var(--space-grotesk), -apple-system, BlinkMacSystemFont, sans-serif' },
 ]
 
 export function useFontPrefs() {

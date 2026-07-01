@@ -69,11 +69,19 @@
 [data-heading-font="playfair"] { --font-head: var(--playfair), Georgia, serif; }
 [data-heading-font="merriweather"] { --font-head: var(--merriweather), Georgia, serif; }
 [data-heading-font="source-serif"] { --font-head: var(--source-serif), Georgia, serif; }
+[data-heading-font="fraunces"] { --font-head: var(--fraunces), Georgia, serif; }
+[data-heading-font="libre-baskerville"] { --font-head: var(--libre-baskerville), Georgia, serif; }
+[data-heading-font="dm-serif-display"] { --font-head: var(--dm-serif-display), Georgia, serif; }
+[data-heading-font="ibm-plex-serif"] { --font-head: var(--ibm-plex-serif), Georgia, serif; }
 
 [data-body-font="inter"] { --font-sans: var(--inter), -apple-system, BlinkMacSystemFont, sans-serif; --font-body: var(--inter), -apple-system, BlinkMacSystemFont, sans-serif; }
 [data-body-font="work-sans"] { --font-sans: var(--work-sans), -apple-system, BlinkMacSystemFont, sans-serif; --font-body: var(--work-sans), -apple-system, BlinkMacSystemFont, sans-serif; }
 [data-body-font="nunito-sans"] { --font-sans: var(--nunito-sans), -apple-system, BlinkMacSystemFont, sans-serif; --font-body: var(--nunito-sans), -apple-system, BlinkMacSystemFont, sans-serif; }
 [data-body-font="manrope"] { --font-sans: var(--manrope), -apple-system, BlinkMacSystemFont, sans-serif; --font-body: var(--manrope), -apple-system, BlinkMacSystemFont, sans-serif; }
+[data-body-font="geist"] { --font-sans: var(--geist), -apple-system, BlinkMacSystemFont, sans-serif; --font-body: var(--geist), -apple-system, BlinkMacSystemFont, sans-serif; }
+[data-body-font="plus-jakarta-sans"] { --font-sans: var(--plus-jakarta-sans), -apple-system, BlinkMacSystemFont, sans-serif; --font-body: var(--plus-jakarta-sans), -apple-system, BlinkMacSystemFont, sans-serif; }
+[data-body-font="dm-sans"] { --font-sans: var(--dm-sans), -apple-system, BlinkMacSystemFont, sans-serif; --font-body: var(--dm-sans), -apple-system, BlinkMacSystemFont, sans-serif; }
+[data-body-font="space-grotesk"] { --font-sans: var(--space-grotesk), -apple-system, BlinkMacSystemFont, sans-serif; --font-body: var(--space-grotesk), -apple-system, BlinkMacSystemFont, sans-serif; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
