@@ -625,6 +625,10 @@ body.focus-mode .tiptap { max-width: 680px; margin: 0 auto; font-size: 16px; lin
 .trash-item .t-acts { opacity: 0; pointer-events: none; transition: opacity .12s; }
 .trash-item:hover .t-acts { opacity: 1; pointer-events: auto; }
 
+/* Notification item delete button — fade in on hover */
+.notif-item .notif-delete { opacity: 0; pointer-events: none; transition: opacity .12s; }
+.notif-item:hover .notif-delete { opacity: 1; pointer-events: auto; }
+
 /* Hide UI buttons during PDF export */
 .exporting-pdf .page-hover-btns,
 .exporting-pdf [data-export-hide] {

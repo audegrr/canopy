@@ -134,5 +134,12 @@ export function useNotifications(userId: string, supabase: SupabaseClient) {
     } catch {}
   }
 
-  return { notifications, notifOpen, setNotifOpen, unreadCount, markAllRead, clearAll, browserPermission, requestBrowserPermission, pushEnabled, togglePush }
+  async function deleteNotification(id: string) {
+    setNotifications(ns => ns.filter(n => n.id !== id))
+    try {
+      await supabase.from('notifications').delete().eq('id', id).eq('user_id', userId)
+    } catch {}
+  }
+
+  return { notifications, notifOpen, setNotifOpen, unreadCount, markAllRead, clearAll, deleteNotification, browserPermission, requestBrowserPermission, pushEnabled, togglePush }
 }
