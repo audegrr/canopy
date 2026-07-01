@@ -1,5 +1,6 @@
 'use client'
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Workspace, Page, SharedPage, User, MemberWorkspace, WsMember, PendingInvite, TiptapContent } from '@/lib/types'
@@ -2298,30 +2299,46 @@ function SettingsModal({ user, tab, theme, headingFont, bodyFont, profileName, s
   )
 }
 
-// ── FONT PICKER (custom dropdown so each option previews in its own font — <option> font-family is unreliable across browsers) ──
+// ── FONT PICKER (custom dropdown so each option previews in its own font — <option> font-family is unreliable across browsers).
+// The panel is rendered through a portal into document.body and positioned fixed off the trigger's
+// bounding rect, so it isn't clipped by the settings modal's overflow:auto content pane. ──
 function FontPicker<T extends string>({ value, options, onChange }: { value: T; options: { id: T; label: string; stack: string }[]; onChange: (v: T) => void }) {
   const [open, setOpen] = useState(false)
+  const [rect, setRect] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
   const selected = options.find(o => o.id === value)
+
+  function toggle() {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect()
+      setRect({ top: r.bottom + 4, left: r.left, width: r.width, maxHeight: Math.max(120, window.innerHeight - r.bottom - 16) })
+    }
+    setOpen(o => !o)
+  }
+
   return (
     <div style={{ position: 'relative', flex: 1 }}>
-      <button type="button" onClick={() => setOpen(o => !o)}
+      <button ref={btnRef} type="button" onClick={toggle}
         style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: selected?.stack, color: 'var(--text)', background: 'var(--surface)', cursor: 'pointer' }}>
         <span>{selected?.label}</span>
         <Icon name="chev-down" size={13} />
       </button>
-      {open && <>
-        <div style={{ position: 'fixed', inset: 0, zIndex: 2100 }} onClick={() => setOpen(false)} />
-        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, maxHeight: '240px', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 2101, padding: '4px' }} className="scale-in">
-          {options.map(o => (
-            <div key={o.id} onClick={() => { onChange(o.id); setOpen(false) }}
-              style={{ padding: '6px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '13.5px', fontFamily: o.stack, color: o.id === value ? 'var(--accent)' : 'var(--text)', background: o.id === value ? 'var(--accent-light)' : 'none' }}
-              onMouseEnter={e => { if (o.id !== value) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-              onMouseLeave={e => { if (o.id !== value) (e.currentTarget as HTMLElement).style.background = 'none' }}>
-              {o.label}
-            </div>
-          ))}
-        </div>
-      </>}
+      {open && rect && createPortal(
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 2100 }} onClick={() => setOpen(false)} />
+          <div style={{ position: 'fixed', top: rect.top, left: rect.left, width: rect.width, maxHeight: rect.maxHeight, overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 2101, padding: '4px' }} className="scale-in">
+            {options.map(o => (
+              <div key={o.id} onClick={() => { onChange(o.id); setOpen(false) }}
+                style={{ padding: '6px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '13.5px', fontFamily: o.stack, color: o.id === value ? 'var(--accent)' : 'var(--text)', background: o.id === value ? 'var(--accent-light)' : 'none' }}
+                onMouseEnter={e => { if (o.id !== value) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                onMouseLeave={e => { if (o.id !== value) (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                {o.label}
+              </div>
+            ))}
+          </div>
+        </>,
+        document.body
+      )}
     </div>
   )
 }
