@@ -64,6 +64,17 @@
   --pink: #ad1a72;
 }
 
+/* ── User-selectable heading/body fonts (see hooks/useFontPrefs.ts) ── */
+[data-heading-font="lora"] { --font-head: var(--lora), Georgia, serif; }
+[data-heading-font="playfair"] { --font-head: var(--playfair), Georgia, serif; }
+[data-heading-font="merriweather"] { --font-head: var(--merriweather), Georgia, serif; }
+[data-heading-font="source-serif"] { --font-head: var(--source-serif), Georgia, serif; }
+
+[data-body-font="inter"] { --font-sans: var(--inter), -apple-system, BlinkMacSystemFont, sans-serif; --font-body: var(--inter), -apple-system, BlinkMacSystemFont, sans-serif; }
+[data-body-font="work-sans"] { --font-sans: var(--work-sans), -apple-system, BlinkMacSystemFont, sans-serif; --font-body: var(--work-sans), -apple-system, BlinkMacSystemFont, sans-serif; }
+[data-body-font="nunito-sans"] { --font-sans: var(--nunito-sans), -apple-system, BlinkMacSystemFont, sans-serif; --font-body: var(--nunito-sans), -apple-system, BlinkMacSystemFont, sans-serif; }
+[data-body-font="manrope"] { --font-sans: var(--manrope), -apple-system, BlinkMacSystemFont, sans-serif; --font-body: var(--manrope), -apple-system, BlinkMacSystemFont, sans-serif; }
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body {
   font-family: var(--font-sans);

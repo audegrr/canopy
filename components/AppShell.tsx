@@ -9,6 +9,7 @@ import SearchModal from './SearchModal'
 import ShortcutsModal from './ShortcutsModal'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useTheme } from '@/hooks/useTheme'
+import { useFontPrefs, HEADING_FONTS, BODY_FONTS, type HeadingFont, type BodyFont } from '@/hooks/useFontPrefs'
 import { exportPageAsPDF, exportPageAsWord, exportPageAsCSV } from '@/lib/export'
 import EmojiPicker from './EmojiPicker'
 import { Icon } from './Icons'
@@ -55,6 +56,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [wsSettingsTab, setWsSettingsTab] = useState<'general'|'members'|'danger'>('general')
   const [sharedCollapsed, setSharedCollapsed] = useState(false)
   const { theme, setTheme } = useTheme()
+  const { headingFont, setHeadingFont, bodyFont, setBodyFont } = useFontPrefs()
   const [wsMembers, setWsMembers] = useState<WsMember[]>([])
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
@@ -1526,8 +1528,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       {settingsOpen && (
         <SettingsModal
           user={user} tab={settingsTab} theme={theme}
+          headingFont={headingFont} bodyFont={bodyFont}
           profileName={profileName} setProfileName={setProfileName}
           onTabChange={setSettingsTab} onThemeChange={setTheme}
+          onHeadingFontChange={setHeadingFont} onBodyFontChange={setBodyFont}
           onSave={saveProfile} onClose={() => setSettingsOpen(false)}
           onDeleteAccount={() => { setSettingsOpen(false); setShowDeleteAccount(true) }}
         />
@@ -2156,10 +2160,12 @@ function TemplatePicker({ workspaceId, userId, onSelect, onClose }: { workspaceI
 }
 
 // ── SETTINGS MODAL ───────────────────────────────────────────
-function SettingsModal({ user, tab, theme, profileName, setProfileName, onTabChange, onThemeChange, onSave, onClose, onDeleteAccount }: {
+function SettingsModal({ user, tab, theme, headingFont, bodyFont, profileName, setProfileName, onTabChange, onThemeChange, onHeadingFontChange, onBodyFontChange, onSave, onClose, onDeleteAccount }: {
   user: User; tab: 'profile' | 'appearance' | 'danger'; theme: 'light' | 'dark' | 'system'
+  headingFont: HeadingFont; bodyFont: BodyFont
   profileName: string; setProfileName: (v: string) => void
   onTabChange: (t: 'profile' | 'appearance' | 'danger') => void; onThemeChange: (t: 'light' | 'dark' | 'system') => void
+  onHeadingFontChange: (f: HeadingFont) => void; onBodyFontChange: (f: BodyFont) => void
   onSave: () => void; onClose: () => void; onDeleteAccount: () => void
 }) {
   const supabase = createClient()
@@ -2262,7 +2268,7 @@ function SettingsModal({ user, tab, theme, profileName, setProfileName, onTabCha
                   </button>
                 ))}
               </div>
-              <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', height: '80px' }}>
+              <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', height: '80px', marginBottom: '18px' }}>
                 <div style={{ display: 'flex', height: '100%' }}>
                   <div style={{ width: '76px', background: theme === 'dark' ? '#252524' : 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '8px', flexShrink: 0, transition: 'background 0.4s' }}>
                     <div style={{ height: '8px', background: theme === 'dark' ? '#3a3a38' : 'var(--border)', borderRadius: '3px', marginBottom: '5px', transition: 'background 0.4s' }} />
@@ -2273,6 +2279,26 @@ function SettingsModal({ user, tab, theme, profileName, setProfileName, onTabCha
                     <div style={{ height: '8px', background: theme === 'dark' ? '#2e2e2c' : '#f0f0ee', borderRadius: '3px', transition: 'background 0.4s' }} />
                   </div>
                 </div>
+              </div>
+
+              <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', fontFamily: 'var(--font-body)' }}>Fonts</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0, fontFamily: 'var(--font-body)' }}>Headings</div>
+                <select value={headingFont} onChange={e => onHeadingFontChange(e.target.value as HeadingFont)}
+                  style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: HEADING_FONTS.find(f => f.id === headingFont)?.stack, color: 'var(--text)', background: 'var(--surface)', outline: 'none' }}>
+                  {HEADING_FONTS.map(f => (
+                    <option key={f.id} value={f.id} style={{ fontFamily: f.stack }}>{f.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0, fontFamily: 'var(--font-body)' }}>Body</div>
+                <select value={bodyFont} onChange={e => onBodyFontChange(e.target.value as BodyFont)}
+                  style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: BODY_FONTS.find(f => f.id === bodyFont)?.stack, color: 'var(--text)', background: 'var(--surface)', outline: 'none' }}>
+                  {BODY_FONTS.map(f => (
+                    <option key={f.id} value={f.id} style={{ fontFamily: f.stack }}>{f.label}</option>
+                  ))}
+                </select>
               </div>
             </div>
           )}
