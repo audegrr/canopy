@@ -97,11 +97,21 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const sidebarTreeRef = useRef<HTMLDivElement>(null)
   const sidebarSwipeStartX = useRef(0)
   const mainSwipeStartX = useRef(999)
+  const notifRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const pathname = usePathname()
   const supabase = createClient()
   const { notifications, notifOpen, setNotifOpen, unreadCount, markAllRead, clearAll: clearAllNotifications, deleteNotification, browserPermission, requestBrowserPermission, pushEnabled, togglePush } = useNotifications(user.id, supabase)
   const currentPageId = pathname.match(/\/app\/page\/([^/]+)/)?.[1] || null
+
+  useEffect(() => {
+    if (!notifOpen) return
+    const onClickOutside = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false)
+    }
+    document.addEventListener('mousedown', onClickOutside)
+    return () => document.removeEventListener('mousedown', onClickOutside)
+  }, [notifOpen])
 
   useEffect(() => {
     const check = () => {
@@ -1358,7 +1368,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           </button>
 
           {/* Notification bell */}
-          <div style={{ position: 'relative', flexShrink: 0 }}>
+          <div ref={notifRef} style={{ position: 'relative', flexShrink: 0 }}>
             <button
               onClick={() => { const opening = !notifOpen; setNotifOpen(o => !o); if (opening) markAllRead() }}
               style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: isMobile ? '10px 12px' : '5px 7px', borderRadius: '6px', fontSize: '18px', lineHeight: 1, display: 'flex', alignItems: 'center', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent', minWidth: isMobile ? '44px' : undefined, minHeight: isMobile ? '44px' : undefined, justifyContent: 'center' }}
@@ -1373,8 +1383,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               )}
             </button>
             {notifOpen && (
-              <>
-                <div style={{ position: 'fixed', inset: 0, zIndex: 199 }} onClick={() => setNotifOpen(false)} />
                 <div style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 'min(300px, calc(100vw - 16px))', maxHeight: '380px', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '10px', boxShadow: 'var(--shadow-lg)', zIndex: 200 }} className="scale-in">
                   <div style={{ padding: '11px 14px', fontWeight: 600, fontSize: '13px', borderBottom: '1px solid var(--border)', color: 'var(--text)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>Notifications</span>
@@ -1430,7 +1438,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                     )
                   })}
                 </div>
-              </>
             )}
           </div>
 
