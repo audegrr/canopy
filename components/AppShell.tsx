@@ -2284,27 +2284,45 @@ function SettingsModal({ user, tab, theme, headingFont, bodyFont, profileName, s
               <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', fontFamily: 'var(--font-body)' }}>Fonts</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0, fontFamily: 'var(--font-body)' }}>Headings</div>
-                <select value={headingFont} onChange={e => onHeadingFontChange(e.target.value as HeadingFont)}
-                  style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: HEADING_FONTS.find(f => f.id === headingFont)?.stack, color: 'var(--text)', background: 'var(--surface)', outline: 'none' }}>
-                  {HEADING_FONTS.map(f => (
-                    <option key={f.id} value={f.id} style={{ fontFamily: f.stack }}>{f.label}</option>
-                  ))}
-                </select>
+                <FontPicker value={headingFont} options={HEADING_FONTS} onChange={onHeadingFontChange} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0, fontFamily: 'var(--font-body)' }}>Body</div>
-                <select value={bodyFont} onChange={e => onBodyFontChange(e.target.value as BodyFont)}
-                  style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: BODY_FONTS.find(f => f.id === bodyFont)?.stack, color: 'var(--text)', background: 'var(--surface)', outline: 'none' }}>
-                  {BODY_FONTS.map(f => (
-                    <option key={f.id} value={f.id} style={{ fontFamily: f.stack }}>{f.label}</option>
-                  ))}
-                </select>
+                <FontPicker value={bodyFont} options={BODY_FONTS} onChange={onBodyFontChange} />
               </div>
             </div>
           )}
         </div>
       </div>
     </>
+  )
+}
+
+// ── FONT PICKER (custom dropdown so each option previews in its own font — <option> font-family is unreliable across browsers) ──
+function FontPicker<T extends string>({ value, options, onChange }: { value: T; options: { id: T; label: string; stack: string }[]; onChange: (v: T) => void }) {
+  const [open, setOpen] = useState(false)
+  const selected = options.find(o => o.id === value)
+  return (
+    <div style={{ position: 'relative', flex: 1 }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '13px', fontFamily: selected?.stack, color: 'var(--text)', background: 'var(--surface)', cursor: 'pointer' }}>
+        <span>{selected?.label}</span>
+        <Icon name="chev-down" size={13} />
+      </button>
+      {open && <>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 2100 }} onClick={() => setOpen(false)} />
+        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, maxHeight: '240px', overflowY: 'auto', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', boxShadow: 'var(--shadow-lg)', zIndex: 2101, padding: '4px' }} className="scale-in">
+          {options.map(o => (
+            <div key={o.id} onClick={() => { onChange(o.id); setOpen(false) }}
+              style={{ padding: '6px 8px', borderRadius: '5px', cursor: 'pointer', fontSize: '13.5px', fontFamily: o.stack, color: o.id === value ? 'var(--accent)' : 'var(--text)', background: o.id === value ? 'var(--accent-light)' : 'none' }}
+              onMouseEnter={e => { if (o.id !== value) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              onMouseLeave={e => { if (o.id !== value) (e.currentTarget as HTMLElement).style.background = 'none' }}>
+              {o.label}
+            </div>
+          ))}
+        </div>
+      </>}
+    </div>
   )
 }
 
