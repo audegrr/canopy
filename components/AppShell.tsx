@@ -1404,7 +1404,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                     const isClickable = !!(n.data?.page_id || n.data?.workspace_id)
                     return (
                     <div key={n.id} className="notif-item"
-                      style={{ position: 'relative', padding: '10px 32px 10px 14px', borderBottom: '1px solid var(--border)', background: n.read ? 'transparent' : 'var(--accent-light)', cursor: isClickable ? 'pointer' : 'default' }}
+                      style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', background: n.read ? 'transparent' : 'var(--accent-light)', cursor: isClickable ? 'pointer' : 'default' }}
                       onClick={() => {
                         if (n.data?.page_id) { navigate(`/app/page/${n.data.page_id}`); setNotifOpen(false) }
                         else if (n.data?.workspace_id) {
@@ -1414,13 +1414,13 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                       }}
                       onMouseEnter={e => { if (isClickable) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
                       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = n.read ? 'transparent' : 'var(--accent-light)' }}>
-                      <button className="notif-delete" onClick={e => { e.stopPropagation(); deleteNotification(n.id) }} title="Delete notification"
-                        style={{ position: 'absolute', top: '8px', right: '8px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '12px', padding: '3px', borderRadius: '3px', lineHeight: 1 }}
-                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)' }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>✕</button>
                       <div style={{ fontSize: '13px', fontWeight: n.read ? 400 : 600, color: 'var(--text)', marginBottom: '2px', display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ flexShrink: 0, color: 'var(--accent)' }}><Icon name={n.type === 'mention' || n.type === 'comment' ? 'comment' : n.type === 'invite' ? 'users' : 'bell'} size={14} /></span>
-                        {n.title}
+                        <span style={{ flex: 1, minWidth: 0 }}>{n.title}</span>
+                        <button className="notif-delete" onClick={e => { e.stopPropagation(); deleteNotification(n.id) }} title="Delete notification"
+                          style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '12px', padding: '3px', borderRadius: '3px', lineHeight: 1 }}
+                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)' }}
+                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>✕</button>
                       </div>
                       {n.body && <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{n.body}</div>}
                       <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '3px' }}>
