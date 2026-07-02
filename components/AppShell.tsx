@@ -12,7 +12,7 @@ import { useNotifications } from '@/hooks/useNotifications'
 import { useTheme } from '@/hooks/useTheme'
 import { useFontPrefs, HEADING_FONTS, BODY_FONTS, type HeadingFont, type BodyFont } from '@/hooks/useFontPrefs'
 import { exportPageAsPDF, exportPageAsWord, exportPageAsCSV } from '@/lib/export'
-import EmojiPicker from './EmojiPicker'
+import EmojiPicker, { COMMON_EMOJIS } from './EmojiPicker'
 import { Icon } from './Icons'
 
 type Props = {
@@ -89,6 +89,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [newWsName, setNewWsName] = useState('')
   const [newWsIcon, setNewWsIcon] = useState('🌿')
+  const [newWsEmojiPickerOpen, setNewWsEmojiPickerOpen] = useState(false)
   const [instantPage, setInstantPage] = useState<{ page: any; canEdit: boolean; isOwner: boolean; userId: string } | null>(null)
   const [templatePicker, setTemplatePicker] = useState<{ parentId: string | null } | null>(null)
   const [trashOpen, setTrashOpen] = useState(false)
@@ -1468,16 +1469,28 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             onClick={e => e.stopPropagation()}>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--text)' }}>New workspace</h3>
             {/* Emoji picker */}
-            <div style={{ marginBottom: '12px' }}>
+            <div style={{ marginBottom: '12px', position: 'relative' }}>
               <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>Icon</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px' }}>
-                {['🌿','🌲','🌳','🌴','🌵','🍀','🌱','🌾','🍁','🌸','🏔','🏠','💼','🚀','⭐','💡','🎯','📚','🎨','🔮','🦋','🧠','💎','🔑','🌍'].map(em => (
+                {COMMON_EMOJIS.map(em => (
                   <button key={em} onClick={() => setNewWsIcon(em)}
                     style={{ background: newWsIcon === em ? 'var(--accent-light)' : 'none', border: newWsIcon === em ? '2px solid var(--accent)' : '2px solid transparent', cursor: 'pointer', fontSize: '20px', padding: '3px', borderRadius: '5px', lineHeight: 1 }}>
                     {em}
                   </button>
                 ))}
+                <button onClick={() => setNewWsEmojiPickerOpen(o => !o)} title="More emoji"
+                  style={{ background: 'none', border: '2px solid transparent', cursor: 'pointer', fontSize: '13px', color: 'var(--text-tertiary)', padding: '3px', borderRadius: '5px', lineHeight: 1, width: '30px', height: '30px' }}>
+                  …
+                </button>
               </div>
+              {newWsEmojiPickerOpen && (
+                <EmojiPicker
+                  hideRemove
+                  onSelect={em => { setNewWsIcon(em); setNewWsEmojiPickerOpen(false) }}
+                  onClose={() => setNewWsEmojiPickerOpen(false)}
+                  style={{ top: '100%', left: 0, marginTop: '4px' }}
+                />
+              )}
             </div>
             {/* Name input */}
             <div style={{ marginBottom: '20px' }}>
