@@ -197,6 +197,9 @@ html, body {
 .tiptap ul[data-type="taskList"] li label input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; display: block; }
 .tiptap ul[data-type="taskList"] li > div { flex: 1; min-width: 0; }
 .tiptap ul[data-type="taskList"] li[data-checked="true"] > div { text-decoration: line-through; color: var(--text-tertiary); }
+.tiptap li[data-type="taskItem"] > div > ul[data-type="taskList"] { padding-left: 1.5rem; margin: 4px 0 0; }
+.tiptap ul[data-type="taskList"] li:has(> div > ul[data-type="taskList"]) { align-items: flex-start; }
+.tiptap ul[data-type="taskList"] li:has(> div > ul[data-type="taskList"]) > label { margin-top: 5px; }
 .tiptap mark { background: #fdf3a7; border-radius: 2px; padding: 1px 0; }
 
 /* Subpage block */
@@ -594,6 +597,7 @@ body.printing-page { overflow: visible !important; height: auto !important; }
   /* Task list checkboxes */
   #print-clone ul[data-type="taskList"], .print-content ul[data-type="taskList"] { list-style: none; padding-left: 0; }
   #print-clone ul[data-type="taskList"] li, .print-content ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 5pt; }
+  #print-clone li[data-type="taskItem"] > div > ul[data-type="taskList"], .print-content li[data-type="taskItem"] > div > ul[data-type="taskList"] { padding-left: 1.5rem; margin: 4pt 0 0; }
 
   /* Callout */
   #print-clone .callout, .print-content .callout { border: 1px solid #d4d4d4 !important; padding: 8pt; border-radius: 4pt; margin: 6pt 0; background: #fafafa !important; }

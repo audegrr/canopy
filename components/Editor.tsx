@@ -1132,7 +1132,12 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       Color,
       Highlight.configure({ multicolor: true }),
       TaskList,
-      TaskItem.extend({ content: 'paragraph+' }),
+      TaskItem.extend({
+        content: 'paragraph+ taskList?',
+        addOptions() {
+          return { ...this.parent?.(), nested: true }
+        },
+      }),
       Table.configure({ resizable: true }),
       TableRow, TableCell, TableHeader,
       ResizableImage,
