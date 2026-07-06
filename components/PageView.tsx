@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import type { Page } from '@/lib/types'
 import Editor from './Editor'
+import FindInPage from './FindInPage'
 import DragHandle from './DragHandle'
 import DatabaseView from './DatabaseView'
 import EmojiPicker from './EmojiPicker'
@@ -80,6 +81,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   const [pendingAnchorText, setPendingAnchorText] = useState('')
   const commentInputRef = useRef<HTMLTextAreaElement>(null)
   const [tocOpen, setTocOpen] = useState(false)
+  const [findOpen, setFindOpen] = useState(false)
+  const contentAreaRef = useRef<HTMLDivElement>(null)
   const [headings, setHeadings] = useState<{ level: number; text: string; idx: number }[]>([])
   const [wordCount, setWordCount] = useState(0)
   const [focusMode, setFocusMode] = useState(false)
@@ -204,6 +207,20 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [focusMode])
+
+  // Find-in-page shortcut (Cmd/Ctrl+F) — highlights matches in the current page's
+  // content, separate from Cmd/Ctrl+K which searches across all pages.
+  useEffect(() => {
+    if (page.is_database) return
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'f') {
+        e.preventDefault()
+        setFindOpen(o => !o)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [page.is_database])
 
   // Increment view count once per page mount
   useEffect(() => {
@@ -1374,7 +1391,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
             )}
 
             {/* Editor / Database */}
-            <div style={{ marginTop: '20px', position: 'relative' }}>
+            <div ref={contentAreaRef} style={{ marginTop: '20px', position: 'relative' }}>
               {page.is_database
                 ? <DatabaseView page={page} canEdit={canEdit} />
                 : <>
@@ -1390,6 +1407,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
                   </>
               }
             </div>
+
+            {findOpen && !page.is_database && (
+              <FindInPage containerRef={contentAreaRef} onClose={() => setFindOpen(false)} />
+            )}
 
             {/* Page info bar */}
             {!page.is_database && wordCount > 0 && (
@@ -1459,8 +1480,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
                 : headings.map((h, i) => (
                   <div key={i}
                     onClick={() => {
-                      const els = document.querySelectorAll('.tiptap h1,.tiptap h2,.tiptap h3')
-                      els[h.idx]?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      document.getElementById(`toc-heading-${h.idx}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
                     }}
                     style={{ padding: `5px 16px 5px ${8 + (h.level - 1) * 12}px`, cursor: 'pointer', fontSize: 'calc(14px * var(--content-zoom, 1))', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', borderLeft: '2px solid transparent' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)'; (e.currentTarget as HTMLElement).style.borderLeftColor = 'var(--accent)'; (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}

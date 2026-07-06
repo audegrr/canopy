@@ -150,7 +150,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     function onKey(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement)?.tagName
       const isEditing = tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable
-      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'f')) { e.preventDefault(); setSearchOpen(o => !o) }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); setSearchOpen(o => !o) }
       if (e.key === '?' && !isEditing) { setShortcutsOpen(o => !o) }
       if (e.key === 'Escape') { setSearchOpen(false); setShortcutsOpen(false) }
     }

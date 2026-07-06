@@ -2,7 +2,8 @@
 
 const SHORTCUTS = [
   { section: 'Navigation', items: [
-    { keys: ['⌘', 'K'], label: 'Search pages' },
+    { keys: ['⌘', 'K'], label: 'Search all pages' },
+    { keys: ['⌘', 'F'], label: 'Find in this page' },
     { keys: ['⌘', '['], label: 'Navigate back' },
     { keys: ['⌘', ']'], label: 'Navigate forward' },
     { keys: ['?'], label: 'Open this shortcuts panel' },

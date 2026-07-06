@@ -285,13 +285,7 @@ function TocView({ editor: editorInstance }: any) {
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
               onClick={() => {
-                const els = document.querySelectorAll('.tiptap h1, .tiptap h2, .tiptap h3, .tiptap h4')
-                for (const el of els) {
-                  if ((el.textContent || '').trim() === h.text.trim()) {
-                    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-                    break
-                  }
-                }
+                document.getElementById(`toc-heading-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
               }}>
               {h.text}
             </div>
@@ -756,6 +750,34 @@ const MathBlockNode = Node.create({
   addNodeView() { return ReactNodeViewRenderer(MathBlockView) },
 })
 
+// ── HEADING IDS (for table-of-contents scroll-to) ─────────────────────────────
+// Stamps a stable `id="toc-heading-N"` on every heading's DOM element via a
+// decoration (view-layer only — never touches the document JSON, so it never
+// triggers onUpdate/save and works identically in read-only shared views).
+// N is the heading's position among ALL headings in document order (including
+// empty ones), computed fresh from doc.descendants on every render — the same
+// counting rule the table-of-contents panel uses to build its heading list, so
+// the two always agree and a plain getElementById lookup is guaranteed correct.
+const headingIdPluginKey = new PluginKey('headingId')
+
+const headingIdPlugin = new Plugin({
+  key: headingIdPluginKey,
+  props: {
+    decorations(state) {
+      const { doc } = state
+      const decos: Decoration[] = []
+      let idx = 0
+      doc.descendants((node: any, pos: number) => {
+        if (node.type.name === 'heading') {
+          decos.push(Decoration.node(pos, pos + node.nodeSize, { id: `toc-heading-${idx}` }))
+          idx++
+        }
+      })
+      return DecorationSet.create(doc, decos)
+    },
+  },
+})
+
 // ── COLLAPSIBLE HEADING ───────────────────────────────────────────────────────
 const collapsePluginKey = new PluginKey('headingCollapse')
 
@@ -832,7 +854,7 @@ const CollapsibleHeading = HeadingBase.extend({
     }
   },
   addProseMirrorPlugins() {
-    return [...(this.parent?.() ?? []), collapsePlugin]
+    return [...(this.parent?.() ?? []), collapsePlugin, headingIdPlugin]
   },
 })
 
