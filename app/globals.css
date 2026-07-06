@@ -98,7 +98,7 @@ html, body {
 }
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
 *:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 ::selection { background: rgba(47,107,79,0.18); }
