@@ -102,6 +102,28 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
     return () => window.removeEventListener('resize', check)
   }, [])
 
+  // Populate TOC + word count from the loaded page content. The editor's onUpdate
+  // (which normally does this in onContentUpdate) only fires after the user makes
+  // an edit, so without this a freshly opened, unedited page shows an empty TOC.
+  useEffect(() => {
+    if (page.is_database) return
+    const topNodes: any[] = Array.isArray(page.content) ? page.content : (page.content?.content || [])
+    const hs: { level: number; text: string; idx: number }[] = []
+    let hIdx = 0
+    function collectHeadings(node: any) {
+      if (node.type === 'heading') {
+        const text = (node.content || []).map((c: any) => c.text || '').join('')
+        const idx = hIdx++
+        if (text) hs.push({ level: node.attrs?.level || 1, text, idx })
+      }
+      if (node.content) node.content.forEach(collectHeadings)
+    }
+    topNodes.forEach(collectHeadings)
+    setHeadings(hs)
+    const text = topNodes.map((n: any) => extractText(n)).join(' ')
+    setWordCount(text.trim() ? text.trim().split(/\s+/).length : 0)
+  }, [page.id])
+
   // Flush any pending debounced save immediately on unmount (prevents data loss on navigation)
   useEffect(() => {
     const pageId = page.id
@@ -517,7 +539,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
     function collectHeadings(node: any) {
       if (node.type === 'heading') {
         const text = (node.content || []).map((c: any) => c.text || '').join('')
-        if (text) hs.push({ level: node.attrs?.level || 1, text, idx: hIdx++ })
+        // idx must track every rendered heading element (even empty ones), since
+        // the DOM query in the TOC click handler matches h1/h2/h3 elements 1:1
+        // including empty heading placeholders.
+        const idx = hIdx++
+        if (text) hs.push({ level: node.attrs?.level || 1, text, idx })
       }
       if (node.content) node.content.forEach(collectHeadings)
     }

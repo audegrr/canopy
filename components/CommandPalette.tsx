@@ -32,12 +32,6 @@ export default function CommandPalette({ workspaceId, onCreatePage, onCreateData
   // Open on Cmd+K
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
-        e.preventDefault()
-        setOpen(o => !o)
-        setQuery('')
-        setSelected(0)
-      }
       if (e.key === 'Escape') setOpen(false)
     }
     window.addEventListener('keydown', onKey)
