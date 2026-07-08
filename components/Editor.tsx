@@ -18,6 +18,8 @@ import { Node, Mark, mergeAttributes } from '@tiptap/core'
 import { TextSelection, Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import HeadingBase from '@tiptap/extension-heading'
+import BulletListBase from '@tiptap/extension-bullet-list'
+import { wrappingInputRule } from '@tiptap/core'
 import { createLowlight, all as allLangs } from 'lowlight'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
@@ -858,6 +860,18 @@ const CollapsibleHeading = HeadingBase.extend({
   },
 })
 
+// Excludes "+" from the auto-bullet-list trigger — only "-" and "*" convert.
+const BulletList = BulletListBase.extend({
+  addInputRules() {
+    return [
+      wrappingInputRule({
+        find: /^\s*([-*])\s$/,
+        type: this.type,
+      }),
+    ]
+  },
+})
+
 // ── COMMENT MARK ─────────────────────────────────────────────────────────────
 const CommentMark = Mark.create({
   name: 'comment',
@@ -1143,8 +1157,9 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
 
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: false, codeBlock: false }),
+      StarterKit.configure({ heading: false, codeBlock: false, bulletList: false }),
       CollapsibleHeading.configure({ levels: [1, 2, 3] }),
+      BulletList,
       CustomCodeBlock,
       Placeholder.configure({
         placeholder: ({ node }) => node.type.name === 'heading' ? 'Heading' : "Type '/' for commands…"
@@ -1335,11 +1350,13 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
           }
         }
         if (event.key === '/') {
-          const { from } = view.state.selection
-          const coords = view.coordsAtPos(from)
-          setSlashMenu({ x: coords.left, y: coords.bottom + 8, query: '', fromPos: from })
-          slashQueryRef.current = ''
-          setSlashIndex(0)
+          const { from, $from } = view.state.selection
+          if ($from.parent.textContent.length === 0) {
+            const coords = view.coordsAtPos(from)
+            setSlashMenu({ x: coords.left, y: coords.bottom + 8, query: '', fromPos: from })
+            slashQueryRef.current = ''
+            setSlashIndex(0)
+          }
           return false
         }
         if (slashMenu) {
