@@ -14,7 +14,7 @@ import TableRow from '@tiptap/extension-table-row'
 import TableCell from '@tiptap/extension-table-cell'
 import TableHeader from '@tiptap/extension-table-header'
 import Image from '@tiptap/extension-image'
-import { Node, Mark, mergeAttributes } from '@tiptap/core'
+import { Node, Mark, mergeAttributes, getMarkRange } from '@tiptap/core'
 import { TextSelection, Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import HeadingBase from '@tiptap/extension-heading'
@@ -1151,6 +1151,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   const slashQueryRef = useRef('')
   const pendingImageInsert = useRef<((src: string) => void) | null>(null)
   const [blockCtxMenu, setBlockCtxMenu] = useState<{ x: number; y: number; pos: number } | null>(null)
+  const [linkCtxMenu, setLinkCtxMenu] = useState<{ x: number; y: number; from: number; to: number; href: string; text: string } | null>(null)
   const [bubbleMenuEnabled, setBubbleMenuEnabled] = useState(true)
   const bubbleMenuEnabledRef = useRef(true)
   const [tableToolbarPos, setTableToolbarPos] = useState<{ top: number; left: number; width: number } | null>(null)
@@ -1270,6 +1271,21 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
           const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })
           setBubbleMenuEnabled(false)
           bubbleMenuEnabledRef.current = false
+          const linkType = view.state.schema.marks.link
+          const range = pos && linkType ? getMarkRange(view.state.doc.resolve(pos.pos), linkType) : null
+          if (range) {
+            const linkNode = view.state.doc.nodeAt(range.from)
+            const linkMark = linkNode?.marks.find(m => m.type === linkType)
+            setLinkCtxMenu({
+              x: event.clientX,
+              y: event.clientY,
+              from: range.from,
+              to: range.to,
+              href: linkMark?.attrs.href || '',
+              text: view.state.doc.textBetween(range.from, range.to),
+            })
+            return true
+          }
           setBlockCtxMenu({ x: event.clientX, y: event.clientY, pos: pos?.pos ?? 0 })
           return true
         },
@@ -1444,6 +1460,17 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       .insertContentAt(deleteFrom, { type: 'pageMention', attrs: { pageId: page.id, label: page.title || 'Untitled' } })
       .run()
     atQueryRef.current = ''
+  }
+
+  function applyLinkCtxMenuEdit() {
+    if (!editor || !linkCtxMenu) return
+    const href = linkCtxMenu.href.trim()
+    const text = linkCtxMenu.text || href || ' '
+    editor.chain().focus().insertContentAt(
+      { from: linkCtxMenu.from, to: linkCtxMenu.to },
+      href ? [{ type: 'text', text, marks: [{ type: 'link', attrs: { href } }] }] : text
+    ).run()
+    setLinkCtxMenu(null)
   }
 
   function getItems(q: string) {
@@ -1979,6 +2006,55 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
             }
             setBlockCtxMenu(null)
           }}>🗑 Delete block</CtxItem>
+        </div>
+      </>
+    )}
+
+    {/* Link edit context menu */}
+    {linkCtxMenu && (
+      <>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => { setLinkCtxMenu(null); setTimeout(() => { setBubbleMenuEnabled(true); bubbleMenuEnabledRef.current = true }, 100) }} />
+        <div
+          style={{ position: 'fixed', left: Math.min(linkCtxMenu.x, window.innerWidth - 280), top: Math.min(linkCtxMenu.y, window.innerHeight - 200), background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px', boxShadow: 'var(--shadow-lg)', zIndex: 999, width: '260px' }}
+          className="scale-in"
+        >
+          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px', fontWeight: 500 }}>Text</div>
+          <input
+            autoFocus
+            value={linkCtxMenu.text}
+            onChange={e => setLinkCtxMenu(prev => prev ? { ...prev, text: e.target.value } : prev)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') applyLinkCtxMenuEdit()
+              if (e.key === 'Escape') setLinkCtxMenu(null)
+            }}
+            style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '13px', fontFamily: 'var(--font-sans)', outline: 'none', background: 'var(--surface)', color: 'var(--text)', marginBottom: '8px' }}
+          />
+          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px', fontWeight: 500 }}>Link</div>
+          <input
+            value={linkCtxMenu.href}
+            placeholder="https://…"
+            onChange={e => setLinkCtxMenu(prev => prev ? { ...prev, href: e.target.value } : prev)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') applyLinkCtxMenuEdit()
+              if (e.key === 'Escape') setLinkCtxMenu(null)
+            }}
+            style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '13px', fontFamily: 'var(--font-sans)', outline: 'none', background: 'var(--surface)', color: 'var(--text)', marginBottom: '10px' }}
+          />
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <button
+              onClick={applyLinkCtxMenuEdit}
+              style={{ flex: 1, background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '6px', padding: '6px 10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }}
+            >Save</button>
+            <button
+              onClick={() => {
+                if (editor) {
+                  editor.chain().focus().insertContentAt({ from: linkCtxMenu.from, to: linkCtxMenu.to }, linkCtxMenu.text || ' ').run()
+                }
+                setLinkCtxMenu(null)
+              }}
+              style={{ background: 'none', color: 'var(--red)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+            >Remove</button>
+          </div>
         </div>
       </>
     )}
