@@ -80,7 +80,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [newWsModal, setNewWsModal] = useState(false)
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
-  const ZOOM_LEVELS = [0.8, 0.9, 1.0, 1.1, 1.2]
+  const ZOOM_LEVELS = [0.7, 0.8, 0.9, 1.0, 1.1, 1.2]
   const [zoom, setZoom] = useState<number>(() => {
     if (typeof window === 'undefined') return 1.0
     const saved = parseFloat(localStorage.getItem('canopy_zoom') || '1')
@@ -553,8 +553,16 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         }
       }
     }
-    const { error } = await supabase.from('pages').update({ deleted_at: new Date().toISOString() }).in('id', [...toRemove])
+    const { data: updatedRows, error } = await supabase.from('pages').update({ deleted_at: new Date().toISOString() }).in('id', [...toRemove]).select('id')
     if (error) { showError('Failed to delete page'); setContextMenu(null); return }
+    if (!updatedRows || updatedRows.length === 0) {
+      // RLS silently allowed the request but matched zero rows — the page looks
+      // deleted locally but nothing was actually written to the database.
+      showError('Delete was blocked by a permissions rule — nothing was deleted in the database')
+      console.error('deletePage: update matched 0 rows (likely blocked by RLS)', { pageId, toRemove: [...toRemove] })
+      setContextMenu(null)
+      return
+    }
     setPages(p => p.filter(x => !toRemove.has(x.id)))
     // Drop any stale instant-nav cache entries so a deleted page can't flash back
     // into view before the route's own deleted_at check kicks in.
