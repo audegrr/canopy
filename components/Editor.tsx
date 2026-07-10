@@ -260,14 +260,14 @@ const CalloutExtension = Node.create({
 })
 
 // ── TABLE OF CONTENTS ──────────────────────────────────────────────────
-function TocView({ editor: editorInstance }: any) {
-  const [headings, setHeadings] = useState<{ level: number; text: string }[]>([])
+function TocView({ editor: editorInstance, maxLevel = 3, onMaxLevelChange }: any) {
+  const [headings, setHeadings] = useState<{ level: number; text: string; idx: number }[]>([])
   useEffect(() => {
     if (!editorInstance) return
     const update = () => {
-      const hs: { level: number; text: string }[] = []
+      const hs: { level: number; text: string; idx: number }[] = []
       editorInstance.state.doc.descendants((node: any) => {
-        if (node.type.name === 'heading') hs.push({ level: node.attrs.level, text: node.textContent })
+        if (node.type.name === 'heading') hs.push({ level: node.attrs.level, text: node.textContent, idx: hs.length })
       })
       setHeadings(hs)
     }
@@ -276,18 +276,37 @@ function TocView({ editor: editorInstance }: any) {
     return () => editorInstance.off('update', update)
   }, [editorInstance])
 
+  const visible = headings.filter(h => h.level <= maxLevel)
+
   return (
     <NodeViewWrapper>
       <div style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '6px', padding: '12px 16px', margin: '4px 0' }}>
-        <div style={{ fontSize: '0.73em', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>Table of contents</div>
-        {headings.length === 0
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }} contentEditable={false}>
+          <div style={{ fontSize: '0.73em', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Table of contents</div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[1, 2, 3].map(lvl => (
+              <button key={lvl}
+                onClick={() => onMaxLevelChange?.(lvl)}
+                title={`Show headings up to H${lvl}`}
+                style={{
+                  padding: '2px 6px', fontSize: '0.7em', fontWeight: 500,
+                  border: '1px solid var(--border)', borderRadius: 4, cursor: 'pointer',
+                  background: maxLevel === lvl ? 'var(--accent)' : 'transparent',
+                  color: maxLevel === lvl ? '#fff' : 'var(--text-secondary)',
+                }}>
+                H1{lvl >= 2 ? '-H2' : ''}{lvl >= 3 ? '-H3' : ''}
+              </button>
+            ))}
+          </div>
+        </div>
+        {visible.length === 0
           ? <div style={{ fontSize: '1em', color: 'var(--text-tertiary)' }}>No headings yet</div>
-          : headings.map((h, i) => (
-            <div key={i} style={{ fontSize: '1em', color: 'var(--text)', paddingLeft: `${(h.level - 1) * 12}px`, marginBottom: '3px', cursor: 'pointer' }}
+          : visible.map(h => (
+            <div key={h.idx} style={{ fontSize: '1em', color: 'var(--text)', paddingLeft: `${(h.level - 1) * 12}px`, marginBottom: '3px', cursor: 'pointer' }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text)' }}
               onClick={() => {
-                document.getElementById(`toc-heading-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                document.getElementById(`toc-heading-${h.idx}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
               }}>
               {h.text}
             </div>
@@ -302,14 +321,32 @@ const TocExtension = Node.create({
   name: 'toc',
   group: 'block',
   atom: true,
+  addAttributes() { return { maxLevel: { default: 3 } } },
   parseHTML() { return [{ tag: 'div[data-type="toc"]' }] },
   renderHTML({ HTMLAttributes }) { return ['div', mergeAttributes(HTMLAttributes, { 'data-type': 'toc' })] },
   addNodeView() {
-    return ({ editor }: any) => {
+    return ({ editor, node, getPos }: any) => {
       const dom = document.createElement('div')
       const root = createRoot(dom)
-      root.render(<TocView editor={editor} />)
-      return { dom, destroy: () => root.unmount() }
+      let currentNode = node
+      const setMaxLevel = (lvl: number) => {
+        if (typeof getPos !== 'function') return
+        editor.view.dispatch(editor.view.state.tr.setNodeMarkup(getPos(), undefined, { ...currentNode.attrs, maxLevel: lvl }))
+      }
+      const render = () => {
+        root.render(<TocView editor={editor} maxLevel={currentNode.attrs.maxLevel ?? 3} onMaxLevelChange={setMaxLevel} />)
+      }
+      render()
+      return {
+        dom,
+        update: (updatedNode: any) => {
+          if (updatedNode.type.name !== 'toc') return false
+          currentNode = updatedNode
+          render()
+          return true
+        },
+        destroy: () => root.unmount(),
+      }
     }
   },
 })

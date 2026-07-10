@@ -1468,7 +1468,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
 
         {/* Table of contents panel */}
         {tocOpen && !page.is_database && (
-          <div style={isMobile ? mobilePanel : { width: '220px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+          <div style={isMobile ? mobilePanel : { width: '260px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
             {isMobile && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 199 }} onClick={() => setTocOpen(false)} />}
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <span style={{ fontWeight: 600, fontSize: 'calc(15px * var(--content-zoom, 1))' }}>Contents</span>
