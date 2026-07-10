@@ -21,7 +21,7 @@ if (typeof window !== 'undefined') {
         sb.from('pages').select('*').eq('id', pid).single(),
         sb.from('page_shares').select('permission').eq('page_id', pid).eq('user_id', user.id).single()
       ])
-      if (!page) return
+      if (!page || page.deleted_at) return
       const isOwner = page.owner_id === user.id
       const { data: wsMem } = await sb.from('workspace_members').select('role, workspace_id').eq('user_id', user.id)
       const { data: ownedWs } = await sb.from('workspaces').select('id').eq('id', page.workspace_id).eq('owner_id', user.id).single()
@@ -98,6 +98,7 @@ export default function PageRoute() {
       }
       let resolvedPage = page
       if (!resolvedPage) { router.push(`/share/${id}`); return }
+      if (resolvedPage.deleted_at) { setError(true); return }
 
       const isOwner = resolvedPage.owner_id === user.id
 

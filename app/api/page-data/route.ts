@@ -23,7 +23,7 @@ export async function GET(req: Request) {
   )
 
   const { data: page } = await admin.from('pages').select('*').eq('id', pageId).single()
-  if (!page) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  if (!page || page.deleted_at) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   // Verify access using the user's own client (respects auth)
   const [{ data: share }, { data: ownedWs }, { data: wsMem }] = await Promise.all([

@@ -361,7 +361,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   useEffect(() => {
     async function onPicker(e: any) {
       const supabaseClient = createClient()
-      const { data: ownPages } = await supabaseClient.from('pages').select('id, title, icon, parent_id').eq('workspace_id', page.workspace_id).neq('id', page.id).order('title')
+      const { data: ownPages } = await supabaseClient.from('pages').select('id, title, icon, parent_id').eq('workspace_id', page.workspace_id).neq('id', page.id).is('deleted_at', null).order('title')
       const { data: sharedPagesData } = await supabaseClient.rpc('get_shared_pages', { user_uuid: (await supabaseClient.auth.getUser()).data.user?.id || '' })
       const data = [
         ...(ownPages || []),

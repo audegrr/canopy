@@ -539,9 +539,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }
 
   async function deletePage(pageId: string) {
-    const { error } = await supabase.from('pages').update({ deleted_at: new Date().toISOString() }).eq('id', pageId)
-    if (error) { showError('Failed to delete page'); setContextMenu(null); return }
-    // Collect all descendant IDs to remove from state
+    // Collect all descendant IDs so the whole subtree gets soft-deleted, not just
+    // the page itself — otherwise child pages stay live in the DB (deleted_at
+    // still null) and can resurface via search, direct links, or embedded sub-page blocks.
     const toRemove = new Set<string>([pageId])
     let prev = pages
     let changed = true
@@ -553,7 +553,13 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         }
       }
     }
+    const { error } = await supabase.from('pages').update({ deleted_at: new Date().toISOString() }).in('id', [...toRemove])
+    if (error) { showError('Failed to delete page'); setContextMenu(null); return }
     setPages(p => p.filter(x => !toRemove.has(x.id)))
+    // Drop any stale instant-nav cache entries so a deleted page can't flash back
+    // into view before the route's own deleted_at check kicks in.
+    const winCache = (window as any).__pageCache as Map<string, any> | undefined
+    if (winCache) for (const id of toRemove) winCache.delete(id)
     if (currentPageId && toRemove.has(currentPageId)) navigate('/app')
     // Remove shares for all deleted pages — this triggers realtime DELETE on page_shares
     // for every user who had access, removing the page from their "Shared with me"

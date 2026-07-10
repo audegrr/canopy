@@ -21,7 +21,7 @@ export default function SubpageBlock({ node, updateAttributes, deleteNode, selec
 
   useEffect(() => {
     if (!node.attrs.pageId) { setLoading(false); return }
-    supabase.from('pages').select('*').eq('id', node.attrs.pageId).single()
+    supabase.from('pages').select('*').eq('id', node.attrs.pageId).is('deleted_at', null).single()
       .then(({ data }) => { setPage(data); setLoading(false) })
   }, [node.attrs.pageId])
 

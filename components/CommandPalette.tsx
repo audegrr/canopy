@@ -47,7 +47,7 @@ export default function CommandPalette({ workspaceId, onCreatePage, onCreateData
   }, [open])
 
   async function loadPages() {
-    const { data } = await supabase.from('pages').select('id, title, icon, is_database').eq('workspace_id', workspaceId).order('updated_at', { ascending: false })
+    const { data } = await supabase.from('pages').select('id, title, icon, is_database').eq('workspace_id', workspaceId).is('deleted_at', null).order('updated_at', { ascending: false })
     setPages(data || [])
   }
 
