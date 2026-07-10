@@ -2066,7 +2066,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
                 }
                 closeLinkCtxMenu()
               }}
-              style={{ background: 'none', color: 'var(--red)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '6px' }}
+              style={{ flex: 1, background: 'none', color: 'var(--red)', border: '1px solid var(--border)', borderRadius: '6px', padding: '6px 10px', fontSize: '13px', cursor: 'pointer', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
             ><Icon name="ban" size={13}/> Remove</button>
           </div>
         </div>
