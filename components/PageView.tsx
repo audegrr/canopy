@@ -883,7 +883,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   async function exportWord() {
     // Simple HTML to docx via browser download
     const content = document.querySelector('.tiptap')?.innerHTML || ''
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${page.title}</title><style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;font-size:14px;line-height:1.6;}h1{font-size:24px;}h2{font-size:20px;}h3{font-size:16px;}table{border-collapse:collapse;width:100%;}td,th{border:1px solid #ccc;padding:6px 10px;}</style></head><body><h1>${page.icon} ${page.title}</h1>${content}</body></html>`
+    // Match the current on-screen zoom level in the exported document
+    const zoom = parseFloat(getComputedStyle(document.body).getPropertyValue('--content-zoom')) || 1
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${page.title}</title><style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;font-size:${14 * zoom}px;line-height:1.6;}h1{font-size:${24 * zoom}px;}h2{font-size:${20 * zoom}px;}h3{font-size:${16 * zoom}px;}table{border-collapse:collapse;width:100%;}td,th{border:1px solid #ccc;padding:6px 10px;}</style></head><body><h1>${page.icon} ${page.title}</h1>${content}</body></html>`
     const blob = new Blob([html], { type: 'application/msword' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
