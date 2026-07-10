@@ -1474,10 +1474,31 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
               <span style={{ fontWeight: 600, fontSize: 'calc(15px * var(--content-zoom, 1))' }}>Contents</span>
               <button onClick={() => setTocOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 'calc(16px * var(--content-zoom, 1))' }}>✕</button>
             </div>
+            <div style={{ display: 'flex', gap: 4, padding: '10px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+              {[1, 2, 3].map(lvl => {
+                const active = (page.toc_max_level ?? 3) === lvl
+                return (
+                  <button key={lvl}
+                    onClick={() => {
+                      setPage(p => ({ ...p, toc_max_level: lvl }) as Page)
+                      scheduleSave({ toc_max_level: lvl })
+                    }}
+                    title={`Show headings up to H${lvl}`}
+                    style={{
+                      flex: 1, padding: '4px 0', fontSize: 'calc(12px * var(--content-zoom, 1))', fontWeight: 500,
+                      border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer',
+                      background: active ? 'var(--accent)' : 'transparent',
+                      color: active ? '#fff' : 'var(--text-secondary)',
+                    }}>
+                    H1{lvl >= 2 ? '-H2' : ''}{lvl >= 3 ? '-H3' : ''}
+                  </button>
+                )
+              })}
+            </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-              {headings.length === 0
+              {headings.filter(h => h.level <= (page.toc_max_level ?? 3)).length === 0
                 ? <div style={{ padding: '16px', fontSize: 'calc(14px * var(--content-zoom, 1))', color: 'var(--text-tertiary)' }}>No headings yet.</div>
-                : headings.map((h, i) => (
+                : headings.filter(h => h.level <= (page.toc_max_level ?? 3)).map((h, i) => (
                   <div key={i}
                     onClick={() => {
                       document.getElementById(`toc-heading-${h.idx}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
