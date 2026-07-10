@@ -113,6 +113,19 @@ const ICONS: Record<string, () => React.ReactNode> = {
     <rect x="9" y="9" width="13" height="13" rx="2"/>
     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
   </>,
+  clipboard: () => <>
+    <rect x="8" y="2" width="8" height="4" rx="1"/>
+    <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+  </>,
+  scissors: () => <>
+    <circle cx="6" cy="6" r="3"/>
+    <circle cx="6" cy="18" r="3"/>
+    <path d="M8.5 8.5 19 19M19 5 8.5 15.5"/>
+  </>,
+  eraser: () => <>
+    <path d="m7 21-4.3-4.3c-1-1-1-2.6 0-3.6l9.6-9.6c1-1 2.6-1 3.6 0l5.6 5.6c1 1 1 2.6 0 3.6L13 21"/>
+    <path d="M22 21H7"/>
+  </>,
   link: () => <path d="M15 7h3a5 5 0 0 1 0 10h-3m-6 0H6A5 5 0 0 1 6 7h3M8 12h8"/>,
   box: () => <>
     <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
