@@ -778,78 +778,25 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
     }
   }
 
-  function getPrintCSSInnerText(): string {
-    for (const sheet of Array.from(document.styleSheets)) {
-      try {
-        for (const rule of Array.from(sheet.cssRules)) {
-          if (rule instanceof CSSMediaRule && rule.media?.mediaText === 'print') {
-            const text = rule.cssText
-            const start = text.indexOf('{')
-            const end = text.lastIndexOf('}')
-            return start >= 0 && end > start ? text.slice(start + 1, end) : ''
-          }
-        }
-      } catch {}
-    }
-    return ''
-  }
-
   async function exportPDF() {
-    const source = document.querySelector('.print-content') as HTMLElement
-    if (!source) { showToast('Nothing to export'); return }
     showToast('Generating PDF…')
-
-    // The print stylesheet only applies during real printing. html2canvas
-    // clones the document into its own internal iframe and re-resolves
-    // stylesheets there, so a runtime CSSOM mutation (e.g. widening the
-    // @media print rule's mediaText) doesn't carry over — inject the print
-    // rules as a real, unconditional <style> element instead. We don't hide
-    // the rest of the app (unlike the old window.print() flow): html2canvas
-    // only renders the element it's given, and forcing the "hide everything
-    // else" rule active was observed to break its layout measurement,
-    // producing a 0x0 capture.
-    const styleEl = document.createElement('style')
-    styleEl.textContent = '#print-clone { display: block !important; }\n' + getPrintCSSInnerText()
-    document.head.appendChild(styleEl)
-
-    const clone = source.cloneNode(true) as HTMLElement
-    clone.id = 'print-clone'
-    clone.querySelectorAll('.heading-toggle, .toc-level-controls, button').forEach(el => el.remove())
-    const zoom = getComputedStyle(document.body).getPropertyValue('--content-zoom').trim() || '1'
-    clone.style.setProperty('--content-zoom', zoom)
-    document.body.appendChild(clone)
-
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-
     try {
-      const { default: html2canvas } = await import('html2canvas')
-      const { jsPDF } = await import('jspdf')
-      const canvas = await html2canvas(clone, { scale: 2, backgroundColor: '#ffffff', useCORS: true })
-
-      const pdf = new jsPDF('p', 'pt', 'a4')
-      const pageWidth = pdf.internal.pageSize.getWidth()
-      const pageHeight = pdf.internal.pageSize.getHeight()
-      const imgWidth = pageWidth
-      const imgHeight = (canvas.height * imgWidth) / canvas.width
-      const imgData = canvas.toDataURL('image/jpeg', 0.92)
-
-      let heightLeft = imgHeight
-      let position = 0
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight)
-      heightLeft -= pageHeight
-      while (heightLeft > 0) {
-        position -= pageHeight
-        pdf.addPage()
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight)
-        heightLeft -= pageHeight
-      }
-      pdf.save(`${(page.title || 'page').replace(/[^a-z0-9]/gi, '_')}.pdf`)
+      const res = await fetch('/api/export-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: page.title, icon: page.icon, content: page.content }),
+      })
+      if (!res.ok) { showToast('PDF generation failed'); return }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${(page.title || 'page').replace(/[^a-z0-9]/gi, '_')}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
       showToast('PDF downloaded!')
     } catch {
       showToast('PDF generation failed')
-    } finally {
-      document.getElementById('print-clone')?.remove()
-      styleEl.remove()
     }
   }
 
