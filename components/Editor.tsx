@@ -283,7 +283,7 @@ function TocView({ editor: editorInstance, maxLevel = 3, onMaxLevelChange }: any
       <div className="toc-block" style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '6px', padding: '12px 16px', margin: '4px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }} contentEditable={false}>
           <div style={{ fontSize: '0.73em', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Table of contents</div>
-          <div style={{ display: 'flex', gap: 4 }}>
+          <div className="toc-level-controls" style={{ display: 'flex', gap: 4 }}>
             {[1, 2, 3].map(lvl => (
               <button key={lvl}
                 onClick={() => onMaxLevelChange?.(lvl)}

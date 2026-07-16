@@ -778,28 +778,54 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
     }
   }
 
+  function findPrintCSS(): string {
+    for (const sheet of Array.from(document.styleSheets)) {
+      try {
+        for (const rule of Array.from(sheet.cssRules)) {
+          if (rule instanceof CSSMediaRule && rule.media?.mediaText === 'print') return rule.cssText
+        }
+      } catch {}
+    }
+    return ''
+  }
+
   async function exportPDF() {
     const source = document.querySelector('.print-content') as HTMLElement
     if (!source) { showToast('Nothing to export'); return }
-    showToast('Opening print dialog — select "Save as PDF"')
+    showToast('Generating PDF…')
 
-    // Clone to a direct body child to bypass overflow:hidden ancestors
     const clone = source.cloneNode(true) as HTMLElement
-    clone.id = 'print-clone'
-    document.body.appendChild(clone)
-    document.body.classList.add('printing-page')
+    clone.querySelectorAll('.heading-toggle, .toc-level-controls, button').forEach(el => el.remove())
+    const zoom = getComputedStyle(document.body).getPropertyValue('--content-zoom').trim() || '1'
+    clone.style.setProperty('--content-zoom', zoom)
 
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    // Grab the dedicated @media print stylesheet block so the server renders
+    // with exactly the same rules as the in-browser print/PDF output.
+    const printCSS = findPrintCSS()
 
-    const cleanup = () => {
-      document.body.classList.remove('printing-page')
-      document.getElementById('print-clone')?.remove()
-      window.removeEventListener('afterprint', cleanup)
+    try {
+      const res = await fetch('/api/export-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: clone.outerHTML, css: printCSS, title: page.title }),
+      })
+      if (!res.ok) {
+        let errMsg = 'PDF generation failed'
+        try { const err = await res.json(); errMsg = err.error || errMsg } catch {}
+        showToast(errMsg)
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${(page.title || 'page').replace(/[^a-z0-9]/gi, '_')}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+      showToast('PDF downloaded!')
+    } catch {
+      showToast('PDF generation failed')
     }
-    window.addEventListener('afterprint', cleanup, { once: true })
-    setTimeout(cleanup, 15000) // safety net
-
-    window.print()
   }
 
   async function exportCSV() {
@@ -882,7 +908,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
 
   async function exportWord() {
     // Simple HTML to docx via browser download
-    const content = document.querySelector('.tiptap')?.innerHTML || ''
+    const source = document.querySelector('.tiptap') as HTMLElement | null
+    const clone = source?.cloneNode(true) as HTMLElement | undefined
+    clone?.querySelectorAll('.heading-toggle, .toc-level-controls').forEach(el => el.remove())
+    const content = clone?.innerHTML || ''
     // Match the current on-screen zoom level in the exported document
     const zoom = parseFloat(getComputedStyle(document.body).getPropertyValue('--content-zoom')) || 1
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${page.title}</title><style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;font-size:${14 * zoom}px;line-height:1.6;}h1{font-size:${24 * zoom}px;}h2{font-size:${20 * zoom}px;}h3{font-size:${16 * zoom}px;}table{border-collapse:collapse;width:100%;}td,th{border:1px solid #ccc;padding:6px 10px;}</style></head><body><h1>${page.icon} ${page.title}</h1>${content}</body></html>`
