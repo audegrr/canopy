@@ -20,7 +20,11 @@ async function launchBrowser() {
     return puppeteer.launch({
       args: chromium.args,
       executablePath: await chromium.executablePath(),
-      headless: true,
+      // chromium.args already forces --headless='shell' (the old headless-shell
+      // mode); passing the default `headless: true` here asks Puppeteer for the
+      // *new* headless mode instead, and the resulting flag conflict silently
+      // breaks page.pdf() (function returns fine, output is blank).
+      headless: 'shell',
     })
   }
   const executablePath = LOCAL_CHROME_CANDIDATES.find(p => fs.existsSync(p))
