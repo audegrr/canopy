@@ -65,14 +65,17 @@ export async function exportPageAsPDF(pageId: string, supabase: SupabaseClient, 
 export async function exportPageAsWord(pageId: string, supabase: SupabaseClient, onDone: () => void) {
   const { data: p } = await supabase.from('pages').select('title, content, icon').eq('id', pageId).single()
   if (!p) return
-  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${p.title}</title>
-  <style>body{font-family:Arial,sans-serif;font-size:12pt;line-height:1.5;}h1{font-size:18pt;}h2{font-size:14pt;}table{border-collapse:collapse;}td,th{border:1px solid #ccc;padding:6px;}</style>
-  </head><body><h1>${p.icon || ''} ${p.title || 'Untitled'}</h1>${renderNodes(extractContent(p.content))}</body></html>`
-  const blob = new Blob([html], { type: 'application/msword' })
+  const res = await fetch('/api/export-word', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: p.title, icon: p.icon, content: p.content }),
+  })
+  if (!res.ok) { onDone(); return }
+  const blob = await res.blob()
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = (p.title || 'page') + '.doc'
+  a.download = (p.title || 'page') + '.docx'
   a.click()
   URL.revokeObjectURL(url)
   onDone()

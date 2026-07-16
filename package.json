@@ -48,6 +48,7 @@
     "@tiptap/suggestion": "^2.10.4",
     "@types/katex": "^0.16.8",
     "@types/web-push": "^3.6.4",
+    "docx": "^9.7.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "katex": "^0.17.0",

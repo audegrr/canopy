@@ -907,22 +907,25 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   }
 
   async function exportWord() {
-    // Simple HTML to docx via browser download
-    const source = document.querySelector('.tiptap') as HTMLElement | null
-    const clone = source?.cloneNode(true) as HTMLElement | undefined
-    clone?.querySelectorAll('.heading-toggle, .toc-level-controls').forEach(el => el.remove())
-    const content = clone?.innerHTML || ''
-    // Match the current on-screen zoom level in the exported document
-    const zoom = parseFloat(getComputedStyle(document.body).getPropertyValue('--content-zoom')) || 1
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${page.title}</title><style>body{font-family:Arial,sans-serif;max-width:800px;margin:40px auto;font-size:${14 * zoom}px;line-height:1.6;}h1{font-size:${24 * zoom}px;}h2{font-size:${20 * zoom}px;}h3{font-size:${16 * zoom}px;}table{border-collapse:collapse;width:100%;}td,th{border:1px solid #ccc;padding:6px 10px;}</style></head><body><h1>${page.icon} ${page.title}</h1>${content}</body></html>`
-    const blob = new Blob([html], { type: 'application/msword' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = (page.title || 'page') + '.doc'
-    a.click()
-    URL.revokeObjectURL(url)
-    showToast('Downloading Word document…')
+    showToast('Generating Word document…')
+    try {
+      const res = await fetch('/api/export-word', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: page.title, icon: page.icon, content: page.content }),
+      })
+      if (!res.ok) { showToast('Word export failed'); return }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${(page.title || 'page').replace(/[^a-z0-9]/gi, '_')}.docx`
+      a.click()
+      URL.revokeObjectURL(url)
+      showToast('Word document downloaded!')
+    } catch {
+      showToast('Word export failed')
+    }
   }
 
   function copyShareLink() {
