@@ -4,34 +4,37 @@ import { Document, Page, View, Text, Link, StyleSheet, renderToBuffer } from '@r
 
 export const runtime = 'nodejs'
 
-const styles = StyleSheet.create({
-  page: { padding: 48, fontFamily: 'Helvetica', fontSize: 11, lineHeight: 1.5, color: '#1a1a1a' },
-  title: { fontFamily: 'Helvetica-Bold', fontSize: 24, marginBottom: 28 },
-  h1: { fontFamily: 'Helvetica-Bold', fontSize: 18, marginTop: 16, marginBottom: 8 },
-  h2: { fontFamily: 'Helvetica-Bold', fontSize: 15, marginTop: 14, marginBottom: 7 },
-  h3: { fontFamily: 'Helvetica-Bold', fontSize: 13, marginTop: 12, marginBottom: 6 },
-  h4: { fontFamily: 'Helvetica-Bold', fontSize: 11.5, marginTop: 10, marginBottom: 5 },
-  paragraph: { marginBottom: 8 },
-  listRow: { flexDirection: 'row', marginBottom: 0 },
-  listMarker: { width: 20, flexShrink: 0, lineHeight: 1 },
-  listContent: { flex: 1, lineHeight: 1 },
-  blockquote: { borderLeft: '2pt solid #aaaaaa', paddingLeft: 10, marginBottom: 8, fontStyle: 'italic', color: '#444444' },
-  code: { fontFamily: 'Courier', fontSize: 9, backgroundColor: '#f5f5f5', padding: 8, marginBottom: 8 },
-  hr: { borderBottom: '1pt solid #d4d4d4', marginVertical: 10 },
-  callout: { backgroundColor: '#fafafa', padding: 10, marginBottom: 8, flexDirection: 'row' },
-  toc: { border: '1pt solid #d4d4d4', borderRadius: 4, padding: 12, marginBottom: 16 },
-  tocTitle: { fontFamily: 'Helvetica-Bold', fontSize: 8, letterSpacing: 1, color: '#888888', marginBottom: 6 },
-  table: { marginBottom: 8 },
-  tableRow: { flexDirection: 'row' },
-  tableCell: { flex: 1, border: '0.5pt solid #d4d4d4', padding: 5, fontSize: 10 },
-  tableCellHeader: { flex: 1, border: '0.5pt solid #d4d4d4', padding: 5, fontSize: 10, fontFamily: 'Helvetica-Bold', backgroundColor: '#f5f5f5' },
-  link: { color: '#333333', textDecoration: 'underline' },
-})
+function buildStyles(zoom: number) {
+  const z = (size: number) => size * zoom
+  return StyleSheet.create({
+    page: { padding: 48, fontFamily: 'Helvetica', fontSize: z(11), lineHeight: 1.5, color: '#1a1a1a' },
+    title: { fontFamily: 'Helvetica-Bold', fontSize: z(24), marginBottom: 28 },
+    h1: { fontFamily: 'Helvetica-Bold', fontSize: z(18), marginTop: 16, marginBottom: 8 },
+    h2: { fontFamily: 'Helvetica-Bold', fontSize: z(15), marginTop: 14, marginBottom: 7 },
+    h3: { fontFamily: 'Helvetica-Bold', fontSize: z(13), marginTop: 12, marginBottom: 6 },
+    h4: { fontFamily: 'Helvetica-Bold', fontSize: z(11.5), marginTop: 10, marginBottom: 5 },
+    paragraph: { marginBottom: 8 },
+    listRow: { flexDirection: 'row', marginBottom: 0 },
+    listMarker: { width: z(20), flexShrink: 0, lineHeight: 1 },
+    listContent: { flex: 1, lineHeight: 1 },
+    blockquote: { borderLeft: '2pt solid #aaaaaa', paddingLeft: 10, marginBottom: 8, fontStyle: 'italic', color: '#444444' },
+    code: { fontFamily: 'Courier', fontSize: z(9), backgroundColor: '#f5f5f5', padding: 8, marginBottom: 8 },
+    hr: { borderBottom: '1pt solid #d4d4d4', marginVertical: 10 },
+    callout: { backgroundColor: '#fafafa', padding: 10, marginBottom: 8, flexDirection: 'row' },
+    toc: { border: '1pt solid #d4d4d4', borderRadius: 4, padding: 12, marginBottom: 16 },
+    tocTitle: { fontFamily: 'Helvetica-Bold', fontSize: z(8), letterSpacing: 1, color: '#888888', marginBottom: 6 },
+    table: { marginBottom: 8 },
+    tableRow: { flexDirection: 'row' },
+    tableCell: { flex: 1, border: '0.5pt solid #d4d4d4', padding: 5, fontSize: z(10) },
+    tableCellHeader: { flex: 1, border: '0.5pt solid #d4d4d4', padding: 5, fontSize: z(10), fontFamily: 'Helvetica-Bold', backgroundColor: '#f5f5f5' },
+    link: { color: '#333333', textDecoration: 'underline' },
+  })
+}
 
-const HEADING_STYLES = [styles.h1, styles.h2, styles.h3, styles.h4, styles.h4, styles.h4]
+type Styles = ReturnType<typeof buildStyles>
 
 // ── Inline content (text + marks) → react-pdf <Text>/<Link> children ────────
-function inlineToNodes(nodes: any[], keyPrefix: string): ReactNode[] {
+function inlineToNodes(nodes: any[], keyPrefix: string, styles: Styles): ReactNode[] {
   return (nodes || []).map((node, i) => {
     const key = `${keyPrefix}-${i}`
     if (node.type === 'hardBreak') return <Text key={key}>{'\n'}</Text>
@@ -69,33 +72,34 @@ function collectHeadings(nodes: any[]): { title: string; level: number }[] {
 }
 
 // ── Block content → react-pdf elements ───────────────────────────────────────
-function blocksToPdf(nodes: any[], keyPrefix: string, allHeadings: { title: string; level: number }[]): ReactNode[] {
+function blocksToPdf(nodes: any[], keyPrefix: string, allHeadings: { title: string; level: number }[], styles: Styles): ReactNode[] {
+  const headingStyles = [styles.h1, styles.h2, styles.h3, styles.h4, styles.h4, styles.h4]
   const out: ReactNode[] = []
   ;(nodes || []).forEach((node, i) => {
     const key = `${keyPrefix}-${i}`
     switch (node.type) {
       case 'heading': {
         const level = Math.min(Math.max(node.attrs?.level || 1, 1), 6)
-        out.push(<Text key={key} style={HEADING_STYLES[level - 1]}>{inlineToNodes(node.content, key)}</Text>)
+        out.push(<Text key={key} style={headingStyles[level - 1]}>{inlineToNodes(node.content, key, styles)}</Text>)
         break
       }
       case 'paragraph':
-        out.push(<Text key={key} style={styles.paragraph}>{inlineToNodes(node.content, key)}</Text>)
+        out.push(<Text key={key} style={styles.paragraph}>{inlineToNodes(node.content, key, styles)}</Text>)
         break
       case 'bulletList':
-        out.push(...listToPdf(node.content, key, 'bullet', 0))
+        out.push(...listToPdf(node.content, key, 'bullet', 0, styles))
         break
       case 'orderedList':
-        out.push(...listToPdf(node.content, key, 'ordered', 0))
+        out.push(...listToPdf(node.content, key, 'ordered', 0, styles))
         break
       case 'taskList':
-        out.push(...taskListToPdf(node.content, key, 0))
+        out.push(...taskListToPdf(node.content, key, 0, styles))
         break
       case 'blockquote':
         (node.content || []).forEach((child: any, j: number) => {
           if (child.type === 'paragraph') {
-            out.push(<Text key={`${key}-${j}`} style={styles.blockquote}>{inlineToNodes(child.content, `${key}-${j}`)}</Text>)
-          } else out.push(...blocksToPdf([child], `${key}-${j}`, allHeadings))
+            out.push(<Text key={`${key}-${j}`} style={styles.blockquote}>{inlineToNodes(child.content, `${key}-${j}`, styles)}</Text>)
+          } else out.push(...blocksToPdf([child], `${key}-${j}`, allHeadings, styles))
         })
         break
       case 'codeBlock': {
@@ -112,7 +116,7 @@ function blocksToPdf(nodes: any[], keyPrefix: string, allHeadings: { title: stri
         // with the following text as a broken/notdef glyph.
         out.push(
           <View key={key} style={styles.callout}>
-            <Text>{inlineToNodes(node.content, key)}</Text>
+            <Text>{inlineToNodes(node.content, key, styles)}</Text>
           </View>
         )
         break
@@ -134,19 +138,19 @@ function blocksToPdf(nodes: any[], keyPrefix: string, allHeadings: { title: stri
         if (node.attrs?.alt) out.push(<Text key={key} style={{ fontStyle: 'italic', marginBottom: 8 }}>[Image: {node.attrs.alt}]</Text>)
         break
       case 'table':
-        out.push(tableToPdf(node, key))
+        out.push(tableToPdf(node, key, styles))
         break
       case 'columns':
-        (node.content || []).forEach((col: any, j: number) => out.push(...blocksToPdf(col.content || [], `${key}-${j}`, allHeadings)))
+        (node.content || []).forEach((col: any, j: number) => out.push(...blocksToPdf(col.content || [], `${key}-${j}`, allHeadings, styles)))
         break
       default:
-        out.push(...blocksToPdf(node.content || [], key, allHeadings))
+        out.push(...blocksToPdf(node.content || [], key, allHeadings, styles))
     }
   })
   return out
 }
 
-function listToPdf(items: any[], keyPrefix: string, kind: 'bullet' | 'ordered', depth: number): ReactNode[] {
+function listToPdf(items: any[], keyPrefix: string, kind: 'bullet' | 'ordered', depth: number, styles: Styles): ReactNode[] {
   const out: ReactNode[] = []
   ;(items || []).forEach((li, i) => {
     const key = `${keyPrefix}-${i}`
@@ -157,18 +161,18 @@ function listToPdf(items: any[], keyPrefix: string, kind: 'bullet' | 'ordered', 
         out.push(
           <View key={childKey} style={[styles.listRow, { marginLeft: depth * 16 }]}>
             <Text style={styles.listMarker}>{marker}</Text>
-            <Text style={styles.listContent}>{inlineToNodes(child.content, childKey)}</Text>
+            <Text style={styles.listContent}>{inlineToNodes(child.content, childKey, styles)}</Text>
           </View>
         )
       } else if (child.type === 'bulletList' || child.type === 'orderedList') {
-        out.push(...listToPdf(child.content, childKey, child.type === 'bulletList' ? 'bullet' : 'ordered', depth + 1))
+        out.push(...listToPdf(child.content, childKey, child.type === 'bulletList' ? 'bullet' : 'ordered', depth + 1, styles))
       }
     })
   })
   return out
 }
 
-function taskListToPdf(items: any[], keyPrefix: string, depth: number): ReactNode[] {
+function taskListToPdf(items: any[], keyPrefix: string, depth: number, styles: Styles): ReactNode[] {
   const out: ReactNode[] = []
   ;(items || []).forEach((li, i) => {
     const key = `${keyPrefix}-${i}`
@@ -179,18 +183,18 @@ function taskListToPdf(items: any[], keyPrefix: string, depth: number): ReactNod
         out.push(
           <View key={childKey} style={[styles.listRow, { marginLeft: depth * 16 }]}>
             <Text style={styles.listMarker}>{checked}</Text>
-            <Text style={styles.listContent}>{inlineToNodes(child.content, childKey)}</Text>
+            <Text style={styles.listContent}>{inlineToNodes(child.content, childKey, styles)}</Text>
           </View>
         )
       } else if (child.type === 'taskList') {
-        out.push(...taskListToPdf(child.content, childKey, depth + 1))
+        out.push(...taskListToPdf(child.content, childKey, depth + 1, styles))
       }
     })
   })
   return out
 }
 
-function tableToPdf(table: any, key: string): ReactNode {
+function tableToPdf(table: any, key: string, styles: Styles): ReactNode {
   return (
     <View key={key} style={styles.table}>
       {(table.content || []).map((row: any, i: number) => (
@@ -216,16 +220,17 @@ function extractContent(raw: unknown): any[] {
 export async function POST(req: NextRequest) {
   // The client also sends `icon` (an emoji), but Helvetica — the base font
   // used here — has no emoji glyphs, so it's intentionally not rendered.
-  const { title, content } = await req.json()
+  const { title, content, zoom } = await req.json()
   const nodes = extractContent(content)
   const allHeadings = collectHeadings(nodes)
+  const styles = buildStyles(typeof zoom === 'number' && zoom > 0 ? zoom : 1)
 
   const doc = (
     <Document>
       <Page size="A4" style={styles.page} wrap>
         {/* icon is an emoji; Helvetica has no emoji glyphs so it's omitted here to avoid overlapping/broken glyphs */}
         <Text style={styles.title}>{title || 'Untitled'}</Text>
-        {blocksToPdf(nodes, 'b', allHeadings)}
+        {blocksToPdf(nodes, 'b', allHeadings, styles)}
       </Page>
     </Document>
   )

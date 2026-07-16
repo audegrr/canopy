@@ -780,11 +780,12 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
 
   async function exportPDF() {
     showToast('Generating PDF…')
+    const zoom = parseFloat(getComputedStyle(document.body).getPropertyValue('--content-zoom')) || 1
     try {
       const res = await fetch('/api/export-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: page.title, icon: page.icon, content: page.content }),
+        body: JSON.stringify({ title: page.title, icon: page.icon, content: page.content, zoom }),
       })
       if (!res.ok) { showToast('PDF generation failed'); return }
       const blob = await res.blob()
