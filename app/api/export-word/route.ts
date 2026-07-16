@@ -12,6 +12,31 @@ const HEADING_LEVELS = [
   HeadingLevel.HEADING_4, HeadingLevel.HEADING_5, HeadingLevel.HEADING_6,
 ]
 
+const BODY_FONT = 'Calibri'
+
+const DEFAULT_STYLES = {
+  document: {
+    run: { font: BODY_FONT, size: 22 }, // 11pt
+    paragraph: { spacing: { line: 276, lineRule: 'auto' as const, after: 160 } }, // ~1.15x line height
+  },
+  title: {
+    run: { font: BODY_FONT, size: 56, bold: true },
+    paragraph: { spacing: { after: 320 } },
+  },
+  heading1: {
+    run: { font: BODY_FONT, size: 32, bold: true, color: '1A1A1A' },
+    paragraph: { spacing: { before: 320, after: 160 } },
+  },
+  heading2: {
+    run: { font: BODY_FONT, size: 27, bold: true, color: '1A1A1A' },
+    paragraph: { spacing: { before: 280, after: 140 } },
+  },
+  heading3: {
+    run: { font: BODY_FONT, size: 24, bold: true, color: '1A1A1A' },
+    paragraph: { spacing: { before: 240, after: 120 } },
+  },
+}
+
 // ── Inline content (text + marks) → docx runs ────────────────────────────────
 function inlineToRuns(nodes: any[], forceBold = false): (TextRun | ExternalHyperlink)[] {
   const runs: (TextRun | ExternalHyperlink)[] = []
@@ -67,7 +92,7 @@ function blocksToDocx(nodes: any[], listDepth = 0, allHeadings: { title: string;
         break
       }
       case 'paragraph':
-        out.push(new Paragraph({ children: inlineToRuns(node.content), spacing: { after: 160 } }))
+        out.push(new Paragraph({ children: inlineToRuns(node.content) }))
         break
       case 'bulletList':
         for (const li of node.content || []) out.push(...listItemToDocx(li, listDepth, 'bullet'))
@@ -85,7 +110,6 @@ function blocksToDocx(nodes: any[], listDepth = 0, allHeadings: { title: string;
               children: inlineToRuns(child.content),
               indent: { left: 480 },
               border: { left: { style: BorderStyle.SINGLE, size: 12, color: 'AAAAAA', space: 8 } },
-              spacing: { after: 160 },
             }))
           } else out.push(...blocksToDocx([child], listDepth, allHeadings))
         }
@@ -124,7 +148,7 @@ function blocksToDocx(nodes: any[], listDepth = 0, allHeadings: { title: string;
         }))
         break
       case 'subpage':
-        out.push(new Paragraph({ children: [new TextRun({ text: '📄 Linked page', italics: true })], spacing: { after: 160 } }))
+        out.push(new Paragraph({ children: [new TextRun({ text: '📄 Linked page', italics: true })] }))
         break
       case 'image':
         // Skipping embedded image bytes — would require fetching each image server-side.
@@ -213,6 +237,7 @@ export async function POST(req: NextRequest) {
   const allHeadings = collectHeadings(nodes)
 
   const doc = new Document({
+    styles: { default: DEFAULT_STYLES },
     numbering: {
       config: [{
         reference: 'ordered-list',
