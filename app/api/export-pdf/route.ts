@@ -50,7 +50,12 @@ export async function POST(req: NextRequest) {
       <style>* { box-sizing: border-box; margin: 0; padding: 0; }</style>
       <style>${css || ''}</style>
     </head><body class="printing-page">${html}</body></html>`
-    await page.setContent(fullHtml, { waitUntil: 'load' })
+    // page.setContent() injects the document via document.write(), which in
+    // some restricted Chromium configurations (single-process/headless-shell,
+    // as used here) doesn't properly commit a frame for the print pipeline —
+    // the DOM is populated (visible to page.evaluate) but page.pdf() captures
+    // nothing. Loading via an actual navigation avoids that.
+    await page.goto(`data:text/html;charset=utf-8,${encodeURIComponent(fullHtml)}`, { waitUntil: 'load' })
     const bodyText = await page.evaluate(() => document.body.innerText)
     const bodyHtmlLength = await page.evaluate(() => document.body.innerHTML.length)
     console.log(`[export-pdf] after setContent: body.innerHTML.length=${bodyHtmlLength} body.innerText.length=${bodyText.length} snippet=${JSON.stringify(bodyText.slice(0, 200))}`)
