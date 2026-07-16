@@ -17,13 +17,15 @@ async function launchBrowser() {
   const puppeteer = await import('puppeteer-core')
   if (process.env.VERCEL) {
     const chromium = (await import('@sparticuz/chromium')).default
+    // Matches @sparticuz/chromium's own integration test exactly: chromium.args
+    // must be merged through puppeteer.defaultArgs() (not passed raw) or the
+    // browser launches and responds fine but page.pdf() silently produces a
+    // blank PDF. An explicit defaultViewport is part of the same reference setup.
+    const args = await puppeteer.defaultArgs({ args: chromium.args, headless: 'shell' })
     return puppeteer.launch({
-      args: chromium.args,
+      args,
+      defaultViewport: { deviceScaleFactor: 1, hasTouch: false, height: 1080, isLandscape: true, isMobile: false, width: 1920 },
       executablePath: await chromium.executablePath(),
-      // chromium.args already forces --headless='shell' (the old headless-shell
-      // mode); passing the default `headless: true` here asks Puppeteer for the
-      // *new* headless mode instead, and the resulting flag conflict silently
-      // breaks page.pdf() (function returns fine, output is blank).
       headless: 'shell',
     })
   }
