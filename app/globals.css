@@ -612,12 +612,18 @@ body.printing-page { overflow: visible !important; height: auto !important; }
   /* Callout */
   #print-clone .callout, .print-content .callout { border: 1px solid #d4d4d4 !important; padding: 8pt; border-radius: 4pt; margin: 6pt 0; background: #fafafa !important; }
 
-  /* TOC block: inset box-shadow instead of border — a plain 1px border on this
-     block gets its right edge clipped by Chromium's print sub-pixel rounding,
-     while an inset shadow is painted inside the box and isn't affected. */
+  /* TOC block: Safari/WebKit print rendering clips the right edge of a
+     border-radius + border box that spans the full content width. Drop the
+     radius, use an inset box-shadow instead of a border, and pull the box in
+     by a couple of px so its edge never sits exactly on the page's content
+     boundary. */
   #print-clone .toc-block, .print-content .toc-block {
     border: none !important;
+    border-radius: 0 !important;
     box-shadow: inset 0 0 0 1px #d4d4d4 !important;
+    width: calc(100% - 4px) !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   /* Hide interactive/UI-only elements in printed clone */
