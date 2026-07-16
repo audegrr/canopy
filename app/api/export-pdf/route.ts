@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import fs from 'fs'
+import http from 'http'
+import type { AddressInfo } from 'net'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -34,6 +36,24 @@ async function launchBrowser() {
   return puppeteer.launch({ executablePath, headless: true })
 }
 
+// Serves the HTML over a real local HTTP request instead of setContent()
+// (document.write, unreliable for the print pipeline here) or a data: URL
+// (also observed to produce a blank PDF) — page.pdf() needs a normally
+// navigated page.
+function serveHtml(html: string): Promise<{ url: string; close: () => void }> {
+  return new Promise((resolve, reject) => {
+    const server = http.createServer((_req, res) => {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
+      res.end(html)
+    })
+    server.on('error', reject)
+    server.listen(0, '127.0.0.1', () => {
+      const { port } = server.address() as AddressInfo
+      resolve({ url: `http://127.0.0.1:${port}/`, close: () => server.close() })
+    })
+  })
+}
+
 export async function POST(req: NextRequest) {
   const { html, css, title } = await req.json()
   if (!html) return NextResponse.json({ error: 'Nothing to export' }, { status: 400 })
@@ -50,20 +70,22 @@ export async function POST(req: NextRequest) {
       <style>* { box-sizing: border-box; margin: 0; padding: 0; }</style>
       <style>${css || ''}</style>
     </head><body class="printing-page">${html}</body></html>`
-    // page.setContent() injects the document via document.write(), which in
-    // some restricted Chromium configurations (single-process/headless-shell,
-    // as used here) doesn't properly commit a frame for the print pipeline —
-    // the DOM is populated (visible to page.evaluate) but page.pdf() captures
-    // nothing. Loading via an actual navigation avoids that.
-    await page.goto(`data:text/html;charset=utf-8,${encodeURIComponent(fullHtml)}`, { waitUntil: 'load' })
-    const bodyText = await page.evaluate(() => document.body.innerText)
-    const bodyHtmlLength = await page.evaluate(() => document.body.innerHTML.length)
-    console.log(`[export-pdf] after setContent: body.innerHTML.length=${bodyHtmlLength} body.innerText.length=${bodyText.length} snippet=${JSON.stringify(bodyText.slice(0, 200))}`)
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '22mm', bottom: '22mm', left: '20mm', right: '20mm' },
-    })
+    const { url, close } = await serveHtml(fullHtml)
+    let pdfBuffer: Uint8Array
+    try {
+      await page.emulateMediaType('print')
+      await page.goto(url, { waitUntil: 'networkidle0' })
+      const bodyText = await page.evaluate(() => document.body.innerText)
+      const bodyHtmlLength = await page.evaluate(() => document.body.innerHTML.length)
+      console.log(`[export-pdf] after goto: body.innerHTML.length=${bodyHtmlLength} body.innerText.length=${bodyText.length} snippet=${JSON.stringify(bodyText.slice(0, 200))}`)
+      pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '22mm', bottom: '22mm', left: '20mm', right: '20mm' },
+      })
+    } finally {
+      close()
+    }
     console.log(`[export-pdf] pdf generated, byteLength=${pdfBuffer.length}`)
     const safe = (title || 'page').replace(/[^a-z0-9]/gi, '_').slice(0, 60) || 'page'
     return new NextResponse(new Uint8Array(pdfBuffer), {
