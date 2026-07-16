@@ -175,6 +175,7 @@ function listItemToDocx(li: any, depth: number, kind: 'bullet' | 'ordered'): Par
         children: inlineToRuns(child.content),
         bullet: kind === 'bullet' ? { level: depth } : undefined,
         numbering: kind === 'ordered' ? { reference: 'ordered-list', level: depth } : undefined,
+        spacing: { after: 0 },
       }))
     } else if (child.type === 'bulletList' || child.type === 'orderedList') {
       const nestedKind = child.type === 'bulletList' ? 'bullet' : 'ordered'
@@ -191,7 +192,7 @@ function taskItemToDocx(li: any, depth: number): Paragraph[] {
   const out: Paragraph[] = []
   for (const child of li.content || []) {
     if (child.type === 'paragraph') {
-      out.push(new Paragraph({ children: [new TextRun(`${checked} `), ...inlineToRuns(child.content)], indent: { left: depth * 360 } }))
+      out.push(new Paragraph({ children: [new TextRun(`${checked} `), ...inlineToRuns(child.content)], indent: { left: depth * 360 }, spacing: { after: 0 } }))
     } else if (child.type === 'taskList') {
       for (const nestedLi of child.content || []) out.push(...taskItemToDocx(nestedLi, depth + 1))
     }
