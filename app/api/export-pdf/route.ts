@@ -13,13 +13,19 @@ const LOCAL_CHROME_CANDIDATES = [
   '/usr/bin/chromium',
 ]
 
+// @sparticuz/chromium-min doesn't bundle the ~65MB Chromium binary — it
+// downloads and caches this pack to /tmp on cold start instead. This avoids
+// Next.js's file-tracing missing the binary (it isn't a local file at build
+// time) and keeps the deployed function well under Vercel's size limits.
+const CHROMIUM_PACK_URL = 'https://github.com/Sparticuz/chromium/releases/download/v149.0.0/chromium-v149.0.0-pack.x64.tar'
+
 async function launchBrowser() {
   const puppeteer = await import('puppeteer-core')
   if (process.env.VERCEL) {
-    const chromium = (await import('@sparticuz/chromium')).default
+    const chromium = (await import('@sparticuz/chromium-min')).default
     return puppeteer.launch({
       args: chromium.args,
-      executablePath: await chromium.executablePath(),
+      executablePath: await chromium.executablePath(CHROMIUM_PACK_URL),
       headless: true,
     })
   }
