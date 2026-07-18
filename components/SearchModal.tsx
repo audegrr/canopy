@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useAccessibleDialog } from '@/hooks/useAccessibleDialog'
 
 type Result = {
   id: string
@@ -23,9 +24,8 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
   const [selected, setSelected] = useState(0)
   const [loading, setLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useAccessibleDialog(true, onClose, inputRef)
   const supabase = createClient()
-
-  useEffect(() => { inputRef.current?.focus() }, [])
 
   useEffect(() => {
     if (!query.trim()) { setResults([]); setLoading(false); return }
@@ -95,7 +95,7 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,0.35)' }} onClick={onClose} />
-      <div style={{ position: 'fixed', top: '18%', left: '50%', transform: 'translateX(-50%)', width: 'min(90vw, 580px)', background: 'var(--surface)', borderRadius: 12, boxShadow: '0 12px 48px rgba(0,0,0,0.22)', zIndex: 1000, overflow: 'hidden' }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Search workspace" tabIndex={-1} style={{ position: 'fixed', top: '18%', left: '50%', transform: 'translateX(-50%)', width: 'min(90vw, 580px)', background: 'var(--surface)', borderRadius: 12, boxShadow: '0 12px 48px rgba(0,0,0,0.22)', zIndex: 1000, overflow: 'hidden' }}>
 
         {/* Search input */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid var(--border)' }}>
@@ -115,7 +115,7 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
         </div>
 
         {/* Results */}
-        <div style={{ maxHeight: 400, overflowY: 'auto' }}>
+        <div role="listbox" aria-label="Search results" style={{ maxHeight: 400, overflowY: 'auto' }}>
           {!query.trim() && (
             <div style={{ padding: '28px 16px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
               Type to search across all pages and content
@@ -127,10 +127,10 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
             </div>
           )}
           {results.map((r, i) => (
-            <div key={r.id}
+            <button type="button" role="option" aria-selected={selected === i} key={r.id}
               onClick={() => { onNavigate(r.id); onClose() }}
               onMouseEnter={() => setSelected(i)}
-              style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 16px', cursor: 'pointer', background: selected === i ? 'var(--accent-light)' : 'transparent', borderLeft: `3px solid ${selected === i ? 'var(--accent)' : 'transparent'}` }}>
+              style={{ display: 'flex', width: '100%', textAlign: 'left', fontFamily: 'var(--font-sans)', border: 'none', alignItems: 'flex-start', gap: 10, padding: '9px 16px', cursor: 'pointer', background: selected === i ? 'var(--accent-light)' : 'transparent', borderLeft: `3px solid ${selected === i ? 'var(--accent)' : 'transparent'}` }}>
               <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>{r.icon || (r.is_database ? '🗄️' : '📄')}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 500, color: selected === i ? 'var(--accent)' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -149,7 +149,7 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
                 </div>
               </div>
               <span style={{ fontSize: 11, color: 'var(--text-tertiary)', flexShrink: 0, marginTop: 4 }}>↵</span>
-            </div>
+            </button>
           ))}
         </div>
 

@@ -1,4 +1,5 @@
 'use client'
+import { useAccessibleDialog } from '@/hooks/useAccessibleDialog'
 
 const SHORTCUTS = [
   { section: 'Navigation', items: [
@@ -69,13 +70,14 @@ const SHORTCUTS = [
 ]
 
 export default function ShortcutsModal({ onClose }: { onClose: () => void }) {
+  const dialogRef = useAccessibleDialog(true, onClose)
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 999, background: 'rgba(0,0,0,0.35)' }} onClick={onClose} />
-      <div style={{ position: 'fixed', top: '5%', left: '50%', transform: 'translateX(-50%)', width: 'min(90vw, 620px)', maxHeight: '88vh', background: 'var(--surface)', borderRadius: 12, boxShadow: '0 12px 48px rgba(0,0,0,0.2)', zIndex: 1000, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="shortcuts-title" tabIndex={-1} style={{ position: 'fixed', top: '5%', left: '50%', transform: 'translateX(-50%)', width: 'min(90vw, 620px)', maxHeight: '88vh', background: 'var(--surface)', borderRadius: 12, boxShadow: '0 12px 48px rgba(0,0,0,0.2)', zIndex: 1000, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <span style={{ fontWeight: 600, fontSize: 15, color: 'var(--text)' }}>Keyboard shortcuts</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 18, lineHeight: 1 }}>✕</button>
+          <span id="shortcuts-title" style={{ fontWeight: 600, fontSize: 15, color: 'var(--text)' }}>Keyboard shortcuts</span>
+          <button type="button" aria-label="Close keyboard shortcuts" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 18, lineHeight: 1 }}>✕</button>
         </div>
         <div style={{ overflowY: 'auto', padding: '12px 20px 20px', columnCount: 1 }}>
           {SHORTCUTS.map(section => (

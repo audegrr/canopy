@@ -1,13 +1,7 @@
 import 'server-only'
 
 import type { SupabaseClient } from '@supabase/supabase-js'
-
-export type PageAccess = {
-  canView: boolean
-  canEdit: boolean
-  canManage: boolean
-  isWorkspaceMember: boolean
-}
+import { derivePageAccess, type PageAccess } from '@/lib/access-policy'
 
 export async function getPageAccess(
   client: SupabaseClient,
@@ -20,16 +14,12 @@ export async function getPageAccess(
     client.from('page_shares').select('permission').eq('page_id', page.id).eq('user_id', userId).maybeSingle(),
   ])
 
-  const ownsPage = page.owner_id === userId
-  const ownsWorkspace = workspace?.owner_id === userId
-  const memberCanEdit = membership?.role === 'owner' || membership?.role === 'member'
-  const sharedCanEdit = share?.permission === 'edit'
-  const canEdit = ownsPage || ownsWorkspace || memberCanEdit || sharedCanEdit || page.link_permission === 'edit'
-
-  return {
-    canView: canEdit || !!membership || !!share || page.link_permission === 'view',
-    canEdit,
-    canManage: ownsPage || ownsWorkspace || memberCanEdit || sharedCanEdit,
-    isWorkspaceMember: ownsWorkspace || !!membership,
-  }
+  return derivePageAccess({
+    userId,
+    pageOwnerId: page.owner_id,
+    linkPermission: page.link_permission,
+    workspaceOwnerId: workspace?.owner_id,
+    membershipRole: membership?.role,
+    sharePermission: share?.permission,
+  })
 }

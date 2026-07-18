@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useAccessibleDialog } from '@/hooks/useAccessibleDialog'
 
 type Page = { id: string; title: string; icon: string; is_database: boolean }
 
@@ -26,6 +27,7 @@ export default function CommandPalette({ workspaceId, onCreatePage, onCreateData
   const [pages, setPages] = useState<Page[]>([])
   const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useAccessibleDialog(open, () => setOpen(false), inputRef)
   const router = useRouter()
   const supabase = useMemo(() => createClient(), [])
 
@@ -87,7 +89,7 @@ export default function CommandPalette({ workspaceId, onCreatePage, onCreateData
     <>
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 4999 }}
         onClick={() => setOpen(false)} />
-      <div className="cmd-palette fade-in">
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Command palette" tabIndex={-1} className="cmd-palette fade-in">
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0 16px', borderBottom: '1px solid var(--border)' }}>
           <span style={{ fontSize: '16px', color: 'var(--text-tertiary)' }}>🔍</span>
           <input
@@ -114,7 +116,8 @@ export default function CommandPalette({ workspaceId, onCreatePage, onCreateData
             return (
               <div key={isPage ? p.id : p.id + i}>
                 {showSection && <div className="cmd-section">{r.section}</div>}
-                <div className={`cmd-result ${i === selected ? 'selected' : ''}`}
+                <button type="button" className={`cmd-result ${i === selected ? 'selected' : ''}`}
+                  aria-current={i === selected ? 'true' : undefined}
                   onClick={() => runResult(r)}
                   onMouseEnter={() => setSelected(i)}>
                   <div className="cmd-result-icon">
@@ -124,7 +127,7 @@ export default function CommandPalette({ workspaceId, onCreatePage, onCreateData
                     <div style={{ fontSize: '13.5px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{isPage ? (p.title || 'Untitled') : p.label}</div>
                   </div>
                   {i === selected && <kbd style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: '4px', padding: '2px 6px', fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', flexShrink: 0 }}>↵</kbd>}
-                </div>
+                </button>
               </div>
             )
           })}
