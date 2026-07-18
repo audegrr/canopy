@@ -3,6 +3,8 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Page, DbField, DbRecord } from '@/lib/types'
 import * as XLSX from 'xlsx'
+import { MAX_SPREADSHEET_BYTES, MAX_SPREADSHEET_ROWS, validateSpreadsheetShape } from '@/lib/spreadsheet-limits'
+import { useAccessibleDialog } from '@/hooks/useAccessibleDialog'
 
 type View = 'table' | 'board' | 'gallery' | 'calendar'
 
@@ -1280,7 +1282,9 @@ function ImportModal({ pageId, existingFields, onImport, onClose }: {
   const [rows, setRows] = useState<string[][]>([])
   const [fieldDefs, setFieldDefs] = useState<ImportFieldDef[]>([])
   const [loading, setLoading] = useState(false)
+  const [fileError, setFileError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useAccessibleDialog(true, onClose)
 
   function parseCSV(text: string): { headers: string[]; rows: string[][] } {
     const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.trim())
@@ -1305,26 +1309,38 @@ function ImportModal({ pageId, existingFields, onImport, onClose }: {
   }
 
   function handleFile(file: File) {
+    setFileError('')
+    if (file.size > MAX_SPREADSHEET_BYTES) {
+      setFileError('Files are limited to 5 MB for safe import.')
+      return
+    }
     const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.type.includes('spreadsheetml') || file.type.includes('ms-excel')
     if (isExcel) {
       const reader = new FileReader()
       reader.onload = e => {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer)
-        const wb = XLSX.read(data, { type: 'array' })
-        const ws = wb.Sheets[wb.SheetNames[0]]
-        const parsed: string[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' }) as string[][]
-        if (parsed.length < 1) return
-        const hdrs = parsed[0].map(String)
-        const dataRows = parsed.slice(1).map(r => hdrs.map((_, i) => String(r[i] ?? '')))
-        if (hdrs.length === 0) return
-        setHeaders(hdrs)
-        setRows(dataRows)
-        const defs: ImportFieldDef[] = hdrs.map(h => {
-          const match = existingFields.find(f => f.name.toLowerCase() === h.toLowerCase())
-          return { header: h, existingId: match?.id ?? null }
-        })
-        setFieldDefs(defs)
-        setStep('preview')
+        try {
+          const data = new Uint8Array(e.target?.result as ArrayBuffer)
+          const wb = XLSX.read(data, { type: 'array', sheetRows: MAX_SPREADSHEET_ROWS + 2, cellFormula: false, cellHTML: false })
+          const ws = wb.Sheets[wb.SheetNames[0]]
+          if (!ws) throw new Error('The workbook has no readable worksheet.')
+          const parsed: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false }) as unknown[][]
+          const validationError = validateSpreadsheetShape(parsed)
+          if (validationError) { setFileError(validationError); return }
+          if (parsed.length < 1) throw new Error('The worksheet is empty.')
+          const hdrs = parsed[0].map(String)
+          const dataRows = parsed.slice(1).map(r => hdrs.map((_, i) => String(r[i] ?? '')))
+          if (hdrs.length === 0) throw new Error('The worksheet has no columns.')
+          setHeaders(hdrs)
+          setRows(dataRows)
+          const defs: ImportFieldDef[] = hdrs.map(h => {
+            const match = existingFields.find(f => f.name.toLowerCase() === h.toLowerCase())
+            return { header: h, existingId: match?.id ?? null }
+          })
+          setFieldDefs(defs)
+          setStep('preview')
+        } catch (error) {
+          setFileError(error instanceof Error ? error.message : 'Unable to read this spreadsheet safely.')
+        }
       }
       reader.readAsArrayBuffer(file)
     } else {
@@ -1332,6 +1348,8 @@ function ImportModal({ pageId, existingFields, onImport, onClose }: {
       reader.onload = e => {
         const text = e.target?.result as string
         const parsed = parseCSV(text)
+        const validationError = validateSpreadsheetShape([parsed.headers, ...parsed.rows])
+        if (validationError) { setFileError(validationError); return }
         if (parsed.headers.length === 0) return
         setHeaders(parsed.headers)
         setRows(parsed.rows)
@@ -1355,15 +1373,15 @@ function ImportModal({ pageId, existingFields, onImport, onClose }: {
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 499, background: 'rgba(15,10,5,0.35)' }} onClick={onClose} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, zIndex: 500, boxShadow: 'var(--shadow-lg)', width: 580, maxWidth: '95vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="import-title" tabIndex={-1} style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, zIndex: 500, boxShadow: 'var(--shadow-lg)', width: 580, maxWidth: '95vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Import CSV / Excel</div>
+            <div id="import-title" style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Import CSV / Excel</div>
             <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>
               {step === 'pick' ? 'Upload a CSV or Excel file to import records' : `${rows.length} rows · ${headers.length} columns`}
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 18, lineHeight: 1, padding: '4px 6px', borderRadius: 4 }}
+          <button type="button" aria-label="Close import dialog" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 18, lineHeight: 1, padding: '4px 6px', borderRadius: 4 }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>✕</button>
         </div>
@@ -1381,6 +1399,7 @@ function ImportModal({ pageId, existingFields, onImport, onClose }: {
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>or click to browse · First row must be column headers</div>
             </div>
             <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }} />
+            {fileError && <div role="alert" style={{ color: 'var(--red)', fontSize: 12, textAlign: 'center' }}>{fileError}</div>}
             <div style={{ fontSize: 11, color: 'var(--text-tertiary)', textAlign: 'center', lineHeight: 1.6 }}>
               CSV and Excel (.xlsx) files are supported. Notion exports work out of the box.
               Columns matching existing fields will be mapped automatically.
