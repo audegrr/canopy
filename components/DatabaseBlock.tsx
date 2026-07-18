@@ -87,7 +87,7 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
     <NodeViewWrapper>
       <div style={{ border: '1px dashed var(--border)', borderRadius: '8px', padding: '12px 16px', margin: '8px 0', color: 'var(--text-tertiary)', fontSize: '13px', display: 'flex', gap: '8px', alignItems: 'center' }}>
         <span>🗄️</span> Database not found
-        {canEdit && <button onClick={deleteNode} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '12px' }}>✕</button>}
+        {canEdit && <button type="button" aria-label="Remove missing database block" onClick={deleteNode} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '12px' }}>✕</button>}
       </div>
     </NodeViewWrapper>
   )
@@ -115,7 +115,7 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
       >
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: 'var(--sidebar-bg)', borderBottom: collapsed ? 'none' : '1px solid var(--border)' }}>
-          <span onClick={toggleCollapse} style={{ fontSize: '10px', color: 'var(--text-tertiary)', cursor: 'pointer', transition: 'transform 0.15s', display: 'inline-block', transform: collapsed ? 'none' : 'rotate(90deg)' }}>▸</span>
+          <button type="button" onClick={toggleCollapse} aria-expanded={!collapsed} aria-label={collapsed ? 'Expand database' : 'Collapse database'} style={{ fontSize: '10px', color: 'var(--text-tertiary)', cursor: 'pointer', border: 'none', background: 'none', padding: 0, transition: 'transform 0.15s', display: 'inline-block', transform: collapsed ? 'none' : 'rotate(90deg)' }}>▸</button>
           <span style={{ fontSize: '15px' }}>{page.icon || '🗄️'}</span>
           <span style={{ flex: 1, fontSize: '13.5px', fontWeight: 600, color: 'var(--text)' }}>{page.title}</span>
           {!collapsed && (
@@ -123,7 +123,7 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
               {/* View toggle */}
               <div style={{ display: 'flex', background: 'var(--border)', borderRadius: '5px', padding: '2px', gap: '2px' }}>
                 {(['table', 'board'] as const).map(v => (
-                  <button key={v} onClick={() => setViewMode(v)}
+                  <button type="button" key={v} onClick={() => setViewMode(v)} aria-pressed={view === v} aria-label={`${v} view`}
                     style={{ background: view === v ? 'var(--surface)' : 'none', border: 'none', padding: '3px 8px', borderRadius: '3px', fontSize: '11px', cursor: 'pointer', color: view === v ? 'var(--text)' : 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', fontWeight: view === v ? 500 : 400 }}>
                     {v === 'table' ? '☰' : '⊞'}
                   </button>

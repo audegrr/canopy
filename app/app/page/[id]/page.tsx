@@ -96,7 +96,7 @@ export default function PageRoute() {
         // Page not accessible at all
         setError(true); return
       }
-      let resolvedPage = page
+      const resolvedPage = page
       if (!resolvedPage) { router.push(`/share/${id}`); return }
       if (resolvedPage.deleted_at) { setError(true); return }
 

@@ -47,7 +47,7 @@ export default function SubpageBlock({ node, updateAttributes, deleteNode, selec
     <NodeViewWrapper>
       <div style={{ border: '1px dashed var(--border)', borderRadius: 6, padding: '10px 14px', margin: '4px 0', color: 'var(--text-tertiary)', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
         <span>📄</span><span>Page not found</span>
-        <button onClick={deleteNode} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}>✕</button>
+        <button type="button" aria-label="Remove missing sub-page block" onClick={deleteNode} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}>✕</button>
       </div>
     </NodeViewWrapper>
   )
@@ -56,12 +56,12 @@ export default function SubpageBlock({ node, updateAttributes, deleteNode, selec
     <NodeViewWrapper>
       <div style={{ border: `1px solid ${selected ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 8, margin: '6px 0', overflow: 'hidden', background: 'var(--surface)', boxShadow: selected ? '0 0 0 2px var(--accent-light)' : 'none' }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--sidebar-bg)', cursor: 'pointer', userSelect: 'none' }}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--sidebar-bg)', userSelect: 'none' }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-bg)' }}>
-          <span onClick={toggle} style={{ fontSize: 11, color: 'var(--text-tertiary)', transition: 'transform 0.15s', display: 'inline-block', transform: expanded ? 'rotate(90deg)' : 'none', flexShrink: 0, width: 18, textAlign: 'center', cursor: 'pointer' }}>▶</span>
+          <button type="button" onClick={toggle} aria-expanded={expanded} aria-label={expanded ? 'Collapse sub-page' : 'Expand sub-page'} style={{ fontSize: 11, color: 'var(--text-tertiary)', border: 'none', background: 'none', padding: 0, transition: 'transform 0.15s', display: 'inline-block', transform: expanded ? 'rotate(90deg)' : 'none', flexShrink: 0, width: 18, textAlign: 'center', cursor: 'pointer' }}>▶</button>
           <span style={{ fontSize: 16, flexShrink: 0 }}>{page.icon || '📄'}</span>
-          <span onClick={toggle} style={{ flex: 1, fontSize: 13.5, fontWeight: 500 }}>{page.title || 'Untitled'}</span>
+          <button type="button" onClick={toggle} aria-expanded={expanded} style={{ flex: 1, fontSize: 13.5, fontWeight: 500, textAlign: 'left', border: 'none', background: 'none', color: 'inherit', padding: 0, cursor: 'pointer' }}>{page.title || 'Untitled'}</button>
           <button onClick={() => window.dispatchEvent(new CustomEvent('canopy:navigate', { detail: { path: `/app/page/${page.id}` } }))}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 11, padding: '2px 8px', borderRadius: 4, fontFamily: 'var(--font-sans)' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}

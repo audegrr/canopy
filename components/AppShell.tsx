@@ -543,7 +543,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     // the page itself — otherwise child pages stay live in the DB (deleted_at
     // still null) and can resurface via search, direct links, or embedded sub-page blocks.
     const toRemove = new Set<string>([pageId])
-    let prev = pages
+    const prev = pages
     let changed = true
     while (changed) {
       changed = false
@@ -2694,7 +2694,7 @@ function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, i
 // ── SMALL COMPONENTS ─────────────────────────────────────────
 function SbBtn({ onClick, title, children }: { onClick?: (e: React.MouseEvent) => void; title: string; children: React.ReactNode }) {
   return (
-    <button onClick={e => { e.stopPropagation(); onClick?.(e) }} title={title}
+    <button type="button" onClick={e => { e.stopPropagation(); onClick?.(e) }} title={title} aria-label={title}
       style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--side-text-2)', padding: '3px', borderRadius: '5px', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', width: '22px', height: '22px', flexShrink: 0 }}
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-active)'; (e.currentTarget as HTMLElement).style.color = 'var(--side-text)' }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--side-text-2)' }}>
@@ -2705,7 +2705,7 @@ function SbBtn({ onClick, title, children }: { onClick?: (e: React.MouseEvent) =
 
 function QuickBtn({ onClick, title, flex, children }: { onClick: () => void; title: string; flex?: boolean; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} title={title}
+    <button type="button" onClick={onClick} title={title}
       style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '5px 8px', borderRadius: '5px', fontSize: '13px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
@@ -2724,11 +2724,11 @@ function SectionLabel({ children, style }: { children: React.ReactNode; style?: 
 
 function MenuItem({ onClick, children, danger }: { onClick: () => void; children: React.ReactNode; danger?: boolean }) {
   return (
-    <div onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', color: danger ? 'var(--red)' : 'var(--text)' }}
+    <button type="button" onClick={onClick}
+      style={{ display: 'flex', width: '100%', border: 'none', background: 'none', textAlign: 'left', fontFamily: 'var(--font-sans)', alignItems: 'center', gap: '8px', padding: '7px 10px', borderRadius: '5px', cursor: 'pointer', fontSize: '13px', color: danger ? 'var(--red)' : 'var(--text)' }}
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = danger ? '#fff0f0' : 'var(--sidebar-hover)' }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
       {children}
-    </div>
+    </button>
   )
 }

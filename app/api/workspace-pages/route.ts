@@ -1,6 +1,7 @@
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { isUuid, rateLimit } from '@/lib/server/security'
 
 export const dynamic = 'force-dynamic'
 
@@ -10,11 +11,13 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const wsId = searchParams.get('ws_id')
-  if (!wsId) return NextResponse.json({ error: 'Missing ws_id' }, { status: 400 })
+  if (!isUuid(wsId)) return NextResponse.json({ error: 'Invalid ws_id' }, { status: 400 })
 
   const serverClient = await createServerClient()
   const { data: { user } } = await serverClient.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const limited = rateLimit(`workspace-pages:${user.id}`, 120, 60 * 1000)
+  if (limited) return limited
 
   // Verify user has access to this workspace (owner or member)
   const [{ data: ownedWs }, { data: memberRow }] = await Promise.all([

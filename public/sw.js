@@ -1,9 +1,10 @@
-const CACHE = 'canopy-v1'
+const CACHE = 'canopy-static-v2'
+const STATIC_ASSETS = ['/manifest.webmanifest', '/canopy_favicon_no_bg.ico', '/canopy_logo@2x.png']
 
 // Cache essential app shell files on install
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(['/'])).then(() => self.skipWaiting())
+    caches.open(CACHE).then(c => c.addAll(STATIC_ASSETS)).then(() => self.skipWaiting())
   )
 })
 
@@ -43,23 +44,15 @@ self.addEventListener('notificationclick', e => {
   )
 })
 
-// Network-first strategy: try network, fall back to cache
+// Only cache public static assets. Document HTML can contain private workspace
+// data and must never be persisted in the shared service-worker cache.
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET') return
   const url = new URL(e.request.url)
-  // Skip API, Supabase, and non-same-origin requests
   if (url.origin !== self.location.origin) return
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/_next/')) return
+  if (!STATIC_ASSETS.includes(url.pathname)) return
 
   e.respondWith(
-    fetch(e.request)
-      .then(res => {
-        if (res.ok) {
-          const clone = res.clone()
-          caches.open(CACHE).then(c => c.put(e.request, clone))
-        }
-        return res
-      })
-      .catch(() => caches.match(e.request))
+    caches.match(e.request).then(cached => cached || fetch(e.request))
   )
 })

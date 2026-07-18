@@ -3,6 +3,7 @@ import { useState, useRef, useEffect, ChangeEvent } from 'react'
 import { mdToTiptap } from '@/lib/mdToTiptap'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import type { Page } from '@/lib/types'
 import Editor from './Editor'
 import FindInPage from './FindInPage'
@@ -1077,15 +1078,15 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
         {isPublicShare ? (
           /* Public share: Canopy branding left, sign-in CTA right */
           <>
-            <a href="/" style={{ display: 'flex', alignItems: 'center', gap: '7px', textDecoration: 'none', color: 'var(--text)', flexShrink: 0 }}>
+            <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: '7px', textDecoration: 'none', color: 'var(--text)', flexShrink: 0 }}>
               <img src="/icon.svg" alt="Canopy" style={{ width: 22, height: 22, borderRadius: 5 }} />
               <span style={{ fontWeight: 700, fontSize: '14px', letterSpacing: '-0.01em' }}>Canopy</span>
-            </a>
+            </Link>
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--text-tertiary)', overflow: 'hidden', minWidth: 0, paddingLeft: 8, borderLeft: '1px solid var(--border)', marginLeft: 2 }}>
               {page.icon && <span style={{ fontSize: '14px', flexShrink: 0 }}>{page.icon}</span>}
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{page.title || 'Untitled'}</span>
             </div>
-            <a href="/login" style={{ flexShrink: 0, background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 12px', fontSize: '13px', fontWeight: 500, color: 'var(--text)', textDecoration: 'none', fontFamily: 'var(--font-sans)' }}>Sign in</a>
+            <Link href="/login" style={{ flexShrink: 0, background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 12px', fontSize: '13px', fontWeight: 500, color: 'var(--text)', textDecoration: 'none', fontFamily: 'var(--font-sans)' }}>Sign in</Link>
             <a href="/login" style={{ flexShrink: 0, background: 'var(--accent)', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: '13px', fontWeight: 600, color: '#fff', textDecoration: 'none', fontFamily: 'var(--font-sans)' }}>Get started free</a>
           </>
         ) : (
@@ -1464,9 +1465,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
               <div style={{ marginTop: 60, paddingTop: 20, borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                 <img src="/icon.svg" alt="Canopy" style={{ width: 18, height: 18, borderRadius: 4, opacity: 0.7 }} />
                 <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>Made with </span>
-                <a href="/" style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none' }}>Canopy</a>
+                <Link href="/" style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none' }}>Canopy</Link>
                 <span style={{ fontSize: 12, color: 'var(--text-tertiary)', marginLeft: 6 }}>·</span>
-                <a href="/login" style={{ fontSize: 12, color: 'var(--text-tertiary)', textDecoration: 'none' }}>Start for free →</a>
+                <Link href="/login" style={{ fontSize: 12, color: 'var(--text-tertiary)', textDecoration: 'none' }}>Start for free →</Link>
               </div>
             )}
           </div>
@@ -2159,10 +2160,12 @@ function CoverReposition({ coverUrl, initialPosition, onSave, onCancel }: {
   const [pos, setPos] = useState<CoverPos>(initialPosition)
   const containerRef = useRef<HTMLDivElement>(null)
   const dragging = useRef(false)
+  const [isDragging, setIsDragging] = useState(false)
   const lastMouse = useRef({ x: 0, y: 0 })
 
   function onMouseDown(e: React.MouseEvent) {
     dragging.current = true
+    setIsDragging(true)
     lastMouse.current = { x: e.clientX, y: e.clientY }
     e.preventDefault()
   }
@@ -2178,7 +2181,7 @@ function CoverReposition({ coverUrl, initialPosition, onSave, onCancel }: {
       y: Math.max(0, Math.min(100, p.y - (dy / offsetHeight) * 100 / p.scale)),
     }))
   }
-  function onMouseUp() { dragging.current = false }
+  function onMouseUp() { dragging.current = false; setIsDragging(false) }
 
   function onWheel(e: React.WheelEvent) {
     e.preventDefault()
@@ -2222,7 +2225,7 @@ function CoverReposition({ coverUrl, initialPosition, onSave, onCancel }: {
 
   return (
     <div ref={containerRef}
-      style={{ position: 'relative', height: '240px', overflow: 'hidden', background: '#111', cursor: dragging.current ? 'grabbing' : 'grab', userSelect: 'none', touchAction: 'none' }}
+      style={{ position: 'relative', height: '240px', overflow: 'hidden', background: '#111', cursor: isDragging ? 'grabbing' : 'grab', userSelect: 'none', touchAction: 'none' }}
       onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
       onWheel={onWheel} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={() => { lastTouch.current = null }}>
       <img src={coverUrl} alt="cover" draggable={false}

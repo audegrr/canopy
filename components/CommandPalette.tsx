@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
@@ -27,7 +27,7 @@ export default function CommandPalette({ workspaceId, onCreatePage, onCreateData
   const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   // Open on Cmd+K
   useEffect(() => {
@@ -42,14 +42,10 @@ export default function CommandPalette({ workspaceId, onCreatePage, onCreateData
   useEffect(() => {
     if (open) {
       setTimeout(() => inputRef.current?.focus(), 50)
-      loadPages()
+      supabase.from('pages').select('id, title, icon, is_database').eq('workspace_id', workspaceId).is('deleted_at', null).order('updated_at', { ascending: false })
+        .then(({ data }) => setPages(data || []))
     }
-  }, [open])
-
-  async function loadPages() {
-    const { data } = await supabase.from('pages').select('id, title, icon, is_database').eq('workspace_id', workspaceId).is('deleted_at', null).order('updated_at', { ascending: false })
-    setPages(data || [])
-  }
+  }, [open, supabase, workspaceId])
 
   function navigate(path: string) { router.push(path); setOpen(false) }
 

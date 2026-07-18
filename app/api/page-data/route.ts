@@ -1,6 +1,8 @@
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { getPageAccess } from '@/lib/server/access'
+import { isUuid, rateLimit } from '@/lib/server/security'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,11 +13,13 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const pageId = searchParams.get('id')
-  if (!pageId) return NextResponse.json({ error: 'Missing id' }, { status: 400 })
+  if (!isUuid(pageId)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
 
   const serverClient = await createServerClient()
   const { data: { user } } = await serverClient.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const limited = rateLimit(`page-data:${user.id}`, 300, 60 * 1000)
+  if (limited) return limited
 
   const admin = createAdminClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -25,30 +29,15 @@ export async function GET(req: Request) {
   const { data: page } = await admin.from('pages').select('*').eq('id', pageId).single()
   if (!page || page.deleted_at) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  // Verify access using the user's own client (respects auth)
-  const [{ data: share }, { data: ownedWs }, { data: wsMem }] = await Promise.all([
-    serverClient.from('page_shares').select('permission').eq('page_id', pageId).eq('user_id', user.id).single(),
-    serverClient.from('workspaces').select('id').eq('id', page.workspace_id).eq('owner_id', user.id).single(),
-    serverClient.from('workspace_members').select('role, workspace_id').eq('user_id', user.id),
-  ])
-
+  const access = await getPageAccess(admin, user.id, page)
   const isOwner = page.owner_id === user.id
-  const isWsOwner = !!ownedWs
-  const isMember = (wsMem || []).some((m: any) => m.workspace_id === page.workspace_id)
-  const canView = isOwner || isWsOwner || !!share || page.link_permission !== 'none' || isMember
-  if (!canView) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
-
-  const canEdit = isOwner
-    || isWsOwner
-    || share?.permission === 'edit'
-    || page.link_permission === 'edit'
-    || (wsMem || []).some((m: any) => m.workspace_id === page.workspace_id && ['owner', 'member'].includes(m.role))
+  if (!access.canView) return NextResponse.json({ error: 'Access denied' }, { status: 403 })
 
   return NextResponse.json({
     page,
-    canEdit,
+    canEdit: access.canEdit,
     isOwner,
-    isWorkspaceMember: isWsOwner || isMember,
+    isWorkspaceMember: access.isWorkspaceMember,
     userId: user.id,
   })
 }
