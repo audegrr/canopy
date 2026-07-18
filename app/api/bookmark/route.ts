@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit, requireUser } from '@/lib/server/security'
+import { readLimitedText, safeFetch } from '@/lib/server/safe-fetch'
 
 export async function GET(req: NextRequest) {
+  const { user } = await requireUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const limited = rateLimit(`bookmark:${user.id}`, 60, 60 * 60 * 1000)
+  if (limited) return limited
   const url = req.nextUrl.searchParams.get('url')
   if (!url) return NextResponse.json({ error: 'Missing url' }, { status: 400 })
 
   try {
-    const res = await fetch(url, {
+    const res = await safeFetch(url, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; Canopy/1.0; +https://canopy.app)' },
       signal: AbortSignal.timeout(5000),
     })
     if (!res.ok) throw new Error('Fetch failed')
-    const html = await res.text()
+    const contentType = res.headers.get('content-type') || ''
+    if (!contentType.includes('text/html')) throw new Error('Unsupported content type')
+    const html = await readLimitedText(res, 1_000_000)
 
     function getMeta(name: string): string {
       const patterns = [
@@ -35,7 +43,12 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ title, description, image, favicon, hostname })
   } catch {
-    const { hostname } = new URL(url)
-    return NextResponse.json({ title: url, description: '', image: '', favicon: `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`, hostname })
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('Invalid URL')
+      return NextResponse.json({ title: url, description: '', image: '', favicon: '', hostname: parsed.hostname })
+    } catch {
+      return NextResponse.json({ error: 'Invalid or inaccessible URL' }, { status: 400 })
+    }
   }
 }

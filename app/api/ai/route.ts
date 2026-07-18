@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit, readJson, requireUser } from '@/lib/server/security'
 
 const SYSTEM_PROMPTS: Record<string, string> = {
   improve:   'Rewrite the following text to improve clarity, flow, and grammar. Keep the same language, tone, and meaning. Return only the rewritten text, no explanation.',
@@ -11,15 +12,21 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 }
 
 export async function POST(req: NextRequest) {
+  const { user } = await requireUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const limited = rateLimit(`ai:${user.id}`, 30, 60 * 60 * 1000)
+  if (limited) return limited
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'GROQ_API_KEY not configured' }, { status: 500 })
 
-  const { text, action } = await req.json()
-  if (!text || !action) return NextResponse.json({ error: 'Missing text or action' }, { status: 400 })
+  const body = await readJson(req, 64_000)
+  const text = typeof body?.text === 'string' ? body.text.trim() : ''
+  const action = typeof body?.action === 'string' ? body.action : ''
+  if (!text || text.length > 40_000 || !action || action.length > 80) return NextResponse.json({ error: 'Invalid text or action' }, { status: 400 })
 
   let systemPrompt = SYSTEM_PROMPTS[action]
-  if (!systemPrompt && action.startsWith('translate:')) {
-    const lang = action.split(':')[1]
+  if (!systemPrompt && /^translate:[\p{L} -]{2,40}$/u.test(action)) {
+    const lang = action.slice('translate:'.length)
     if (lang) systemPrompt = `Translate the following text into ${lang}. If the text is already in ${lang}, return it unchanged. Do not translate into any other language. Return only the translated text, no explanation.`
   }
   if (!systemPrompt) return NextResponse.json({ error: 'Unknown action' }, { status: 400 })

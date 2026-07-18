@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit, readJson, requireUser } from '@/lib/server/security'
 import { Document, Page, View, Text, Link, StyleSheet, renderToBuffer } from '@react-pdf/renderer'
 
 export const runtime = 'nodejs'
@@ -221,9 +222,17 @@ function extractContent(raw: unknown): any[] {
 }
 
 export async function POST(req: NextRequest) {
+  const { user } = await requireUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const limited = rateLimit(`export:${user.id}`, 30, 60 * 60 * 1000)
+  if (limited) return limited
   // The client also sends `icon` (an emoji), but Helvetica — the base font
   // used here — has no emoji glyphs, so it's intentionally not rendered.
-  const { title, content, zoom: rawZoom } = await req.json()
+  const body = await readJson(req, 2_000_000)
+  if (!body) return NextResponse.json({ error: 'Invalid or oversized document' }, { status: 400 })
+  const title = typeof body.title === 'string' ? body.title.slice(0, 300) : 'Untitled'
+  const content = body.content
+  const rawZoom = body.zoom
   const zoom = typeof rawZoom === 'number' && rawZoom > 0 ? rawZoom : 1
   const nodes = extractContent(content)
   const allHeadings = collectHeadings(nodes)

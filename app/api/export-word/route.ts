@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit, readJson, requireUser } from '@/lib/server/security'
 import {
   Document, Packer, Paragraph, TextRun, ExternalHyperlink, HeadingLevel,
   Table, TableRow, TableCell, TableOfContents, ShadingType, BorderStyle,
@@ -233,7 +234,15 @@ function extractContent(raw: unknown): any[] {
 }
 
 export async function POST(req: NextRequest) {
-  const { title, icon, content } = await req.json()
+  const { user } = await requireUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const limited = rateLimit(`export:${user.id}`, 30, 60 * 60 * 1000)
+  if (limited) return limited
+  const body = await readJson(req, 2_000_000)
+  if (!body) return NextResponse.json({ error: 'Invalid or oversized document' }, { status: 400 })
+  const title = typeof body.title === 'string' ? body.title.slice(0, 300) : 'Untitled'
+  const icon = typeof body.icon === 'string' ? body.icon.slice(0, 16) : ''
+  const content = body.content
   const nodes = extractContent(content)
   const allHeadings = collectHeadings(nodes)
 

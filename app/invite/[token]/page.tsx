@@ -64,6 +64,10 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
     return <InviteError message="This invite link has expired. Ask the workspace owner to send a new one." />
   }
 
+  if (invite.invited_email && user.email?.trim().toLowerCase() !== invite.invited_email.trim().toLowerCase()) {
+    return <InviteError message="This invitation was sent to a different email address. Sign in with the invited account." />
+  }
+
   // Check if user is already a member of this workspace.
   const { data: existing } = await admin
     .from('workspace_members')

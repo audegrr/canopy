@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+import { isUuid, normalizeEmail, rateLimit, readJson, safePublicOrigin } from '@/lib/server/security'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,10 +10,13 @@ export async function POST(req: Request) {
   const { data: { user } } = await serverClient.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { email, workspace_id, role } = await req.json()
-  if (!email || !workspace_id || !role) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
-  }
+  const body = await readJson(req, 16_000)
+  const email = normalizeEmail(body?.email)
+  const workspace_id = body?.workspace_id
+  const role = body?.role === 'member' ? 'member' : body?.role === 'viewer' ? 'viewer' : null
+  if (!email || !isUuid(workspace_id) || !role) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+  const limited = rateLimit(`invite:${user.id}`, 20, 60 * 60 * 1000)
+  if (limited) return limited
 
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceRoleKey) return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
@@ -61,7 +65,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: inviteError?.message ?? 'Failed to create invite' }, { status: 500 })
   }
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL ?? req.headers.get('origin')
+  const origin = safePublicOrigin(req)
+  if (!origin) return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
   const next = encodeURIComponent(`/invite/${invite.token}`)
   const redirectTo = `${origin}/auth/callback?next=${next}`
 

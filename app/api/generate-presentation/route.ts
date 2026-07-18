@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { rateLimit, readJson, requireUser } from '@/lib/server/security'
 
 const W = 13.33
 const H = 7.5
@@ -113,10 +114,18 @@ function sectionNum(s: any, t: Theme, n: number) {
 }
 
 export async function POST(req: NextRequest) {
+  const { user } = await requireUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const limited = rateLimit(`presentation:${user.id}`, 5, 60 * 60 * 1000)
+  if (limited) return limited
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'GROQ_API_KEY not configured' }, { status: 500 })
 
-  const { content, title, theme = 'minimal' } = await req.json()
+  const body = await readJson(req, 2_000_000)
+  if (!body) return NextResponse.json({ error: 'Invalid or oversized document' }, { status: 400 })
+  const content = body.content
+  const title = typeof body.title === 'string' ? body.title.slice(0, 300) : 'Untitled'
+  const theme = typeof body.theme === 'string' ? body.theme : 'minimal'
   const t = THEMES[(theme as ThemeKey) in THEMES ? (theme as ThemeKey) : 'minimal']
   const pageText = typeof content === 'string' ? content : tiptapToText(content)
   const docText = pageText.slice(0, 12000)

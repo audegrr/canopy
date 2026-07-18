@@ -1,6 +1,8 @@
 import { createClient as createAdminClient } from '@supabase/supabase-js'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { getPageAccess } from '@/lib/server/access'
+import { isUuid, normalizeEmail, rateLimit, readJson, safePublicOrigin } from '@/lib/server/security'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,10 +11,14 @@ export async function POST(req: Request) {
   const { data: { user } } = await serverClient.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { email, page_id, page_title, role } = await req.json()
-  if (!email || !page_id) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
-  }
+  const body = await readJson(req, 32_000)
+  const email = normalizeEmail(body?.email)
+  const page_id = body?.page_id
+  const page_title = typeof body?.page_title === 'string' ? body.page_title.slice(0, 300) : ''
+  const role = body?.role === 'edit' ? 'edit' : body?.role === 'view' ? 'view' : null
+  if (!email || !isUuid(page_id) || !role) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+  const limited = rateLimit(`share:${user.id}`, 20, 60 * 60 * 1000)
+  if (limited) return limited
 
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceRoleKey) return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
@@ -32,15 +38,19 @@ export async function POST(req: Request) {
   // Ensure the page is accessible via link (set to 'view' at minimum if currently locked)
   const { data: page } = await admin
     .from('pages')
-    .select('link_permission, title')
+    .select('id, owner_id, workspace_id, link_permission, title')
     .eq('id', page_id)
     .single()
 
-  const currentPerm = page?.link_permission ?? 'none'
+  if (!page) return NextResponse.json({ error: 'Page not found' }, { status: 404 })
+  const access = await getPageAccess(admin, user.id, page)
+  if (!access.canManage) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const currentPerm = page.link_permission ?? 'none'
   const title = page_title || page?.title || 'Untitled'
 
   // Determine the link permission to apply for this share
-  const linkPerm = role === 'edit' ? 'edit' : 'view'
+  const linkPerm = role
 
   // Only upgrade link_permission, never downgrade
   const permOrder: Record<string, number> = { none: 0, view: 1, edit: 2 }
@@ -58,7 +68,8 @@ export async function POST(req: Request) {
     }
   }
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL ?? req.headers.get('origin') ?? ''
+  const origin = safePublicOrigin(req)
+  if (!origin) return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
   const shareUrl = `${origin}/share/${page_id}`
 
   // ── Send via Resend if configured ─────────────────────────────────────────

@@ -647,11 +647,16 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     if (pageId === newParentId) return
     // Use the server-side admin route: RLS UPDATE only allows owner_id = auth.uid(),
     // so workspace members/owners can't move pages they don't personally own.
-    await fetch('/api/move-page', {
+    const response = await fetch('/api/move-page', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pageId, newParentId, positionUpdates }),
     })
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}))
+      showError(result.error || 'Failed to move page')
+      return
+    }
     setPages(p => {
       let next = p.map(x => x.id === pageId ? { ...x, parent_id: newParentId } : x)
       if (positionUpdates?.length) {

@@ -671,22 +671,21 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
     // (they fail silently after awaits). Instead we display the link in the UI
     // with a dedicated copy button that works within a fresh user gesture.
     const shareUrl = `${window.location.origin}/share/${page.id}`
-    fetch('/api/share-page', {
+    const response = await fetch('/api/share-page', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email,
-        page_id: page.id,
-        page_title: (page as any).title || 'Untitled',
-        role: inviteRole,
-      }),
-    }).then(r => r.json()).then(json => {
-      if (json.emailSent) showToast(`Invitation sent to ${email}`)
-    }).catch(() => {})
+      body: JSON.stringify({ email, page_id: page.id, page_title: page.title || 'Untitled', role: inviteRole }),
+    })
+    const result = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      showToast(result.error || 'Unable to create share link')
+      return
+    }
+    if (result.emailSent) showToast(`Invitation sent to ${email}`)
 
     setInviteEmail('')
     setGeneratedLink(shareUrl)
-    setPage(p => ({ ...p, link_permission: inviteRole === 'edit' ? 'edit' : (p as any).link_permission === 'edit' ? 'edit' : 'view' }) as any)
+    setPage(p => ({ ...p, link_permission: inviteRole === 'edit' ? 'edit' : p.link_permission === 'edit' ? 'edit' : 'view' }) as Page)
   }
 
   async function updateLinkPerm(perm: string) {

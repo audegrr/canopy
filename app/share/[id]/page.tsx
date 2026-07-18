@@ -1,9 +1,8 @@
-// @ts-nocheck
 import { createClient } from '@/lib/supabase/server'
 import { notFound, redirect } from 'next/navigation'
 import PageView from '@/components/PageView'
 
-export async function generateMetadata({ params }: { params: any }) {
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
   const { data: page } = await supabase.from('pages').select('title, icon').eq('id', id).single()
@@ -14,7 +13,7 @@ export async function generateMetadata({ params }: { params: any }) {
   }
 }
 
-export default async function SharePage({ params }: { params: any }) {
+export default async function SharePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
