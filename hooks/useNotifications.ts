@@ -91,7 +91,7 @@ export function useNotifications(userId: string, supabase: SupabaseClient) {
     }
     load()
     return () => { channel?.unsubscribe() }
-  }, [userId])
+  }, [userId, supabase])
 
   async function requestBrowserPermission() {
     if (!('Notification' in window)) return

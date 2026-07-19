@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useAccessibleDialog } from '@/hooks/useAccessibleDialog'
 
@@ -25,7 +25,7 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
   const [loading, setLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const dialogRef = useAccessibleDialog(true, onClose, inputRef)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     if (!query.trim()) { setResults([]); setLoading(false); return }
@@ -68,7 +68,7 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
       setLoading(false)
     }, 220)
     return () => clearTimeout(timer)
-  }, [query, workspaceId])
+  }, [query, workspaceId, supabase])
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'ArrowDown') { e.preventDefault(); setSelected(s => Math.min(s + 1, results.length - 1)) }

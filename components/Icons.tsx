@@ -1,7 +1,5 @@
 import React from 'react'
 
-type SvgProps = React.SVGProps<SVGSVGElement>
-
 const ICONS: Record<string, () => React.ReactNode> = {
   doc: () => <>
     <path d="M14 2v4a2 2 0 0 0 2 2h4"/>

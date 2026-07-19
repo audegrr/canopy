@@ -1,5 +1,6 @@
 'use client'
-import { useState, useRef, useEffect, useMemo } from 'react'
+/* eslint-disable @next/next/no-img-element -- User avatars and workspace images use dynamic Supabase URLs. */
+import { useState, useRef, useEffect, useEffectEvent, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -104,9 +105,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const notifRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   const pathname = usePathname()
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const { notifications, notifOpen, setNotifOpen, unreadCount, markAllRead, clearAll: clearAllNotifications, deleteNotification, browserPermission, requestBrowserPermission, pushEnabled, togglePush } = useNotifications(user.id, supabase)
   const currentPageId = pathname.match(/\/app\/page\/([^/]+)/)?.[1] || null
+  const navigateFromEvent = useEffectEvent((path: string) => navigate(path))
 
   useEffect(() => {
     if (!notifOpen) return
@@ -115,7 +117,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     }
     document.addEventListener('mousedown', onClickOutside)
     return () => document.removeEventListener('mousedown', onClickOutside)
-  }, [notifOpen])
+  }, [notifOpen, setNotifOpen])
 
   useEffect(() => {
     const check = () => {
@@ -163,8 +165,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     if (pages.length === 0) return
     const allPages = [...pages, ...sharedPages]
     let i = 0
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | undefined
     function warmNext() {
-      if (i >= allPages.length) return
+      if (cancelled || i >= allPages.length) return
       const p = allPages[i++]
       ;(async () => {
         try {
@@ -184,12 +188,13 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             })
           }
         } catch {}
-        setTimeout(warmNext, 100)
+        timer = setTimeout(warmNext, 100)
       })()
     }
     // Start warming after 500ms (let the UI render first)
-    setTimeout(warmNext, 500)
-  }, [currentWs.id, pages.length])
+    timer = setTimeout(warmNext, 500)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [currentWs.id, memberWorkspaces, pages, sharedPages, supabase, user.id])
 
   // Restore last active workspace + page from localStorage.
   // Also syncs the canopy_workspace cookie so the server can read it on the
@@ -219,12 +224,12 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     } else if (savedPage && savedPage !== '/app' && pathname === '/app') {
       router.replace(savedPage)
     }
-  }, [])
+  }, [currentWs.id, memberWorkspaces, pathname, router, workspaces])
 
   useEffect(() => {
     if (isMobile) setSidebarOpen(false)
     setNavigating(false)
-  }, [pathname])
+  }, [pathname, isMobile])
 
   // Realtime sync: new pages/databases created by other members appear instantly
   useEffect(() => {
@@ -298,7 +303,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       .subscribe()
     wsChannelRef.current = channel
     return () => { channel.unsubscribe(); wsChannelRef.current = null }
-  }, [currentWs.id])
+  }, [currentWs.id, supabase])
 
   // Remove pages from "Shared with me" when the owner revokes access or deletes the page
   useEffect(() => {
@@ -326,7 +331,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       })
       .subscribe()
     return () => { sharesChannel.unsubscribe() }
-  }, [user.id])
+  }, [user.id, supabase])
 
   useEffect(() => {
     if (!currentPageId) return
@@ -337,7 +342,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       cur = pages.find(p => p.id === cur!.parent_id)
     }
     if (ancestors.size > 0) setExpandedPages(e => new Set([...e, ...ancestors]))
-  }, [currentPageId])
+  }, [currentPageId, pages])
 
   useEffect(() => {
     function onPageReady() { setNavigating(false) }
@@ -365,7 +370,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       setPages(p => p.map(x => x.id === id ? { ...x, ...(title !== undefined ? { title } : {}), ...(icon !== undefined ? { icon } : {}) } : x))
     }
     window.addEventListener('canopy:pageUpdate', onPageUpdate)
-    const onNavigate = (e: Event) => navigate((e as CustomEvent).detail.path)
+    const onNavigate = (e: Event) => navigateFromEvent((e as CustomEvent).detail.path)
     window.addEventListener('canopy:navigate', onNavigate)
     return () => {
       window.removeEventListener('canopy:pageUpdate', onPageUpdate)
@@ -378,7 +383,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     supabase.from('page_favorites').select('page_id').eq('user_id', user.id).then(({ data }) => {
       if (data) setFavoriteIds(new Set(data.map((f: any) => f.page_id)))
     })
-  }, [])
+  }, [supabase, user.id])
 
   async function toggleFavorite(pageId: string) {
     if (favoriteIds.has(pageId)) {
@@ -673,16 +678,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     navigator.clipboard?.writeText(`${window.location.origin}/app/page/${pageId}`)
     showToastMsg('URL copied!')
     setContextMenu(null)
-  }
-
-  // Get any page (own or shared) by id for context menu
-  function getAnyPage(pageId: string) {
-    return pages.find(p => p.id === pageId) || sharedPages.find(p => p.id === pageId) || null
-  }
-
-  // Is this page owned by the current user?
-  function isOwnPage(pageId: string) {
-    return pages.some(p => p.id === pageId)
   }
 
   async function removeSharedPage(pageId: string) {
@@ -995,7 +990,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             onRenameChange={setRenameVal}
             onRenameSubmit={() => renamePage(page.id, renameVal)}
             onRenameCancel={() => setRenamingPageId(null)}
-            onToggle={() => setExpandedPages(s => { const n = new Set(s); n.has(page.id) ? n.delete(page.id) : n.add(page.id); return n })}
+            onToggle={() => setExpandedPages(s => { const n = new Set(s); if (n.has(page.id)) n.delete(page.id); else n.add(page.id); return n })}
             onClick={() => { navigate(`/app/page/${page.id}`) }}
             onHover={() => { prefetch(`/app/page/${page.id}`); prewarmPage(page.id) }}
             onDragStart={(e: React.DragEvent) => handleDragStart(e, page.id)}
@@ -1035,7 +1030,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           onRenameChange={setRenameVal}
           onRenameSubmit={() => renamePage(page.id, renameVal)}
           onRenameCancel={() => setRenamingPageId(null)}
-          onToggle={() => setExpandedShared(s => { const n = new Set(s); n.has(page.id) ? n.delete(page.id) : n.add(page.id); return n })}
+          onToggle={() => setExpandedShared(s => { const n = new Set(s); if (n.has(page.id)) n.delete(page.id); else n.add(page.id); return n })}
           onClick={() => navigate(`/app/page/${page.id}`)}
           onDragStart={() => {}} onDragOver={() => {}} onDragLeave={() => {}} onDrop={() => {}} onDragEnd={() => {}}
           onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, pageId: page.id }) }}
@@ -2124,7 +2119,7 @@ const PAGE_TEMPLATES: PageTemplate[] = [
 ]
 
 function TemplatePicker({ workspaceId, userId, onSelect, onClose }: { workspaceId: string; userId: string; onSelect: (t: PageTemplate) => void; onClose: () => void }) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [customTemplates, setCustomTemplates] = useState<(PageTemplate & { id: string })[]>([])
 
   useEffect(() => {
@@ -2135,7 +2130,7 @@ function TemplatePicker({ workspaceId, userId, onSelect, onClose }: { workspaceI
       .then(({ data }) => {
         if (data) setCustomTemplates(data as any)
       })
-  }, [workspaceId])
+  }, [workspaceId, supabase])
 
   async function deleteCustomTemplate(id: string, e: React.MouseEvent) {
     e.stopPropagation()
@@ -2201,7 +2196,7 @@ function SettingsModal({ user, tab, theme, headingFont, bodyFont, profileName, s
   onHeadingFontChange: (f: HeadingFont) => void; onBodyFontChange: (f: BodyFont) => void
   onSave: () => void; onClose: () => void; onDeleteAccount: () => void
 }) {
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const avatarInputRef = useRef<HTMLInputElement>(null)
@@ -2209,7 +2204,7 @@ function SettingsModal({ user, tab, theme, headingFont, bodyFont, profileName, s
   useEffect(() => {
     supabase.from('profiles').select('avatar_url').eq('id', user.id).single()
       .then(({ data }) => { if (data?.avatar_url) setAvatarUrl(data.avatar_url) })
-  }, [user.id])
+  }, [user.id, supabase])
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -2416,7 +2411,7 @@ function InviteLinkSection({ workspaceId }: { workspaceId: string }) {
 }
 
 // ── WORKSPACE SETTINGS MODAL ─────────────────────────────────
-function WsSettingsModal({ workspace, tab, members, pendingInvites, owner, inviteEmail, inviteRole, onTabChange, onIconChange, onNameSave, onAccentChange, onRoleChange, onRemoveMember, onCancelInvite, onInviteEmailChange, onInviteRoleChange, onInvite, onDelete, onClose }: {
+function WsSettingsModal({ workspace, tab, members, pendingInvites, owner, inviteEmail, inviteRole, onTabChange, onIconChange, onNameSave, onRoleChange, onRemoveMember, onCancelInvite, onInviteEmailChange, onInviteRoleChange, onInvite, onDelete, onClose }: {
   workspace: Workspace; tab: 'general' | 'members' | 'danger'; members: WsMember[]; pendingInvites: PendingInvite[]
   owner: User; inviteEmail: string; inviteRole: 'member' | 'viewer'
   onTabChange: (t: 'general' | 'members' | 'danger') => void
@@ -2573,7 +2568,7 @@ type PageRowProps = {
   onToggleFavorite?: () => void
 }
 
-function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, isRenaming, renameVal, onRenameChange, onRenameSubmit, onRenameCancel, onToggle, onClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu, onAddSubpage, onMoreMenu, isDragging, badge, onRemove, onHover, dropIndicator, isShared, isKeyFocused, isFavorite, onToggleFavorite }: PageRowProps) {
+function PageRow({ page, depth, isActive, isDragOver, hasChildren, isExpanded, isRenaming, renameVal, onRenameChange, onRenameSubmit, onRenameCancel, onToggle, onClick, onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd, onContextMenu, onAddSubpage, onMoreMenu, isDragging, badge, onRemove, onHover, dropIndicator, isKeyFocused, isFavorite, onToggleFavorite }: PageRowProps) {
   const [hovered, setHovered] = useState(false)
   return (
     <div style={{ position: 'relative' }} data-page-id={page.id}>
@@ -2703,7 +2698,7 @@ function SbBtn({ onClick, title, children }: { onClick?: (e: React.MouseEvent) =
   )
 }
 
-function QuickBtn({ onClick, title, flex, children }: { onClick: () => void; title: string; flex?: boolean; children: React.ReactNode }) {
+function QuickBtn({ onClick, title, children }: { onClick: () => void; title: string; flex?: boolean; children: React.ReactNode }) {
   return (
     <button type="button" onClick={onClick} title={title}
       style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', padding: '5px 8px', borderRadius: '5px', fontSize: '13px', fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}

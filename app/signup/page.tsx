@@ -3,6 +3,7 @@ import { useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
+import Image from 'next/image'
 
 function SignupForm() {
   const searchParams = useSearchParams()
@@ -48,7 +49,7 @@ function SignupForm() {
   if (done) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
       <div style={{ textAlign: 'center' }}>
-        <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 56, height: 56, objectFit: 'contain', marginBottom: '16px' }} />
+        <Image src="/canopy_favicon_no_bg.ico" alt="Canopy" width={56} height={56} style={{ objectFit: 'contain', marginBottom: '16px' }} />
         <h2 style={{ fontSize: '1.2rem', fontWeight: 600, marginBottom: '8px', color: 'var(--text)' }}>Check your email</h2>
         <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
           We sent a confirmation link to <strong>{email}</strong>
@@ -63,7 +64,7 @@ function SignupForm() {
     <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
       <div style={{ width: '100%', maxWidth: '380px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 48, height: 48, objectFit: 'contain', marginBottom: '8px' }} />
+          <Image src="/canopy_favicon_no_bg.ico" alt="Canopy" width={48} height={48} priority style={{ objectFit: 'contain', marginBottom: '8px' }} />
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)', marginBottom: '4px', fontFamily: 'var(--font-head)' }}>Canopy</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>
             {inviteToken ? 'Create your account to accept the invitation' : 'Create your account'}

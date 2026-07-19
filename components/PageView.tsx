@@ -1,5 +1,6 @@
 'use client'
-import { useState, useRef, useEffect, ChangeEvent } from 'react'
+/* eslint-disable @next/next/no-img-element -- Page covers, avatars, and uploads can be dynamic blob or remote URLs. */
+import { useState, useRef, useEffect, useEffectEvent, useMemo, ChangeEvent } from 'react'
 import { mdToTiptap } from '@/lib/mdToTiptap'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -11,8 +12,9 @@ import DragHandle from './DragHandle'
 import DatabaseView from './DatabaseView'
 import EmojiPicker from './EmojiPicker'
 import { Icon } from './Icons'
-import { findFirstDifferingBlock, formatRelativeTime, nodesToMarkdown, tryMergeDocuments } from '@/lib/tiptap-document'
+import { findFirstDifferingBlock, formatRelativeTime, nodesToMarkdown, tiptapToPlainText, tryMergeDocuments } from '@/lib/tiptap-document'
 import { downloadXlsx } from '@/lib/spreadsheet-xlsx'
+import { CoverGallery, CoverReposition, parseCoverPos } from './PageCoverControls'
 
 declare global {
   interface Window {
@@ -49,7 +51,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   const [imageUrl, setImageUrl] = useState('')
   const [subpagePickerCallback, setSubpagePickerCallback] = useState<((id: string) => void) | null>(null)
   const [subpageList, setSubpageList] = useState<any[]>([])
-  const [isUploadingCover, setIsUploadingCover] = useState(false)
+  const [, setIsUploadingCover] = useState(false)
   const [isRepositioning, setIsRepositioning] = useState(false)
   const saveTimer = useRef<any>(null)
   const pendingSaveRef = useRef<Partial<Page> | null>(null)
@@ -98,8 +100,12 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   const [subPages, setSubPages] = useState<{ id: string; title: string; icon: string; is_database: boolean }[]>([])
   const [ownerName, setOwnerName] = useState<string | null>(null)
   const titleRef = useRef<HTMLDivElement>(null)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const router = useRouter()
+  const loadSharesEvent = useEffectEvent(() => loadShares())
+  const loadCommentsEvent = useEffectEvent(() => loadComments())
+  const scheduleSaveEvent = useEffectEvent((updates: Partial<Page>) => scheduleSave(updates))
+  const currentPageTitleEvent = useEffectEvent(() => page.title)
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
@@ -126,9 +132,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
     }
     topNodes.forEach(collectHeadings)
     setHeadings(hs)
-    const text = topNodes.map((n: any) => extractText(n)).join(' ')
+    const text = tiptapToPlainText(topNodes)
     setWordCount(text.trim() ? text.trim().split(/\s+/).length : 0)
-  }, [page.id])
+  }, [page.content, page.is_database])
 
   // Flush any pending debounced save immediately on unmount (prevents data loss on navigation)
   useEffect(() => {
@@ -141,11 +147,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
         supabase.from('pages').update({ ...data, updated_at: new Date().toISOString() }).eq('id', pageId).then(() => {})
       }
     }
-  }, [])
+  }, [page.id, supabase])
 
   useEffect(() => {
-    if (shareOpen && isOwner) loadShares()
-  }, [shareOpen])
+    if (shareOpen && isOwner) loadSharesEvent()
+  }, [shareOpen, isOwner])
 
   // Auto-open panel from URL param (e.g. ?panel=share from sidebar menu)
   useEffect(() => {
@@ -175,7 +181,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
     window.dispatchEvent(new CustomEvent('canopy:pageUpdate', { detail: { id: page.id, title: page.title, icon: page.icon } }))
     // Update page title in browser tab
     document.title = (page.title || 'Untitled') + ' — Canopy'
-  }, [page.title, page.icon])
+  }, [page.id, page.title, page.icon])
 
   // Listen for share/export open from sidebar context menu
   useEffect(() => {
@@ -228,7 +234,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   // Increment view count once per page mount
   useEffect(() => {
     supabase.rpc('increment_page_views', { page_id: page.id }).then(() => {})
-  }, [page.id])
+  }, [page.id, supabase])
 
   // Load sub-pages
   useEffect(() => {
@@ -239,7 +245,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
       .is('deleted_at', null)
       .order('position')
       .then(({ data }) => setSubPages(data || []))
-  }, [page.id])
+  }, [page.id, page.is_database, supabase])
 
   // Sync title/icon updates from sidebar events (rename, icon change)
   useEffect(() => {
@@ -291,7 +297,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
         if (remote.updated_at && saveTimestamps.current.has(normTs(remote.updated_at))) return
         // Editor not yet mounted — no local changes possible, ignore
         if (!editorRef.current) return
-        const currentTitle = titleRef.current?.textContent ?? page.title
+        const currentTitle = titleRef.current?.textContent ?? currentPageTitleEvent()
         const remoteContentStr = JSON.stringify(remote.content)
         const initialContentStr = JSON.stringify(initialContentRef.current)
         const currentContentStr = JSON.stringify(editorRef.current.getJSON())
@@ -312,7 +318,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
           if (remote.title) baselineTitleRef.current = remote.title
         } else {
           // We have unsaved local changes — try 3-way block-level merge before surfacing a conflict
-          const localTitle = titleRef.current?.textContent ?? page.title
+          const localTitle = titleRef.current?.textContent ?? currentPageTitleEvent()
           const localTitleChanged = localTitle !== baselineTitleRef.current
           const remoteTitleChanged = !!(remote.title && remote.title !== baselineTitleRef.current)
           const titleConflict = localTitleChanged && remoteTitleChanged && remote.title !== localTitle
@@ -328,7 +334,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
               localContentRef.current = mergeResult.merged
               baselineContentRef.current = mergeResult.merged
               // Re-queue save so the merged document gets written to the server
-              scheduleSave({ content: mergeResult.merged })
+              scheduleSaveEvent({ content: mergeResult.merged })
             }
             if (remote.title && !localTitleChanged) {
               if (titleRef.current) titleRef.current.textContent = remote.title
@@ -358,7 +364,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
     })
 
     return () => { active = false; presenceChannelRef.current = null; if (channelInstance) supabase.removeChannel(channelInstance) }
-  }, [page.id, userId])
+  }, [page.id, supabase, userId])
 
   // Listen for subpage picker request from editor
   useEffect(() => {
@@ -382,7 +388,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
     }
     window.addEventListener('canopy:showSubpagePicker', onPicker)
     return () => window.removeEventListener('canopy:showSubpagePicker', onPicker)
-  }, [page.workspace_id])
+  }, [page.id, page.workspace_id])
 
   // Image picker listener
   useEffect(() => {
@@ -434,7 +440,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
       setPendingAnchorId(anchorId)
       setPendingAnchorText(text)
       setCommentsOpen(true)
-      loadComments()
+      loadCommentsEvent()
       setTimeout(() => commentInputRef.current?.focus(), 150)
     }
     window.addEventListener('canopy:addComment', onAddComment)
@@ -446,7 +452,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
     if (titleRef.current && titleRef.current.textContent !== page.title) {
       titleRef.current.textContent = page.title
     }
-  }, [page.id])
+  }, [page.id, page.title])
 
   // Sync editor content when page.content changes from outside (e.g. load() returns fresh data)
   // Only apply if there are no unsaved local changes to avoid overwriting in-progress edits.
@@ -469,7 +475,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
           if (data) setOwnerName(data.full_name || data.email?.split('@')[0] || null)
         })
     }
-  }, [isOwner, page.owner_id])
+  }, [isOwner, page.owner_id, supabase])
 
   async function loadShares() {
     const { data } = await supabase.from('page_shares').select('*').eq('page_id', page.id)
@@ -1131,6 +1137,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
           <TopBarBtn onClick={exportPDF} iconOnly title="Print"><Icon name="print" size={16} /></TopBarBtn>
           {canEdit && !page.is_database && <TopBarBtn onClick={triggerMarkdownImport} iconOnly title="Import from Markdown"><Icon name="import" size={16} /></TopBarBtn>}
           {canEdit && !page.is_database && <TopBarBtn onClick={saveAsTemplate} iconOnly title="Save as template"><Icon name="template" size={16} /></TopBarBtn>}
+          <TopBarBtn onClick={duplicatePage} iconOnly title="Duplicate page"><Icon name="copy" size={16} /></TopBarBtn>
           <div style={{ width: 1, height: 16, background: 'var(--border)', flexShrink: 0, margin: '0 4px' }} />
           {!page.is_database && (
             <TopBarBtn onClick={() => setTocOpen(o => !o)} active={tocOpen} iconOnly title="Table of contents"><Icon name="toc" size={16} /></TopBarBtn>
@@ -1181,6 +1188,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
                   <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
                   {onToggleFavorite && <MobileMenuItem onClick={() => { onToggleFavorite(); setMobileMenuOpen(false) }}>{isFavorite ? '⭐ Remove from favorites' : '⭐ Add to favorites'}</MobileMenuItem>}
                   {isOwner && <MobileMenuItem onClick={() => { toggleLock(); setMobileMenuOpen(false) }}>{page.is_locked ? '🔓 Unlock page' : '🔒 Lock page'}</MobileMenuItem>}
+                  <MobileMenuItem onClick={() => { duplicatePage(); setMobileMenuOpen(false) }}>📄 Duplicate page</MobileMenuItem>
                   {/* Edit */}
                   {(canEdit && !page.is_database) && <>
                     <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
@@ -1967,215 +1975,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   )
 }
 
-const COVER_GRADIENTS = [
-  'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-  'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-  'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-  'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-  'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-  'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
-  'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
-  'linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%)',
-  'linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)',
-  'linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%)',
-  'linear-gradient(135deg, #fddb92 0%, #d1fdff 100%)',
-  'linear-gradient(135deg, #30cfd0 0%, #330867 100%)',
-  'linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)',
-  'linear-gradient(135deg, #f77062 0%, #fe5196 100%)',
-  'linear-gradient(135deg, #c3cfe2 0%, #f5f7fa 100%)',
-  'linear-gradient(160deg, #0093E9 0%, #80D0C7 100%)',
-]
-const COVER_COLORS = [
-  '#f0ede8','#e8e4f0','#e4f0e8','#f0e8e4','#e4eaf0',
-  '#2d3748','#1a202c','#744210','#276749','#1a365d',
-  '#c05621','#822727','#553c9a','#2c7a7b','#2b6cb0',
-]
-
-// ── Cover position helpers ────────────────────────────────────────────────────
-type CoverPos = { x: number; y: number; scale: number }
-function parseCoverPos(raw?: string | null): CoverPos {
-  try { if (raw) return { x: 50, y: 30, scale: 1, ...JSON.parse(raw) } } catch {}
-  return { x: 50, y: 30, scale: 1 }
-}
-
-function CoverReposition({ coverUrl, initialPosition, onSave, onCancel }: {
-  coverUrl: string
-  initialPosition: CoverPos
-  onSave: (pos: CoverPos) => void
-  onCancel: () => void
-}) {
-  const [pos, setPos] = useState<CoverPos>(initialPosition)
-  const containerRef = useRef<HTMLDivElement>(null)
-  const dragging = useRef(false)
-  const [isDragging, setIsDragging] = useState(false)
-  const lastMouse = useRef({ x: 0, y: 0 })
-
-  function onMouseDown(e: React.MouseEvent) {
-    dragging.current = true
-    setIsDragging(true)
-    lastMouse.current = { x: e.clientX, y: e.clientY }
-    e.preventDefault()
-  }
-  function onMouseMove(e: React.MouseEvent) {
-    if (!dragging.current || !containerRef.current) return
-    const { offsetWidth, offsetHeight } = containerRef.current
-    const dx = e.clientX - lastMouse.current.x
-    const dy = e.clientY - lastMouse.current.y
-    lastMouse.current = { x: e.clientX, y: e.clientY }
-    setPos(p => ({
-      ...p,
-      x: Math.max(0, Math.min(100, p.x - (dx / offsetWidth) * 100 / p.scale)),
-      y: Math.max(0, Math.min(100, p.y - (dy / offsetHeight) * 100 / p.scale)),
-    }))
-  }
-  function onMouseUp() { dragging.current = false; setIsDragging(false) }
-
-  function onWheel(e: React.WheelEvent) {
-    e.preventDefault()
-    setPos(p => ({ ...p, scale: Math.max(1, Math.min(3, p.scale - e.deltaY * 0.002)) }))
-  }
-
-  // Touch support
-  const lastTouch = useRef<{ x: number; y: number; dist?: number } | null>(null)
-  function onTouchStart(e: React.TouchEvent) {
-    if (e.touches.length === 1) lastTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
-    else if (e.touches.length === 2) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX
-      const dy = e.touches[0].clientY - e.touches[1].clientY
-      lastTouch.current = { x: 0, y: 0, dist: Math.hypot(dx, dy) }
-    }
-  }
-  function onTouchMove(e: React.TouchEvent) {
-    if (!containerRef.current || !lastTouch.current) return
-    e.preventDefault()
-    const { offsetWidth, offsetHeight } = containerRef.current
-    if (e.touches.length === 1) {
-      const dx = e.touches[0].clientX - lastTouch.current.x
-      const dy = e.touches[0].clientY - lastTouch.current.y
-      lastTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
-      setPos(p => ({
-        ...p,
-        x: Math.max(0, Math.min(100, p.x - (dx / offsetWidth) * 100 / p.scale)),
-        y: Math.max(0, Math.min(100, p.y - (dy / offsetHeight) * 100 / p.scale)),
-      }))
-    } else if (e.touches.length === 2 && lastTouch.current.dist != null) {
-      const dx = e.touches[0].clientX - e.touches[1].clientX
-      const dy = e.touches[0].clientY - e.touches[1].clientY
-      const dist = Math.hypot(dx, dy)
-      const ratio = dist / lastTouch.current.dist
-      lastTouch.current.dist = dist
-      setPos(p => ({ ...p, scale: Math.max(1, Math.min(3, p.scale * ratio)) }))
-    }
-  }
-
-  const btnStyle: React.CSSProperties = { border: 'none', padding: '6px 16px', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500 }
-
-  return (
-    <div ref={containerRef}
-      style={{ position: 'relative', height: '240px', overflow: 'hidden', background: '#111', cursor: isDragging ? 'grabbing' : 'grab', userSelect: 'none', touchAction: 'none' }}
-      onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
-      onWheel={onWheel} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={() => { lastTouch.current = null }}>
-      <img src={coverUrl} alt="cover" draggable={false}
-        style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: `${pos.x}% ${pos.y}%`, transform: `scale(${pos.scale})`, transformOrigin: `${pos.x}% ${pos.y}%`, pointerEvents: 'none', userSelect: 'none' }} />
-      {/* Gradient overlay + controls */}
-      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 55%, rgba(0,0,0,0.55))', pointerEvents: 'none' }} />
-      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8, pointerEvents: 'none' }}>
-        <div style={{ textAlign: 'center', color: 'rgba(255,255,255,0.85)', fontSize: 12, fontFamily: 'var(--font-sans)', textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}>
-          Drag to reposition · Scroll or pinch to zoom
-        </div>
-        {/* Zoom slider */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, pointerEvents: 'all' }}>
-          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', flexShrink: 0, lineHeight: 1 }}>−</span>
-          <input type="range" min={100} max={300} step={1}
-            value={Math.round(pos.scale * 100)}
-            onChange={e => setPos(p => ({ ...p, scale: Number(e.target.value) / 100 }))}
-            style={{ flex: 1, accentColor: '#fff', height: 4, cursor: 'pointer' }} />
-          <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.8)', flexShrink: 0, lineHeight: 1 }}>+</span>
-          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', minWidth: 38, textAlign: 'right' }}>{Math.round(pos.scale * 100)}%</span>
-        </div>
-        {/* Action buttons */}
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, pointerEvents: 'all' }}>
-          <button onClick={onCancel} style={{ ...btnStyle, background: 'rgba(255,255,255,0.88)', color: '#333' }}>Cancel</button>
-          <button onClick={() => onSave(pos)} style={{ ...btnStyle, background: 'var(--accent)', color: '#fff' }}>Save position</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function CoverGallery({ onSelect, onUpload, onClose }: { onSelect: (v: string) => void; onUpload: (f: File) => void; onClose: () => void }) {
-  const [tab, setTab] = useState<'gallery'|'upload'|'url'>('gallery')
-  const [urlVal, setUrlVal] = useState('')
-  return (
-    <>
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 200 }} onClick={onClose} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: '480px', boxShadow: 'var(--shadow-lg)', zIndex: 201, overflow: 'hidden' }} className="scale-in">
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <span style={{ fontWeight: 600, fontSize: 14 }}>Cover</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16 }}>✕</button>
-        </div>
-        <div style={{ display: 'flex', gap: 0, padding: '12px 20px 0', borderBottom: '1px solid var(--border)' }}>
-          {(['gallery','upload','url'] as const).map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: tab === t ? 600 : 400, color: tab === t ? 'var(--text)' : 'var(--text-tertiary)', padding: '6px 12px 10px', borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent', transition: 'all 0.1s' }}>
-              {t === 'gallery' ? 'Gallery' : t === 'upload' ? 'Upload' : 'URL'}
-            </button>
-          ))}
-        </div>
-        <div style={{ padding: '16px 20px 20px', maxHeight: '340px', overflowY: 'auto' }}>
-          {tab === 'gallery' && (
-            <>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>Gradients</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, marginBottom: 16 }}>
-                {COVER_GRADIENTS.map(g => (
-                  <div key={g} onClick={() => onSelect(g)}
-                    style={{ height: 52, borderRadius: 6, background: g, cursor: 'pointer', border: '2px solid transparent', transition: 'all 0.1s' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.border = '2px solid var(--accent)'; (e.currentTarget as HTMLElement).style.transform = 'scale(1.04)' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.border = '2px solid transparent'; (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }} />
-                ))}
-              </div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>Colors</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
-                {COVER_COLORS.map(c => (
-                  <div key={c} onClick={() => onSelect(c)}
-                    style={{ height: 36, borderRadius: 6, background: c, cursor: 'pointer', border: '2px solid transparent', transition: 'all 0.1s' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.border = '2px solid var(--accent)'; (e.currentTarget as HTMLElement).style.transform = 'scale(1.06)' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.border = '2px solid transparent'; (e.currentTarget as HTMLElement).style.transform = 'scale(1)' }} />
-                ))}
-              </div>
-            </>
-          )}
-          {tab === 'upload' && (
-            <label style={{ display: 'block', border: '2px dashed var(--border)', borderRadius: '8px', padding: '32px 20px', textAlign: 'center', cursor: 'pointer' }}
-              onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
-              onDragLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
-              onDrop={e => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) { onUpload(f); onClose() } }}>
-              <div style={{ fontSize: 28, marginBottom: 8 }}>🖼️</div>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 4 }}>Click to upload or drag & drop</div>
-              <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>PNG, JPG, WEBP — max 10 MB</div>
-              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={e => { const f = e.target.files?.[0]; if (f) { onUpload(f); onClose() } }} />
-            </label>
-          )}
-          {tab === 'url' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <input value={urlVal} onChange={e => setUrlVal(e.target.value)} placeholder="https://example.com/image.jpg"
-                autoFocus
-                onKeyDown={e => { if (e.key === 'Enter' && urlVal.trim()) { onSelect(urlVal.trim()); } if (e.key === 'Escape') onClose() }}
-                style={{ padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'var(--font-sans)', fontSize: 13, outline: 'none' }} />
-              <button onClick={() => { if (urlVal.trim()) onSelect(urlVal.trim()) }}
-                disabled={!urlVal.trim()}
-                style={{ background: urlVal.trim() ? 'var(--accent)' : 'var(--text-tertiary)', color: '#fff', border: 'none', borderRadius: 6, padding: '8px', fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: 500, cursor: urlVal.trim() ? 'pointer' : 'not-allowed' }}>
-                Apply
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    </>
-  )
-}
-
-function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, onPresentation, isDatabase }: { onPDF: () => void; onWord: () => void; onCSV?: () => void; onXLSX?: () => void; onMarkdown?: () => void; onPresentation?: () => void; isDatabase?: boolean }) {
+function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, isDatabase }: { onPDF: () => void; onWord: () => void; onCSV?: () => void; onXLSX?: () => void; onMarkdown?: () => void; onPresentation?: () => void; isDatabase?: boolean }) {
   const [open, setOpen] = useState(false)
   const item = (label: string, fn: () => void) => (
     <div onClick={() => { fn(); setOpen(false) }}
@@ -2207,29 +2007,6 @@ function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, onPresentation, 
       )}
     </div>
   )
-}
-
-function TbIcon({ d, size = 14 }: { d: string; size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ display: 'block', flexShrink: 0 }}>
-      <path d={d} stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-const TB_ICONS = {
-  export:   'M8 3v8m0 0L5 8m3 3 3-3M3 13h10',
-  print:    'M4 3h8v4H4V3zM3 7h10v5H3V7zm2 4h6',
-  toc:      'M3 5h10M3 8h7M3 11h9',
-  history:  'M3 8a5 5 0 105-5H5M5 3v2H3',
-  backlink: 'M9 11H5a2 2 0 01-2-2V6m0 0l2-2M3 6l2 2',
-  chat:     'M2 4a1 1 0 011-1h10a1 1 0 011 1v6a1 1 0 01-1 1H9L7 13l-2-2H3a1 1 0 01-1-1V4z',
-  lock:     'M5 8V6a3 3 0 016 0v2M3 8h10v6H3V8z',
-  unlock:   'M5 8V6A3 3 0 0113 7M3 8h10v6H3V8z',
-  share:    'M10 3l3 3-3 3m3-3H6a3 3 0 000 6h2',
-  focusIn:  'M3 6V3h3M10 3h3v3M13 10v3h-3M6 13H3v-3',
-  focusOut: 'M6 3H3v3M13 3h-3v3M3 10v3h3M10 13h3v-3',
-  link:     'M10 7l2-2a3 3 0 00-4.2-4.2L5 4a3 3 0 000 4.2M6 9l-2 2a3 3 0 004.2 4.2L11 12a3 3 0 000-4.2',
 }
 
 function TopBarBtn({ onClick, active, iconOnly, children, ...props }: { onClick: () => void; active?: boolean; iconOnly?: boolean; children: React.ReactNode; [key: string]: any }) {

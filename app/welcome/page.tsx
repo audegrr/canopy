@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import Image from 'next/image'
 
 export default function WelcomePage() {
   const [name, setName] = useState('')
@@ -62,7 +63,7 @@ export default function WelcomePage() {
     <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px' }}>
       <div style={{ width: '100%', maxWidth: '380px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <img src="/canopy_favicon_no_bg.ico" alt="Canopy" style={{ width: 48, height: 48, objectFit: 'contain', marginBottom: '8px' }} />
+          <Image src="/canopy_favicon_no_bg.ico" alt="Canopy" width={48} height={48} priority style={{ objectFit: 'contain', marginBottom: '8px' }} />
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text)', marginBottom: '4px' }}>Welcome to Canopy!</h1>
           <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>You&apos;ve been added to a workspace. Set up your account to get started.</p>
         </div>

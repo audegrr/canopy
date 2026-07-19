@@ -23,6 +23,7 @@ export default function DragHandle({ editor }: Props) {
     const tiptap = document.querySelector('.tiptap') as HTMLElement
     if (!tiptap) return
     const container = tiptap.parentElement as HTMLElement
+    const dragState = state.current
 
     function getBlocks() {
       const blocks: { from: number; to: number; node: any; rect: DOMRect }[] = []
@@ -37,7 +38,7 @@ export default function DragHandle({ editor }: Props) {
 
     function onMouseMove(e: MouseEvent) {
       if (state.current.dragging) return
-      clearTimeout(state.current.hideTimer)
+      clearTimeout(dragState.hideTimer)
       const blocks = getBlocks()
       const pr = container.getBoundingClientRect()
       let found = -1
@@ -83,7 +84,7 @@ export default function DragHandle({ editor }: Props) {
       tiptap.removeEventListener('mousemove', onMouseMove)
       tiptap.removeEventListener('dragover', onDragOver)
       container.removeEventListener('dragover', onDragOver)
-      clearTimeout(state.current.hideTimer)
+      clearTimeout(dragState.hideTimer)
     }
   }, [editor])
 

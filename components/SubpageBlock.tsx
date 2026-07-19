@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { NodeViewWrapper } from '@tiptap/react'
 import { createClient } from '@/lib/supabase/client'
 import dynamic from 'next/dynamic'
@@ -17,13 +17,13 @@ export default function SubpageBlock({ node, updateAttributes, deleteNode, selec
   const [expanded, setExpanded] = useState(node.attrs.expanded ?? true)
   const [page, setPage] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     if (!node.attrs.pageId) { setLoading(false); return }
     supabase.from('pages').select('*').eq('id', node.attrs.pageId).is('deleted_at', null).single()
       .then(({ data }) => { setPage(data); setLoading(false) })
-  }, [node.attrs.pageId])
+  }, [node.attrs.pageId, supabase])
 
   async function saveContent(content: any) {
     if (!page) return

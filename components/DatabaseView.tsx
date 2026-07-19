@@ -1,20 +1,14 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useEffectEvent, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Page, DbField, DbRecord } from '@/lib/types'
-import { MAX_SPREADSHEET_BYTES, MAX_SPREADSHEET_ROWS, validateSpreadsheetShape } from '@/lib/spreadsheet-limits'
+import { MAX_SPREADSHEET_BYTES, validateSpreadsheetShape } from '@/lib/spreadsheet-limits'
 import { useAccessibleDialog } from '@/hooks/useAccessibleDialog'
 import { downloadXlsx, readXlsx } from '@/lib/spreadsheet-xlsx'
 
 type View = 'table' | 'board' | 'gallery' | 'calendar'
 
 type Props = { page: Page; canEdit: boolean }
-
-const FIELD_COLORS: Record<string, string> = {
-  text: '#787774', number: '#0b6e99', select: '#0f7b6c', multiselect: '#6940a5',
-  date: '#d9730d', checkbox: '#0f7b6c', relation: '#ad1a72', rollup: '#787774',
-  url: '#0b6e99', email: '#0b6e99', phone: '#0b6e99'
-}
 
 const FIELD_ICONS: Record<string, string> = {
   text: 'Aa', number: '#', select: '◉', multiselect: '◈',
@@ -55,9 +49,10 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const [dbSearch, setDbSearch] = useState('')
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const relatedFieldsRef = useRef<Record<string, DbField[]>>({})
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
+  const loadDataEvent = useEffectEvent(() => loadData())
 
-  useEffect(() => { loadData() }, [page.id])
+  useEffect(() => { loadDataEvent() }, [page.id])
 
   async function loadData() {
     try {
@@ -299,7 +294,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
         const t = setTimeout(() => inputRef.current?.focus(), 10)
         return () => clearTimeout(t)
       }
-    }, [isEditing])
+    }, [isEditing, field.type])
 
     if (isEditing) {
       if (field.type === 'checkbox') return (
@@ -666,13 +661,18 @@ export default function DatabaseView({ page, canEdit }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayRecords.map((rec, i) => (
+                  {displayRecords.map(rec => (
                     <tr key={rec.id} style={{ background: selectedRows.has(rec.id) ? 'var(--accent-light)' : undefined }}>
                       <td data-export-hide style={{ width: 48, minWidth: 48, padding: 0, position: 'sticky', left: 0, background: selectedRows.has(rec.id) ? 'var(--accent-light)' : 'var(--surface)', borderRight: '1px solid var(--border)', textAlign: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
                           {canEdit && (
                             <input type="checkbox" checked={selectedRows.has(rec.id)}
-                              onChange={e => setSelectedRows(s => { const n = new Set(s); e.target.checked ? n.add(rec.id) : n.delete(rec.id); return n })}
+                              onChange={e => setSelectedRows(s => {
+                                const next = new Set(s)
+                                if (e.target.checked) next.add(rec.id)
+                                else next.delete(rec.id)
+                                return next
+                              })}
                               style={{ accentColor: 'var(--accent)', cursor: 'pointer', opacity: selectedRows.has(rec.id) ? 1 : 0, transition: 'opacity 0.1s' }}
                               className="row-checkbox" />
                           )}
@@ -683,7 +683,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                       </td>
                       {visibleFields.map(f => (
                         <td key={f.id} data-cell={`${rec.id}-${f.id}`} style={{ position: 'relative' }}
-                          onClick={e => {
+                          onClick={() => {
                             if (!canEdit) return
                             if (editingCell?.recId === rec.id && editingCell?.fieldId === f.id) return
                             setEditingCell({ recId: rec.id, fieldId: f.id })
@@ -1164,12 +1164,12 @@ function MItem({ onClick, children, extra, active, danger }: any) {
 
 function RelationPagePicker({ value, onChange }: { value: string; onChange: (pageId: string) => void }) {
   const [pages, setPages] = useState<{id: string; title: string; icon: string}[]>([])
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
 
   useEffect(() => {
     supabase.from('pages').select('id, title, icon').eq('is_database', true).order('title')
       .then(({ data }) => setPages(data || []))
-  }, [])
+  }, [supabase])
 
   return (
     <div style={{ padding: '4px 8px' }} onClick={e => e.stopPropagation()}>
@@ -1183,7 +1183,7 @@ function RelationPagePicker({ value, onChange }: { value: string; onChange: (pag
 
 const ctrlSt: React.CSSProperties = { padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'var(--font-sans)', fontSize: 12, background: 'var(--sidebar-bg)', color: 'var(--text)', outline: 'none', cursor: 'pointer' }
 
-function RelationPicker({ field, rec, relPage, recs, activeRelIds, firstTextField, cellRect, onToggle, onClose, onCreateRecord }: {
+function RelationPicker({ relPage, recs, activeRelIds, firstTextField, cellRect, onToggle, onClose, onCreateRecord }: {
   field: DbField; rec: DbRecord
   relPage: { id: string; title?: string; icon?: string } | null
   recs: DbRecord[]; activeRelIds: string[]; firstTextField: string | null
@@ -1264,7 +1264,7 @@ function RelationPicker({ field, rec, relPage, recs, activeRelIds, firstTextFiel
 
 type ImportFieldDef = { header: string; existingId: string | null }
 
-function ImportModal({ pageId, existingFields, onImport, onClose }: {
+function ImportModal({ existingFields, onImport, onClose }: {
   pageId: string
   existingFields: DbField[]
   onImport: (fieldDefs: ImportFieldDef[], rows: string[][]) => Promise<void>

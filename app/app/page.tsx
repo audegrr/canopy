@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 
 const TIPS = [
   { icon: '/', text: "Type '/' in any page to open the command menu" },
@@ -39,7 +40,7 @@ export default function AppHome() {
     }}>
       {/* Header */}
       <div style={{ textAlign: 'center' }}>
-        <img src='/canopy_logo@2x.png' alt='Canopy' style={{ width: 140, height: 140, marginBottom: '16px', objectFit: 'contain' }} />
+        <Image src='/canopy_logo@2x.png' alt='Canopy' width={140} height={140} priority style={{ marginBottom: '16px', objectFit: 'contain' }} />
         <h2 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text)', marginBottom: '8px', fontFamily: 'var(--font-head)' }}>
           Welcome to Canopy
         </h2>

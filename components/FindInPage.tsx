@@ -151,8 +151,9 @@ export default function FindInPage({ containerRef, onClose }: Props) {
   }, [containerRef, runSearch])
 
   useEffect(() => {
+    const highlightSupported = hlSupported.current
     return () => {
-      if (hlSupported.current) {
+      if (highlightSupported) {
         (window as any).CSS?.highlights.delete(HL_ALL)
         ;(window as any).CSS?.highlights.delete(HL_ACTIVE)
       }

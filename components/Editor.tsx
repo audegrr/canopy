@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @next/next/no-img-element -- Editor nodes render user-provided blob, data, and remote image URLs. */
 import { useRef, useState, useEffect, useMemo } from 'react'
 import { useEditor, EditorContent, BubbleMenu, NodeViewWrapper, NodeViewContent, ReactNodeViewRenderer } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
@@ -160,7 +161,7 @@ import EmojiPicker from './EmojiPicker'
 import { Icon } from './Icons'
 
 // ── RESIZABLE IMAGE EXTENSION ──────────────────────────────────────────
-function ResizableImageView({ node, updateAttributes, selected }: any) {
+function ResizableImageView({ node, updateAttributes }: any) {
   const [loaded, setLoaded] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const width = node.attrs.width || '100%'
@@ -1026,7 +1027,7 @@ function CodeBlockComponent({ node, updateAttributes }: any) {
   const textContent = node.textContent
   useEffect(() => {
     if (tab !== 'code') setIframeHeight(160)
-  }, [textContent, lang])
+  }, [textContent, lang, tab])
 
   // Revert to code tab when switching to a language that has no preview
   useEffect(() => {
@@ -1186,10 +1187,9 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   const highlightBtnRef = useRef<HTMLButtonElement>(null)
   const [pickerPos, setPickerPos] = useState<{ x: number; y: number } | null>(null)
   const slashQueryRef = useRef('')
-  const pendingImageInsert = useRef<((src: string) => void) | null>(null)
   const [blockCtxMenu, setBlockCtxMenu] = useState<{ x: number; y: number; pos: number; link?: { from: number; to: number; href: string; text: string } } | null>(null)
   const [linkCtxMenu, setLinkCtxMenu] = useState<{ x: number; y: number; from: number; to: number; href: string; text: string } | null>(null)
-  const [bubbleMenuEnabled, setBubbleMenuEnabled] = useState(true)
+  const [, setBubbleMenuEnabled] = useState(true)
   const bubbleMenuEnabledRef = useRef(true)
   const [tableToolbarPos, setTableToolbarPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
@@ -1481,7 +1481,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       setAtResults(data || [])
     }, 150)
     return () => clearTimeout(timer)
-  }, [atMenu?.query, workspaceId])
+  }, [atMenu, workspaceId])
 
   function runMention(page: { id: string; title: string; icon: string }) {
     if (!editor) return
@@ -1832,7 +1832,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
               const prev = editor.getAttributes('link').href
               const url = window.prompt('URL:', prev || 'https://')
               if (url === null) return
-              url === '' ? editor.chain().focus().unsetLink().run() : editor.chain().focus().setLink({ href: url }).run()
+              if (url === '') editor.chain().focus().unsetLink().run()
+              else editor.chain().focus().setLink({ href: url }).run()
             }} active={editor.isActive('link')} title='Link'><Icon name="link" size={14}/></FBtn>
             <div className="floating-sep" />
             <FBtn onClick={() => editor.chain().focus().setTextAlign('left').run()} active={editor.isActive({ textAlign: 'left' })} title='Align left'><Icon name="align-left" size={14}/></FBtn>
@@ -2121,7 +2122,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', width: '156px' }}>
           {COLORS.map(col => (
             <button key={col.value || 'default'} title={col.label}
-              onClick={() => { const sel = savedSelection.current; if (sel) { editor.chain().focus().setTextSelection(sel).run(); col.value ? editor.chain().setColor(col.value).run() : editor.chain().unsetColor().run() } setShowColorPicker(false); savedSelection.current = null }}
+              onClick={() => { const sel = savedSelection.current; if (sel) { editor.chain().focus().setTextSelection(sel).run(); if (col.value) editor.chain().setColor(col.value).run(); else editor.chain().unsetColor().run() } setShowColorPicker(false); savedSelection.current = null }}
               style={{ width: '28px', height: '28px', borderRadius: '6px', background: col.value || '#37352f', border: '2px solid rgba(0,0,0,0.08)', cursor: 'pointer' }} />
           ))}
         </div>
@@ -2137,7 +2138,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', width: '156px' }}>
           {HIGHLIGHTS.map(h => (
             <button key={h.value || 'none'} title={h.label}
-              onClick={() => { const sel = savedSelection.current; if (sel) { editor.chain().focus().setTextSelection(sel).run(); h.value ? editor.chain().setHighlight({ color: h.value }).run() : editor.chain().unsetHighlight().run() } setShowHighlightPicker(false); savedSelection.current = null }}
+              onClick={() => { const sel = savedSelection.current; if (sel) { editor.chain().focus().setTextSelection(sel).run(); if (h.value) editor.chain().setHighlight({ color: h.value }).run(); else editor.chain().unsetHighlight().run() } setShowHighlightPicker(false); savedSelection.current = null }}
               style={{ width: '28px', height: '28px', borderRadius: '6px', background: h.value || '#e9e9e7', border: '2px solid rgba(0,0,0,0.08)', cursor: 'pointer' }} />
           ))}
         </div>

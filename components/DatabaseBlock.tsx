@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { NodeViewWrapper } from '@tiptap/react'
 import { createClient } from '@/lib/supabase/client'
 
@@ -23,7 +23,7 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
   const [collapsed, setCollapsed] = useState(node.attrs.collapsed || false)
   const [editingCell, setEditingCell] = useState<{ recId: string; fieldId: string } | null>(null)
   const [editVal, setEditVal] = useState('')
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const canEdit = editor?.isEditable ?? true
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
       setRecords(r || [])
       setLoading(false)
     })
-  }, [node.attrs.pageId])
+  }, [node.attrs.pageId, supabase])
 
   function setViewMode(v: 'table' | 'board') {
     setView(v)
