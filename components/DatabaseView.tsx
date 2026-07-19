@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Page, DbField, DbRecord } from '@/lib/types'
 import { MAX_SPREADSHEET_BYTES, MAX_SPREADSHEET_ROWS, validateSpreadsheetShape } from '@/lib/spreadsheet-limits'
 import { useAccessibleDialog } from '@/hooks/useAccessibleDialog'
+import { downloadXlsx, readXlsx } from '@/lib/spreadsheet-xlsx'
 
 type View = 'table' | 'board' | 'gallery' | 'calendar'
 
@@ -223,7 +224,6 @@ export default function DatabaseView({ page, canEdit }: Props) {
   }
 
   async function exportXLSX() {
-    const XLSX = await import('xlsx')
     const exportRecs = getExportRecords()
     const header = fields.map(f => f.name)
     const rows = exportRecs.map(rec => fields.map(f => {
@@ -232,14 +232,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
       if (f.type === 'number') return v !== undefined && v !== '' ? Number(v) : ''
       return String(v ?? '')
     }))
-    const ws = XLSX.utils.aoa_to_sheet([header, ...rows])
-    // Auto column widths
-    ws['!cols'] = header.map((h, i) => ({
-      wch: Math.max(h.length, ...rows.map(r => String(r[i] ?? '').length), 8)
-    }))
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, page.title?.slice(0, 31) || 'Database')
-    XLSX.writeFile(wb, (page.title || 'database') + '.xlsx')
+    await downloadXlsx((page.title || 'database') + '.xlsx', page.title || 'Database', [header, ...rows])
   }
 
   async function deleteSelectedRows() {
@@ -1319,12 +1312,7 @@ function ImportModal({ pageId, existingFields, onImport, onClose }: {
       const reader = new FileReader()
       reader.onload = async e => {
         try {
-          const XLSX = await import('xlsx')
-          const data = new Uint8Array(e.target?.result as ArrayBuffer)
-          const wb = XLSX.read(data, { type: 'array', sheetRows: MAX_SPREADSHEET_ROWS + 2, cellFormula: false, cellHTML: false })
-          const ws = wb.Sheets[wb.SheetNames[0]]
-          if (!ws) throw new Error('The workbook has no readable worksheet.')
-          const parsed: unknown[][] = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false }) as unknown[][]
+          const parsed = await readXlsx(e.target?.result as ArrayBuffer)
           const validationError = validateSpreadsheetShape(parsed)
           if (validationError) { setFileError(validationError); return }
           if (parsed.length < 1) throw new Error('The worksheet is empty.')

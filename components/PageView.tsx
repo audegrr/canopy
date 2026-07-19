@@ -12,6 +12,7 @@ import DatabaseView from './DatabaseView'
 import EmojiPicker from './EmojiPicker'
 import { Icon } from './Icons'
 import { findFirstDifferingBlock, formatRelativeTime, nodesToMarkdown, tryMergeDocuments } from '@/lib/tiptap-document'
+import { downloadXlsx } from '@/lib/spreadsheet-xlsx'
 
 declare global {
   interface Window {
@@ -830,7 +831,6 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   }
 
   async function exportXLSX() {
-    const { default: XLSX } = await import('xlsx')
     const supabase = createClient()
     const [{ data: fields }, { data: records }] = await Promise.all([
       supabase.from('db_fields').select('*').eq('page_id', page.id).order('position'),
@@ -844,13 +844,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
       if (f.type === 'number') return v !== undefined && v !== '' ? Number(v) : ''
       return String(v ?? '')
     }))
-    const ws = XLSX.utils.aoa_to_sheet([header, ...rows])
-    ws['!cols'] = header.map((h: string, i: number) => ({
-      wch: Math.max(h.length, ...rows.map((r: any) => String(r[i] ?? '').length), 8)
-    }))
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, (page.title || 'Database').slice(0, 31))
-    XLSX.writeFile(wb, (page.title || 'database') + '.xlsx')
+    await downloadXlsx((page.title || 'database') + '.xlsx', page.title || 'Database', [header, ...rows])
     showToast('Excel downloaded!')
   }
 
