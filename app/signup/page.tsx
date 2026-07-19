@@ -77,7 +77,7 @@ function SignupForm() {
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', margin: '18px 0' }}>
             <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
-            <span style={{ color: 'var(--text-tertiary)', fontSize: '12px' }}>or</span>
+            <span style={{ color: 'var(--text-secondary)', fontSize: '12px' }}>or</span>
             <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
           </div>
           <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -102,7 +102,7 @@ function SignupForm() {
             <button type="submit" disabled={loading} style={primaryBtn}>{loading ? 'Creating account…' : 'Create account'}</button>
           </form>
           <p style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
-            Already have an account? <Link href="/login" style={{ color: 'var(--accent)', textDecoration: 'none' }}>Sign in</Link>
+            Already have an account? <Link href="/login" style={{ color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Sign in</Link>
           </p>
         </div>
       </div>
