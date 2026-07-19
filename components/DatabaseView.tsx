@@ -50,9 +50,6 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const relatedFieldsRef = useRef<Record<string, DbField[]>>({})
   const supabase = useMemo(() => createClient(), [])
-  const loadDataEvent = useEffectEvent(() => loadData())
-
-  useEffect(() => { loadDataEvent() }, [page.id])
 
   async function loadData() {
     try {
@@ -100,6 +97,9 @@ export default function DatabaseView({ page, canEdit }: Props) {
       setToast('Failed to load database')
     }
   }
+
+  const loadDataEvent = useEffectEvent(() => loadData())
+  useEffect(() => { loadDataEvent() }, [page.id])
 
   async function addRecord() {
     const maxPos = records.reduce((m, r) => Math.max(m, r.position), 0)
@@ -457,7 +457,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
     return <span style={{ color: val ? 'var(--text)' : 'var(--text-tertiary)', fontSize: 13 }}>{val || ''}</span>
   }
 
-  function RecordDetail({ recId, onClose }: { recId: string; onClose: () => void }) {
+  function renderRecordDetail(recId: string, onClose: () => void) {
     const rec = records.find(r => r.id === recId)
     if (!rec) return null
     const titleVal = fields[0] ? String(rec.data?.[fields[0].id] ?? '') : ''
@@ -945,7 +945,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
         </div>
       )}
 
-      {detailRecId && <RecordDetail recId={detailRecId} onClose={() => setDetailRecId(null)} />}
+      {detailRecId && renderRecordDetail(detailRecId, () => setDetailRecId(null))}
       {crossDbDetail && <CrossDbRecordDetail rec={crossDbDetail.rec} fields={crossDbDetail.fields} pageTitle={crossDbDetail.pageTitle} onClose={() => setCrossDbDetail(null)} />}
       {showImport && (
         <ImportModal
