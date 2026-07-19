@@ -16,6 +16,7 @@ import { exportPageAsPDF, exportPageAsWord, exportPageAsCSV } from '@/lib/export
 import EmojiPicker, { COMMON_EMOJIS } from './EmojiPicker'
 import { Icon } from './Icons'
 import WorkspaceBackupSection from './WorkspaceBackupSection'
+import TrashPanel from './TrashPanel'
 
 type Props = {
   user: User
@@ -1224,59 +1225,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         </div>
 
         {/* Trash */}
-        <div style={{ borderTop: '1px solid var(--border)', flexShrink: 0 }}>
-          <div onClick={() => { setTrashOpen(o => !o); if (!trashOpen) loadTrash() }}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 18px', cursor: 'pointer', color: 'var(--text-secondary)', borderRadius: '5px', margin: '1px 4px' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--side-hover)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-            <Icon name="trash" size={15} style={{ flexShrink: 0 }} />
-            <span style={{ flex: 1, fontFamily: 'var(--font-sans)', fontSize: '14px' }}>Trash</span>
-            {trashedPages.length > 0 && <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{trashedPages.length}</span>}
-            <span style={{ transition: 'transform 0.15s', transform: trashOpen ? 'rotate(90deg)' : 'none', display: 'flex' }}><Icon name="chev-right" size={12} /></span>
-          </div>
-          {trashOpen && (
-            <div style={{ background: 'var(--sidebar-bg)', borderBottom: '1px solid var(--border)', maxHeight: '280px', overflowY: 'auto' }}>
-              {trashLoading ? (
-                <div style={{ padding: '12px 14px', fontSize: '12px', color: 'var(--text-tertiary)' }}>Loading…</div>
-              ) : trashedPages.length === 0 ? (
-                <div style={{ padding: '16px 14px', fontSize: '12px', color: 'var(--text-tertiary)', textAlign: 'center' }}>Trash is empty · items expire after 30 days</div>
-              ) : (
-                <>
-                  <div style={{ padding: '6px 14px', display: 'flex', justifyContent: 'flex-end' }}>
-                    <span onClick={() => setConfirmDialog({ message: 'Permanently delete all trashed pages? This cannot be undone.', onConfirm: emptyTrash })}
-                      style={{ fontSize: '11px', color: 'var(--text-tertiary)', cursor: 'pointer', padding: '2px 6px', borderRadius: 4 }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#eb5757' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>
-                      Empty trash
-                    </span>
-                  </div>
-                  {trashedPages.map(p => (
-                    <div key={p.id} className="trash-item" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 10px 5px 14px', fontSize: '13px', color: 'var(--side-text)', position: 'relative' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--side-hover)' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                      <span style={{ flexShrink: 0, fontSize: '14px', lineHeight: 1 }}>{p.icon || (p.is_database ? '🗄️' : '📄')}</span>
-                      <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || 'Untitled'}</span>
-                      <span className="t-acts" style={{ display: 'flex', gap: '1px', flexShrink: 0 }}>
-                        <span title="Restore" onClick={() => restorePage(p.id)}
-                          style={{ cursor: 'pointer', padding: '3px 6px', borderRadius: 5, color: 'var(--side-text-2)', display: 'flex', alignItems: 'center' }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--side-text-2)' }}>
-                          <Icon name="restore" size={14} />
-                        </span>
-                        <span title="Delete permanently" onClick={() => setConfirmDialog({ message: 'Permanently delete this page?', onConfirm: () => permanentlyDeletePage(p.id) })}
-                          style={{ cursor: 'pointer', padding: '3px 6px', borderRadius: 5, color: 'var(--side-text-2)', display: 'flex', alignItems: 'center' }}
-                          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#eb575718'; (e.currentTarget as HTMLElement).style.color = '#eb5757' }}
-                          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = 'var(--side-text-2)' }}>
-                          <Icon name="trash" size={14} />
-                        </span>
-                      </span>
-                    </div>
-                  ))}
-                </>
-              )}
-            </div>
-          )}
-        </div>
+        <TrashPanel open={trashOpen} pages={trashedPages} loading={trashLoading} onToggle={() => { setTrashOpen(open => !open); if (!trashOpen) void loadTrash() }} onRestore={restorePage} onDeleteRequest={id => setConfirmDialog({ message: 'Permanently delete this page?', onConfirm: () => permanentlyDeletePage(id) })} onEmptyRequest={() => setConfirmDialog({ message: 'Permanently delete all trashed pages? This cannot be undone.', onConfirm: emptyTrash })} />
 
         {/* User — click for settings, separate sign out button */}
         <div style={{ padding: '8px 10px', paddingBottom: isMobile ? 'calc(8px + env(safe-area-inset-bottom))' : '8px', borderTop: '1px solid var(--border)', flexShrink: 0, position: 'relative' }}>
