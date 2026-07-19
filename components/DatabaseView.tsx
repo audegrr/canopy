@@ -2,7 +2,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Page, DbField, DbRecord } from '@/lib/types'
-import * as XLSX from 'xlsx'
 import { MAX_SPREADSHEET_BYTES, MAX_SPREADSHEET_ROWS, validateSpreadsheetShape } from '@/lib/spreadsheet-limits'
 import { useAccessibleDialog } from '@/hooks/useAccessibleDialog'
 
@@ -223,7 +222,8 @@ export default function DatabaseView({ page, canEdit }: Props) {
     URL.revokeObjectURL(url)
   }
 
-  function exportXLSX() {
+  async function exportXLSX() {
+    const XLSX = await import('xlsx')
     const exportRecs = getExportRecords()
     const header = fields.map(f => f.name)
     const rows = exportRecs.map(rec => fields.map(f => {
@@ -1317,8 +1317,9 @@ function ImportModal({ pageId, existingFields, onImport, onClose }: {
     const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls') || file.type.includes('spreadsheetml') || file.type.includes('ms-excel')
     if (isExcel) {
       const reader = new FileReader()
-      reader.onload = e => {
+      reader.onload = async e => {
         try {
+          const XLSX = await import('xlsx')
           const data = new Uint8Array(e.target?.result as ArrayBuffer)
           const wb = XLSX.read(data, { type: 'array', sheetRows: MAX_SPREADSHEET_ROWS + 2, cellFormula: false, cellHTML: false })
           const ws = wb.Sheets[wb.SheetNames[0]]

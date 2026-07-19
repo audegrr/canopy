@@ -11,6 +11,7 @@ import DragHandle from './DragHandle'
 import DatabaseView from './DatabaseView'
 import EmojiPicker from './EmojiPicker'
 import { Icon } from './Icons'
+import { findFirstDifferingBlock, formatRelativeTime, nodesToMarkdown, tryMergeDocuments } from '@/lib/tiptap-document'
 
 declare global {
   interface Window {
@@ -855,7 +856,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
 
   function exportMarkdown() {
     const nodes: any[] = Array.isArray(page.content) ? page.content : ((page.content as any)?.content || [])
-    const md = `# ${page.icon ? page.icon + ' ' : ''}${page.title || 'Untitled'}\n\n` + nodesToMd(nodes)
+    const md = `# ${page.icon ? page.icon + ' ' : ''}${page.title || 'Untitled'}\n\n` + nodesToMarkdown(nodes)
     const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -1970,158 +1971,6 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
       )}
     </div>
   )
-}
-
-// 3-way merge at the top-level block granularity.
-// Returns { merged, hasConflict:false } when the sets of blocks changed by remote and local are
-// disjoint (safe to auto-merge), or { merged:null, hasConflict:true } when they overlap.
-function tryMergeDocuments(base: any, remote: any, local: any): { merged: any; hasConflict: boolean } {
-  const getBlocks = (doc: any): any[] =>
-    doc?.type === 'doc' ? (doc.content ?? []) : Array.isArray(doc) ? doc : []
-
-  const baseBlocks  = getBlocks(base)
-  const remoteBlocks = getBlocks(remote)
-  const localBlocks  = getBlocks(local)
-  const maxLen = Math.max(baseBlocks.length, remoteBlocks.length, localBlocks.length)
-
-  const remoteChanged = new Set<number>()
-  const localChanged  = new Set<number>()
-  for (let i = 0; i < maxLen; i++) {
-    if (JSON.stringify(baseBlocks[i]) !== JSON.stringify(remoteBlocks[i])) remoteChanged.add(i)
-    if (JSON.stringify(baseBlocks[i]) !== JSON.stringify(localBlocks[i]))  localChanged.add(i)
-  }
-
-  if ([...remoteChanged].some(i => localChanged.has(i))) return { merged: null, hasConflict: true }
-
-  // Start with remote, overlay blocks that only the local user changed
-  const mergedBlocks = [...remoteBlocks]
-  while (mergedBlocks.length < localBlocks.length) mergedBlocks.push(undefined as any)
-  for (const i of localChanged) mergedBlocks[i] = localBlocks[i]
-
-  return { merged: { type: 'doc', content: mergedBlocks.filter(Boolean) }, hasConflict: false }
-}
-
-function findFirstDifferingBlock(docA: any, docB: any): { mine: string; theirs: string } | null {
-  const nodesA: any[] = docA?.type === 'doc' ? (docA.content || []) : Array.isArray(docA) ? docA : []
-  const nodesB: any[] = docB?.type === 'doc' ? (docB.content || []) : Array.isArray(docB) ? docB : []
-  const maxLen = Math.max(nodesA.length, nodesB.length)
-  for (let i = 0; i < maxLen; i++) {
-    if (JSON.stringify(nodesA[i]) !== JSON.stringify(nodesB[i])) {
-      return {
-        mine: nodesA[i] ? tiptapToPlainText({ type: 'doc', content: [nodesA[i]] }).trim() : '(block deleted)',
-        theirs: nodesB[i] ? tiptapToPlainText({ type: 'doc', content: [nodesB[i]] }).trim() : '(block deleted)',
-      }
-    }
-  }
-  return null
-}
-
-// ── RELATIVE TIME ─────────────────────────────────────────────
-function tiptapToPlainText(content: any): string {
-  if (!content) return ''
-  const nodes: any[] = content.type === 'doc' ? (content.content || []) : Array.isArray(content) ? content : [content]
-  return nodes.map((n: any) => {
-    if (n.text) return n.text
-    const children = tiptapToPlainText(n.content || [])
-    const block = ['paragraph','heading','blockquote','codeBlock','listItem','taskItem'].includes(n.type)
-    return block ? children + '\n' : children
-  }).join('')
-}
-
-function formatRelativeTime(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const m = Math.floor(diff / 60000)
-  if (m < 1) return 'just now'
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  const d = Math.floor(h / 24)
-  if (d < 30) return `${d}d ago`
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
-
-// ── TIPTAP → MARKDOWN ────────────────────────────────────────
-function inlineToMd(node: any): string {
-  if (node.type === 'pageMention') {
-    return `[@${node.attrs?.label || 'Page'}](/app/page/${node.attrs?.pageId || ''})`
-  }
-  if (node.type === 'text') {
-    let t = node.text || ''
-    const marks: string[] = (node.marks || []).map((m: any) => m.type)
-    if (marks.includes('bold')) t = `**${t}**`
-    if (marks.includes('italic')) t = `_${t}_`
-    if (marks.includes('code')) t = `\`${t}\``
-    if (marks.includes('strike')) t = `~~${t}~~`
-    const link = (node.marks || []).find((m: any) => m.type === 'link')
-    if (link) t = `[${t}](${link.attrs?.href || ''})`
-    return t
-  }
-  return (node.content || []).map(inlineToMd).join('')
-}
-
-function nodeToMd(node: any, listDepth = 0): string {
-  const indent = '  '.repeat(listDepth)
-  switch (node.type) {
-    case 'heading': {
-      const level = '#'.repeat(node.attrs?.level || 1)
-      return `${level} ${(node.content || []).map(inlineToMd).join('')}\n\n`
-    }
-    case 'paragraph': {
-      const text = (node.content || []).map(inlineToMd).join('')
-      return text ? `${text}\n\n` : '\n'
-    }
-    case 'bulletList':
-      return (node.content || []).map((li: any) => {
-        const body = (li.content || []).map((c: any) => nodeToMd(c, listDepth + 1)).join('').trimEnd()
-        return `${indent}- ${body}\n`
-      }).join('') + '\n'
-    case 'orderedList':
-      return (node.content || []).map((li: any, i: number) => {
-        const body = (li.content || []).map((c: any) => nodeToMd(c, listDepth + 1)).join('').trimEnd()
-        return `${indent}${i + 1}. ${body}\n`
-      }).join('') + '\n'
-    case 'taskList':
-      return (node.content || []).map((li: any) => {
-        const checked = li.attrs?.checked ? 'x' : ' '
-        const body = (li.content || []).map((c: any) => nodeToMd(c, listDepth + 1)).join('').trimEnd()
-        return `${indent}- [${checked}] ${body}\n`
-      }).join('') + '\n'
-    case 'blockquote':
-      return (node.content || []).map((c: any) => `> ${nodeToMd(c, listDepth).trimEnd()}`).join('\n') + '\n\n'
-    case 'codeBlock': {
-      const lang = node.attrs?.language || ''
-      const code = (node.content || []).map((c: any) => c.text || '').join('')
-      return `\`\`\`${lang}\n${code}\n\`\`\`\n\n`
-    }
-    case 'columns':
-      return (node.content || []).map((col: any) =>
-        (col.content || []).map((c: any) => nodeToMd(c)).join('')
-      ).join('\n') + '\n'
-    case 'horizontalRule': return '---\n\n'
-    case 'image': return `![${node.attrs?.alt || ''}](${node.attrs?.src || ''})\n\n`
-    case 'table':
-      return tableToMd(node) + '\n'
-    default:
-      return (node.content || []).map((c: any) => nodeToMd(c, listDepth)).join('')
-  }
-}
-
-function tableToMd(table: any): string {
-  const rows: any[][] = (table.content || []).map((row: any) =>
-    (row.content || []).map((cell: any) =>
-      (cell.content || []).map((c: any) => nodeToMd(c)).join('').trim().replace(/\n+/g, ' ')
-    )
-  )
-  if (rows.length === 0) return ''
-  const cols = Math.max(...rows.map(r => r.length))
-  const header = `| ${rows[0].join(' | ')} |`
-  const sep = `| ${Array(cols).fill('---').join(' | ')} |`
-  const body = rows.slice(1).map(r => `| ${r.join(' | ')} |`).join('\n')
-  return [header, sep, body].filter(Boolean).join('\n')
-}
-
-function nodesToMd(nodes: any[]): string {
-  return nodes.map(n => nodeToMd(n)).join('')
 }
 
 const COVER_GRADIENTS = [

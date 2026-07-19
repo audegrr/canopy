@@ -148,10 +148,8 @@ html, body {
 .tiptap pre code { background: none; color: inherit; padding: 0; font-size: 0.85em; }
 .tiptap a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 
-/* Find-in-page (Cmd/Ctrl+F) — CSS Custom Highlight API, rendered without
-   touching the editor's DOM/ProseMirror state. */
-::highlight(canopy-find) { background-color: var(--find-highlight); }
-::highlight(canopy-find-active) { background-color: var(--find-highlight-active); color: #1a1a1a; }
+/* Find-in-page colors; ::highlight rules are installed by FindInPage because
+   Turbopack's CSS parser does not yet accept the Custom Highlight API. */
 .tiptap img {
   max-width: 100%;
   border-radius: var(--radius);

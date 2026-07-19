@@ -86,6 +86,18 @@ export default function FindInPage({ containerRef, onClose }: Props) {
 
   useEffect(() => { inputRef.current?.focus(); inputRef.current?.select() }, [])
 
+  useEffect(() => {
+    if (!hlSupported.current) return
+    const style = document.createElement('style')
+    style.dataset.canopyFindHighlights = 'true'
+    style.textContent = `
+      ::highlight(${HL_ALL}) { background-color: var(--find-highlight); }
+      ::highlight(${HL_ACTIVE}) { background-color: var(--find-highlight-active); color: #1a1a1a; }
+    `
+    document.head.appendChild(style)
+    return () => style.remove()
+  }, [])
+
   const applyHighlights = useCallback((ranges: Range[], active: number) => {
     if (!hlSupported.current) return
     const CSSAny = (window as any).CSS
