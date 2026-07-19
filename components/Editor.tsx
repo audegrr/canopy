@@ -1,25 +1,21 @@
 'use client'
 /* eslint-disable @next/next/no-img-element -- Editor nodes render user-provided blob, data, and remote image URLs. */
 import { useRef, useState, useEffect, useMemo } from 'react'
-import { useEditor, EditorContent, BubbleMenu, NodeViewWrapper, NodeViewContent, ReactNodeViewRenderer } from '@tiptap/react'
+import { useEditor, EditorContent, NodeViewWrapper, NodeViewContent, ReactNodeViewRenderer } from '@tiptap/react'
+import { BubbleMenu } from '@tiptap/react/menus'
 import StarterKit from '@tiptap/starter-kit'
-import Placeholder from '@tiptap/extension-placeholder'
+import { Placeholder } from '@tiptap/extensions'
 import Typography from '@tiptap/extension-typography'
 import { Color } from '@tiptap/extension-color'
-import TextStyle from '@tiptap/extension-text-style'
+import { TextStyle } from '@tiptap/extension-text-style'
 import Highlight from '@tiptap/extension-highlight'
-import TaskList from '@tiptap/extension-task-list'
-import TaskItem from '@tiptap/extension-task-item'
-import Table from '@tiptap/extension-table'
-import TableRow from '@tiptap/extension-table-row'
-import TableCell from '@tiptap/extension-table-cell'
-import TableHeader from '@tiptap/extension-table-header'
+import { BulletList as BulletListBase, TaskList, TaskItem } from '@tiptap/extension-list'
+import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table'
 import Image from '@tiptap/extension-image'
 import { Node, Mark, mergeAttributes, getMarkRange } from '@tiptap/core'
 import { TextSelection, Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import HeadingBase from '@tiptap/extension-heading'
-import BulletListBase from '@tiptap/extension-bullet-list'
 import { wrappingInputRule } from '@tiptap/core'
 import { createLowlight, all as allLangs } from 'lowlight'
 import katex from 'katex'
@@ -1077,7 +1073,7 @@ function CodeBlockComponent({ node, updateAttributes }: any) {
         {/* Code + preview area */}
         <div style={{ display: tab === 'split' ? 'grid' : 'block', gridTemplateColumns: '1fr 1fr', alignItems: 'start' }}>
           <div ref={codeWrapRef} style={{ display: tab === 'preview' ? 'none' : 'block', borderRight: tab === 'split' ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
-            <NodeViewContent as="pre" style={{ margin: 0, padding: '10px 16px 10px', color: '#c9d1d9', fontSize: 13, fontFamily: '"Fira Code","Cascadia Code",monospace', overflowX: 'auto', lineHeight: 1.6, whiteSpace: 'pre' }} />
+            <NodeViewContent as={'pre' as 'div'} style={{ margin: 0, padding: '10px 16px 10px', color: '#c9d1d9', fontSize: 13, fontFamily: '"Fira Code","Cascadia Code",monospace', overflowX: 'auto', lineHeight: 1.6, whiteSpace: 'pre' }} />
           </div>
           {tab !== 'code' && (
             <iframe
@@ -1194,8 +1190,9 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   const [tableToolbarPos, setTableToolbarPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
   const editor = useEditor({
+    shouldRerenderOnTransaction: true,
     extensions: [
-      StarterKit.configure({ heading: false, codeBlock: false, bulletList: false }),
+      StarterKit.configure({ heading: false, codeBlock: false, bulletList: false, link: false, underline: false }),
       CollapsibleHeading.configure({ levels: [1, 2, 3] }),
       BulletList,
       CustomCodeBlock,
@@ -1699,7 +1696,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   const main = (
     <div style={{ position: 'relative' }}>
       {/* Floating bubble menu on selection */}
-      <BubbleMenu editor={editor} tippyOptions={{ duration: 100, placement: 'top', interactive: true, hideOnClick: false, maxWidth: 'calc(100vw - 32px)' }}
+      <BubbleMenu editor={editor} options={{ placement: 'top' }}
         shouldShow={({ editor }) => {
           if (!bubbleMenuEnabledRef.current) return false
           if (!editor.isFocused) return false

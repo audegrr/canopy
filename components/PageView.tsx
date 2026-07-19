@@ -316,7 +316,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
         if (!titleChanged && (!remoteIsNew || remoteMatchesCurrent)) return
         if (savedRef.current) {
           // No unsaved local changes — silently apply remote content and advance baseline
-          if (remote.content) editorRef.current.commands.setContent(remote.content, false)
+          if (remote.content) editorRef.current.commands.setContent(remote.content, { emitUpdate: false })
           setPage(p => ({ ...p, content: remote.content ?? p.content, title: remote.title ?? p.title }))
           if (remote.title && titleRef.current) titleRef.current.textContent = remote.title
           if (remote.content) baselineContentRef.current = remote.content
@@ -335,7 +335,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
           if (!mergeResult.hasConflict && !titleConflict) {
             // Blocks edited by each user don't overlap — merge silently
             if (mergeResult.merged) {
-              editorRef.current.commands.setContent(mergeResult.merged, false)
+              editorRef.current.commands.setContent(mergeResult.merged, { emitUpdate: false })
               localContentRef.current = mergeResult.merged
               baselineContentRef.current = mergeResult.merged
               // Re-queue save so the merged document gets written to the server
@@ -488,7 +488,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
     if (editorJson === propJson) return
     // If local (in-flight) content differs from page.content the user has typed ahead — skip.
     if (JSON.stringify(localContentRef.current) !== propJson) return
-    editorRef.current.commands.setContent(page.content || '', false)
+    editorRef.current.commands.setContent(page.content || '', { emitUpdate: false })
   }, [page.content])
 
   useEffect(() => {
@@ -1260,7 +1260,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
               Keep mine
             </button>
             <button onClick={() => {
-              if (remoteConflict.content) editorRef.current?.commands.setContent(remoteConflict.content, false)
+              if (remoteConflict.content) editorRef.current?.commands.setContent(remoteConflict.content, { emitUpdate: false })
               setPage(p => ({ ...p, content: remoteConflict.content ?? p.content, title: remoteConflict.title ?? p.title }))
               if (remoteConflict.title && titleRef.current) titleRef.current.textContent = remoteConflict.title
               if (saveTimer.current) clearTimeout(saveTimer.current)
