@@ -15,6 +15,7 @@ import { Icon } from './Icons'
 import { findFirstDifferingBlock, formatRelativeTime, nodesToMarkdown, tiptapToPlainText, tryMergeDocuments } from '@/lib/tiptap-document'
 import { downloadXlsx } from '@/lib/spreadsheet-xlsx'
 import { CoverGallery, CoverReposition, parseCoverPos } from './PageCoverControls'
+import { queueOfflineSave, readOfflineSaves, removeOfflineSave } from '@/lib/offline-save-queue'
 
 declare global {
   interface Window {
@@ -37,6 +38,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   const [page, setPage] = useState(initialPage)
   const initialContentRef = useRef(initialPage.content)
   const [saved, setSaved] = useState(true)
+  const [saveOffline, setSaveOffline] = useState(false)
   const [showIconPicker, setShowIconPicker] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
   const [shares, setShares] = useState<any[]>([])
@@ -455,6 +457,24 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
     }
   }, [page.id, page.title])
 
+  useEffect(() => {
+    if (!canEdit) return
+    async function flushOfflineSaves() {
+      if (!navigator.onLine) return
+      const queued = readOfflineSaves().filter(item => item.workspaceId === page.workspace_id)
+      for (const item of queued) {
+        const { error } = await supabase.from('pages').update(item.updates).eq('id', item.pageId)
+        if (!error) removeOfflineSave(item.pageId)
+      }
+      const stillQueued = readOfflineSaves().some(item => item.pageId === page.id)
+      setSaveOffline(stillQueued)
+      if (!stillQueued) { setSaved(true); savedRef.current = true }
+    }
+    void flushOfflineSaves()
+    window.addEventListener('online', flushOfflineSaves)
+    return () => window.removeEventListener('online', flushOfflineSaves)
+  }, [canEdit, page.id, page.workspace_id, supabase])
+
   // Sync editor content when page.content changes from outside (e.g. load() returns fresh data)
   // Only apply if there are no unsaved local changes to avoid overwriting in-progress edits.
   // Also skip if the user has typed beyond the last save (localContentRef ahead of page.content)
@@ -515,7 +535,15 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
       // Track saved content to suppress false conflicts from our own realtime echoes
       const contentStr = JSON.stringify(pending.content ?? updates.content)
       if (pending.content ?? updates.content) savedContents.current.add(contentStr)
-      await supabase.from('pages').update({ ...pending, updated_at: ts }).eq('id', page.id)
+      const persisted = { ...pending, updated_at: ts }
+      const { error: saveError } = await supabase.from('pages').update(persisted).eq('id', page.id)
+      if (saveError) {
+        queueOfflineSave({ pageId: page.id, workspaceId: page.workspace_id, updates: persisted, queuedAt: ts })
+        setSaveOffline(true)
+        return
+      }
+      removeOfflineSave(page.id)
+      setSaveOffline(false)
       // Keep timestamp in the set for 20s so delayed realtime events are recognised as ours
       setTimeout(() => saveTimestamps.current.delete(normTs(ts)), 20_000)
       if (updates.content) setTimeout(() => savedContents.current.delete(contentStr), 20_000)
@@ -1127,7 +1155,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
           </div>
         )}
 
-        {!isPublicShare && <span style={{ fontSize: '13px', color: 'var(--text-tertiary)', flexShrink: 0, transition: 'opacity 0.3s', opacity: saved ? 0 : 1 }}>Saving…</span>}
+        {!isPublicShare && <span role="status" style={{ fontSize: '13px', color: saveOffline ? '#b45309' : 'var(--text-tertiary)', flexShrink: 0, transition: 'opacity 0.3s', opacity: saved && !saveOffline ? 0 : 1 }}>{saveOffline ? 'Saved offline · sync pending' : 'Saving…'}</span>}
 
         {/* Desktop buttons */}
         {!isPublicShare && !isMobile && <>
