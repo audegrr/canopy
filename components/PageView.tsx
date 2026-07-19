@@ -17,6 +17,7 @@ import { downloadXlsx } from '@/lib/spreadsheet-xlsx'
 import { CoverGallery, CoverReposition, parseCoverPos } from './PageCoverControls'
 import { queueOfflineSave, readOfflineSaves, removeOfflineSave } from '@/lib/offline-save-queue'
 import VersionHistoryPanel, { type PageSnapshot } from './VersionHistoryPanel'
+import BacklinksPanel, { type Backlink } from './BacklinksPanel'
 
 declare global {
   interface Window {
@@ -79,7 +80,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   const [snapshots, setSnapshots] = useState<PageSnapshot[]>([])
   const [snapshotLoading, setSnapshotLoading] = useState(false)
   const [backlinksOpen, setBacklinksOpen] = useState(false)
-  const [backlinks, setBacklinks] = useState<{ id: string; title: string; icon: string }[]>([])
+  const [backlinks, setBacklinks] = useState<Backlink[]>([])
   const [backlinksLoaded, setBacklinksLoaded] = useState(false)
   const [commentsOpen, setCommentsOpen] = useState(false)
   const [comments, setComments] = useState<{ id: string; body: string; created_at: string; user_id: string; anchor_id?: string | null; profile?: { full_name: string | null; email: string } | null }[]>([])
@@ -1564,32 +1565,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
 
         {/* Backlinks panel */}
         {backlinksOpen && !page.is_database && (
-          <div style={isMobile ? mobilePanel : { width: '260px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-            {isMobile && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 199 }} onClick={() => setBacklinksOpen(false)} />}
-            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <span style={{ fontWeight: 600, fontSize: 13 }}>Backlinks</span>
-              <button onClick={() => setBacklinksOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16 }}>✕</button>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-              {!backlinksLoaded && <div style={{ padding: '16px', fontSize: 12, color: 'var(--text-tertiary)' }}>Loading…</div>}
-              {backlinksLoaded && backlinks.length === 0 && (
-                <div style={{ padding: '20px 16px', fontSize: 12, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>
-                  No pages link here yet.<br />
-                  <span style={{ fontSize: 11 }}>Embed this page in another page using the <kbd style={{ background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: 3, padding: '1px 4px' }}>/</kbd> menu to create a backlink.</span>
-                </div>
-              )}
-              {backlinks.map(b => (
-                <div key={b.id}
-                  onClick={() => window.dispatchEvent(new CustomEvent('canopy:navigate', { detail: { path: `/app/page/${b.id}` } }))}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', cursor: 'pointer' }}
-                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                  <span style={{ fontSize: 16, flexShrink: 0 }}>{b.icon || '📄'}</span>
-                  <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text)' }}>{b.title || 'Untitled'}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          <BacklinksPanel backlinks={backlinks} loaded={backlinksLoaded} mobile={isMobile} mobileStyle={mobilePanel} onClose={() => setBacklinksOpen(false)} onNavigate={id => window.dispatchEvent(new CustomEvent('canopy:navigate', { detail: { path: `/app/page/${id}` } }))} />
         )}
 
         {/* Comments panel */}
