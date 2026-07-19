@@ -37,9 +37,11 @@ function LoginForm() {
         <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
       </div>
       <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required style={inputSt} placeholder="Email" />
-        <input type="password" value={password} onChange={e => setPassword(e.target.value)} required style={inputSt} placeholder="Password" />
-        {error && <p style={{ color: '#eb5757', fontSize: '13px' }}>{error}</p>}
+        <label className="sr-only" htmlFor="login-email">Email</label>
+        <input id="login-email" name="email" autoComplete="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required style={inputSt} placeholder="Email" />
+        <label className="sr-only" htmlFor="login-password">Password</label>
+        <input id="login-password" name="password" autoComplete="current-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required style={inputSt} placeholder="Password" />
+        {error && <p role="alert" style={{ color: '#eb5757', fontSize: '13px' }}>{error}</p>}
         <button type="submit" disabled={loading} style={primaryBtn}>{loading ? 'Signing in…' : 'Continue'}</button>
       </form>
       <p style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>

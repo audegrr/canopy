@@ -80,8 +80,13 @@ function SignupForm() {
             <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
           </div>
           <form onSubmit={handleSignup} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <input value={name} onChange={e => setName(e.target.value)} required style={inputSt} placeholder="Full name" />
+            <label className="sr-only" htmlFor="signup-name">Full name</label>
+            <input id="signup-name" name="name" autoComplete="name" value={name} onChange={e => setName(e.target.value)} required style={inputSt} placeholder="Full name" />
+            <label className="sr-only" htmlFor="signup-email">Email</label>
             <input
+              id="signup-email"
+              name="email"
+              autoComplete="email"
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
@@ -90,8 +95,9 @@ function SignupForm() {
               placeholder="Email"
               readOnly={!!prefillEmail}
             />
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} style={inputSt} placeholder="Password (min. 8 characters)" />
-            {error && <p style={{ color: '#eb5757', fontSize: '13px' }}>{error}</p>}
+            <label className="sr-only" htmlFor="signup-password">Password</label>
+            <input id="signup-password" name="password" autoComplete="new-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} style={inputSt} placeholder="Password (min. 8 characters)" />
+            {error && <p role="alert" style={{ color: '#eb5757', fontSize: '13px' }}>{error}</p>}
             <button type="submit" disabled={loading} style={primaryBtn}>{loading ? 'Creating account…' : 'Create account'}</button>
           </form>
           <p style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
