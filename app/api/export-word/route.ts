@@ -236,7 +236,7 @@ function extractContent(raw: unknown): any[] {
 export async function POST(req: NextRequest) {
   const { user } = await requireUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const limited = rateLimit(`export:${user.id}`, 30, 60 * 60 * 1000)
+  const limited = await rateLimit(`export:${user.id}`, 30, 60 * 60 * 1000)
   if (limited) return limited
   const body = await readJson(req, 2_000_000)
   if (!body) return NextResponse.json({ error: 'Invalid or oversized document' }, { status: 400 })

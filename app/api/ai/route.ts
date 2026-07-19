@@ -14,7 +14,7 @@ const SYSTEM_PROMPTS: Record<string, string> = {
 export async function POST(req: NextRequest) {
   const { user } = await requireUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const limited = rateLimit(`ai:${user.id}`, 30, 60 * 60 * 1000)
+  const limited = await rateLimit(`ai:${user.id}`, 30, 60 * 60 * 1000)
   if (limited) return limited
   const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'GROQ_API_KEY not configured' }, { status: 500 })

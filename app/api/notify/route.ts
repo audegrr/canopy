@@ -27,7 +27,7 @@ export async function POST(req: Request) {
   if (!isUuid(user_id) || (type !== 'page_share' && type !== 'workspace_invite')) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
   }
-  const limited = rateLimit(`notify:${user.id}`, 60, 60 * 60 * 1000)
+  const limited = await rateLimit(`notify:${user.id}`, 60, 60 * 60 * 1000)
   if (limited) return limited
 
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY

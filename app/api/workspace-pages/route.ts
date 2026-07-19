@@ -16,7 +16,7 @@ export async function GET(req: Request) {
   const serverClient = await createServerClient()
   const { data: { user } } = await serverClient.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const limited = rateLimit(`workspace-pages:${user.id}`, 120, 60 * 1000)
+  const limited = await rateLimit(`workspace-pages:${user.id}`, 120, 60 * 1000)
   if (limited) return limited
 
   // Verify user has access to this workspace (owner or member)

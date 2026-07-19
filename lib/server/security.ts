@@ -2,7 +2,8 @@ import 'server-only'
 
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { isRecord } from '@/lib/validation'
+import { createClient as createAdminClient } from '@supabase/supabase-js'
+import { isRecord, isUuid } from '@/lib/validation'
 export { isRecord, isUuid, normalizeEmail } from '@/lib/validation'
 
 type RateEntry = { count: number; resetAt: number }
@@ -21,7 +22,7 @@ export async function readJson(req: Request, maxBytes = 1_000_000): Promise<Reco
   }
 }
 
-export function rateLimit(key: string, limit: number, windowMs: number): NextResponse | null {
+function memoryRateLimit(key: string, limit: number, windowMs: number): NextResponse | null {
   const now = Date.now()
   if (rateStore.size > 10_000) {
     for (const [entryKey, entry] of rateStore) {
@@ -39,6 +40,34 @@ export function rateLimit(key: string, limit: number, windowMs: number): NextRes
     { error: 'Too many requests. Please try again later.' },
     { status: 429, headers: { 'Retry-After': String(Math.ceil((current.resetAt - now) / 1000)) } },
   )
+}
+
+export async function rateLimit(key: string, limit: number, windowMs: number): Promise<NextResponse | null> {
+  const separator = key.indexOf(':')
+  const bucket = separator > 0 ? key.slice(0, separator) : key
+  const subject = separator > 0 ? key.slice(separator + 1) : ''
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+
+  if (serviceRoleKey && supabaseUrl && isUuid(subject)) {
+    const admin = createAdminClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } })
+    const { data, error } = await admin.rpc('consume_api_rate_limit', {
+      p_bucket: bucket,
+      p_subject: subject,
+      p_limit: limit,
+      p_window_seconds: Math.max(1, Math.ceil(windowMs / 1000)),
+    })
+    const result = data?.[0] as { allowed?: boolean; retry_after_seconds?: number } | undefined
+    if (!error && result && result.allowed === false) {
+      return NextResponse.json(
+        { error: 'Too many requests. Please try again later.' },
+        { status: 429, headers: { 'Retry-After': String(result.retry_after_seconds || 1) } },
+      )
+    }
+    if (!error && result?.allowed === true) return null
+  }
+
+  return memoryRateLimit(key, limit, windowMs)
 }
 
 export async function requireUser() {

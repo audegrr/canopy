@@ -5,7 +5,7 @@ import { readLimitedText, safeFetch } from '@/lib/server/safe-fetch'
 export async function GET(req: NextRequest) {
   const { user } = await requireUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const limited = rateLimit(`bookmark:${user.id}`, 60, 60 * 60 * 1000)
+  const limited = await rateLimit(`bookmark:${user.id}`, 60, 60 * 60 * 1000)
   if (limited) return limited
   const url = req.nextUrl.searchParams.get('url')
   if (!url) return NextResponse.json({ error: 'Missing url' }, { status: 400 })

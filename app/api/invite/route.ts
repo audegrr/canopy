@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   const workspace_id = body?.workspace_id
   const role = body?.role === 'member' ? 'member' : body?.role === 'viewer' ? 'viewer' : null
   if (!email || !isUuid(workspace_id) || !role) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
-  const limited = rateLimit(`invite:${user.id}`, 20, 60 * 60 * 1000)
+  const limited = await rateLimit(`invite:${user.id}`, 20, 60 * 60 * 1000)
   if (limited) return limited
 
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY

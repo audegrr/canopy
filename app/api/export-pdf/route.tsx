@@ -224,7 +224,7 @@ function extractContent(raw: unknown): any[] {
 export async function POST(req: NextRequest) {
   const { user } = await requireUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const limited = rateLimit(`export:${user.id}`, 30, 60 * 60 * 1000)
+  const limited = await rateLimit(`export:${user.id}`, 30, 60 * 60 * 1000)
   if (limited) return limited
   // The client also sends `icon` (an emoji), but Helvetica — the base font
   // used here — has no emoji glyphs, so it's intentionally not rendered.

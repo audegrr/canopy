@@ -33,7 +33,7 @@ export async function POST(req: Request) {
   if (positionUpdates.length > 500 || positionUpdates.some(item => !isUuid(item.id) || typeof item.position !== 'number' || !Number.isFinite(item.position))) {
     return NextResponse.json({ error: 'Invalid position updates' }, { status: 400 })
   }
-  const limited = rateLimit(`move:${user.id}`, 120, 60 * 1000)
+  const limited = await rateLimit(`move:${user.id}`, 120, 60 * 1000)
   if (limited) return limited
 
   // Fetch the page to know which workspace it belongs to
@@ -41,6 +41,21 @@ export async function POST(req: Request) {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
+  const { data: atomicDestination, error: atomicError } = await admin.rpc('move_page_tree_atomic', {
+    p_user_id: user.id,
+    p_page_id: pageId,
+    p_new_parent_id: newParentId ?? null,
+    p_target_workspace_id: targetWorkspaceId ?? null,
+    p_position_updates: positionUpdates,
+  })
+  if (!atomicError) return NextResponse.json({ ok: true, workspaceId: atomicDestination })
+  if (atomicError.code !== 'PGRST202' && !atomicError.message.includes('move_page_tree_atomic')) {
+    const conflict = atomicError.message.includes('descendant')
+    const denied = atomicError.code === '42501' || atomicError.message.includes('permission')
+    return NextResponse.json({ error: atomicError.message }, { status: conflict ? 409 : denied ? 403 : 400 })
+  }
+
+  // Compatibility fallback while migration 016 is not yet deployed.
   const { data: page } = await admin.from('pages').select('id, owner_id, workspace_id, link_permission').eq('id', pageId).single()
   if (!page) return NextResponse.json({ error: 'Page not found' }, { status: 404 })
 

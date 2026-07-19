@@ -17,7 +17,7 @@ export async function POST(req: Request) {
   const page_title = typeof body?.page_title === 'string' ? body.page_title.slice(0, 300) : ''
   const role = body?.role === 'edit' ? 'edit' : body?.role === 'view' ? 'view' : null
   if (!email || !isUuid(page_id) || !role) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
-  const limited = rateLimit(`share:${user.id}`, 20, 60 * 60 * 1000)
+  const limited = await rateLimit(`share:${user.id}`, 20, 60 * 60 * 1000)
   if (limited) return limited
 
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -55,16 +55,23 @@ export async function POST(req: Request) {
   // Only upgrade link_permission, never downgrade
   const permOrder: Record<string, number> = { none: 0, view: 1, edit: 2 }
   if ((permOrder[currentPerm] ?? 0) < (permOrder[linkPerm] ?? 0)) {
-    await admin.from('pages').update({ link_permission: linkPerm }).eq('id', page_id)
-    // Propagate to sub-pages
-    const { data: subIds } = await admin.rpc('get_all_subpage_ids', { page_id })
-    if (subIds?.length) {
-      for (const row of subIds) {
-        const { data: sub } = await admin.from('pages').select('link_permission').eq('id', row.id).single()
-        if (sub && (permOrder[sub.link_permission] ?? 0) < (permOrder[linkPerm] ?? 0)) {
-          await admin.from('pages').update({ link_permission: linkPerm }).eq('id', row.id)
+    const { error: atomicError } = await admin.rpc('set_page_link_permission_atomic', {
+      p_user_id: user.id, p_page_id: page_id, p_permission: linkPerm, p_only_upgrade: true,
+    })
+    if (atomicError?.code === 'PGRST202' || atomicError?.message.includes('set_page_link_permission_atomic')) {
+      const { error } = await admin.from('pages').update({ link_permission: linkPerm }).eq('id', page_id)
+      if (error) return NextResponse.json({ error: 'Unable to update link permission' }, { status: 500 })
+      const { data: subIds } = await admin.rpc('get_all_subpage_ids', { page_id })
+      if (subIds?.length) {
+        for (const row of subIds) {
+          const { data: sub } = await admin.from('pages').select('link_permission').eq('id', row.id).single()
+          if (sub && (permOrder[sub.link_permission] ?? 0) < (permOrder[linkPerm] ?? 0)) {
+            await admin.from('pages').update({ link_permission: linkPerm }).eq('id', row.id)
+          }
         }
       }
+    } else if (atomicError) {
+      return NextResponse.json({ error: atomicError.message }, { status: atomicError.code === '42501' ? 403 : 500 })
     }
   }
 

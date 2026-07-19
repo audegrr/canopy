@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   const serverClient = await createServerClient()
   const { data: { user } } = await serverClient.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const limited = rateLimit(`page-data:${user.id}`, 300, 60 * 1000)
+  const limited = await rateLimit(`page-data:${user.id}`, 300, 60 * 1000)
   if (limited) return limited
 
   const admin = createAdminClient(

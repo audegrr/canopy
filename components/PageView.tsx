@@ -690,12 +690,16 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   }
 
   async function updateLinkPerm(perm: string) {
-    await supabase.from('pages').update({ link_permission: perm }).eq('id', page.id)
-    setPage(p => ({ ...p, link_permission: perm }) as Page)
-    const { data: subIds } = await supabase.rpc('get_all_subpage_ids', { page_id: page.id })
-    if (subIds) for (const row of subIds) {
-      await supabase.from('pages').update({ link_permission: perm }).eq('id', row.id)
+    const response = await fetch('/api/page-link-permission', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ page_id: page.id, permission: perm }),
+    })
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}))
+      showToast(result.error || 'Unable to update link permission')
+      return
     }
+    setPage(p => ({ ...p, link_permission: perm }) as Page)
   }
 
   async function toggleLock() {
