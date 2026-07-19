@@ -17,8 +17,8 @@ export default function WorkspaceBackupSection({ workspace }: { workspace: Works
     if (error || !pages) { setMessage('Export failed. Please try again.'); setBusy(null); return }
     const pageIds = pages.map(page => page.id)
     const [{ data: fields }, { data: records }] = pageIds.length ? await Promise.all([
-      supabase.from('database_fields').select('*').in('page_id', pageIds).order('position'),
-      supabase.from('database_records').select('*').in('page_id', pageIds).order('position'),
+      supabase.from('db_fields').select('*').in('page_id', pageIds).order('position'),
+      supabase.from('db_records').select('*').in('page_id', pageIds).order('position'),
     ]) : [{ data: [] }, { data: [] }]
     const backup: WorkspaceBackup = {
       format: 'canopy-workspace', version: 1, exported_at: new Date().toISOString(),
@@ -49,7 +49,7 @@ export default function WorkspaceBackupSection({ workspace }: { workspace: Works
       }
       const fieldMap = new Map<string, string>()
       for (const field of backup.database_fields) {
-        const { data, error } = await supabase.from('database_fields').insert({ page_id: pageMap.get(field.page_source_id), name: field.name, type: field.type, options: field.options, relation_page_id: field.relation_page_source_id ? pageMap.get(field.relation_page_source_id) ?? null : null, rollup_relation: field.rollup_relation, rollup_field: field.rollup_field, rollup_fn: field.rollup_fn, position: field.position, hidden_from_viewers: field.hidden_from_viewers }).select('id').single()
+        const { data, error } = await supabase.from('db_fields').insert({ page_id: pageMap.get(field.page_source_id), name: field.name, type: field.type, options: field.options, relation_page_id: field.relation_page_source_id ? pageMap.get(field.relation_page_source_id) ?? null : null, rollup_relation: field.rollup_relation, rollup_field: field.rollup_field, rollup_fn: field.rollup_fn, position: field.position, hidden_from_viewers: field.hidden_from_viewers }).select('id').single()
         if (error || !data) throw new Error(error?.message || 'A database field could not be imported.')
         fieldMap.set(field.source_id, data.id)
       }
@@ -57,12 +57,12 @@ export default function WorkspaceBackupSection({ workspace }: { workspace: Works
         const patch: Record<string, string> = {}
         if (field.rollup_field_source_id && fieldMap.has(field.rollup_field_source_id)) patch.rollup_field_id = fieldMap.get(field.rollup_field_source_id)!
         if (field.relation_column_source_id && fieldMap.has(field.relation_column_source_id)) patch.relation_column_id = fieldMap.get(field.relation_column_source_id)!
-        if (Object.keys(patch).length) await supabase.from('database_fields').update(patch).eq('id', fieldMap.get(field.source_id))
+        if (Object.keys(patch).length) await supabase.from('db_fields').update(patch).eq('id', fieldMap.get(field.source_id))
       }
       if (backup.database_records.length) {
         const rows = backup.database_records.map(record => ({ page_id: pageMap.get(record.page_source_id), data: record.data, position: record.position }))
         for (let index = 0; index < rows.length; index += 500) {
-          const { error } = await supabase.from('database_records').insert(rows.slice(index, index + 500))
+          const { error } = await supabase.from('db_records').insert(rows.slice(index, index + 500))
           if (error) throw new Error(error.message)
         }
       }

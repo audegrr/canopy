@@ -50,6 +50,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const relatedFieldsRef = useRef<Record<string, DbField[]>>({})
   const supabase = useMemo(() => createClient(), [])
+  const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'live' | 'offline'>('connecting')
 
   async function loadData() {
     try {
@@ -100,6 +101,26 @@ export default function DatabaseView({ page, canEdit }: Props) {
 
   const loadDataEvent = useEffectEvent(() => loadData())
   useEffect(() => { loadDataEvent() }, [page.id])
+
+  useEffect(() => {
+    const channel = supabase.channel(`database:${page.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'db_records', filter: `page_id=eq.${page.id}` }, payload => {
+        if (payload.eventType === 'DELETE') setRecords(rows => rows.filter(row => row.id !== (payload.old as { id: string }).id))
+        else {
+          const row = payload.new as DbRecord
+          setRecords(rows => rows.some(item => item.id === row.id) ? rows.map(item => item.id === row.id ? row : item) : [...rows, row].sort((a, b) => a.position - b.position))
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'db_fields', filter: `page_id=eq.${page.id}` }, payload => {
+        if (payload.eventType === 'DELETE') setFields(items => items.filter(item => item.id !== (payload.old as { id: string }).id))
+        else {
+          const field = payload.new as DbField
+          setFields(items => items.some(item => item.id === field.id) ? items.map(item => item.id === field.id ? field : item) : [...items, field].sort((a, b) => a.position - b.position))
+        }
+      })
+      .subscribe(status => setRealtimeStatus(status === 'SUBSCRIBED' ? 'live' : status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' ? 'offline' : 'connecting'))
+    return () => { void supabase.removeChannel(channel) }
+  }, [page.id, supabase])
 
   async function addRecord() {
     const maxPos = records.reduce((m, r) => Math.max(m, r.position), 0)
@@ -545,9 +566,12 @@ export default function DatabaseView({ page, canEdit }: Props) {
             <button onClick={() => setDbSearch('')} style={{ position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 12, padding: '0 2px', lineHeight: 1 }}>✕</button>
           )}
         </div>
+        <span role="status" title="Realtime database synchronization" style={{ marginLeft: 'auto', fontSize: 11, color: realtimeStatus === 'live' ? 'var(--accent)' : realtimeStatus === 'offline' ? 'var(--red)' : 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
+          {realtimeStatus === 'live' ? '● Live' : realtimeStatus === 'offline' ? '○ Offline' : '◌ Connecting'}
+        </span>
         {canEdit && (
           <button onClick={() => setShowImport(true)} className="db-toolbar-import"
-            style={{ marginLeft: 'auto', background: 'none', color: 'var(--text-secondary)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 5, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+            style={{ background: 'none', color: 'var(--text-secondary)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 5, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
             ⬇️ Import
