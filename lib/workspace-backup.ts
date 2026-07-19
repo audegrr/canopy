@@ -5,6 +5,8 @@ export const MAX_BACKUP_BYTES = 15 * 1024 * 1024
 export const MAX_BACKUP_PAGES = 2_000
 export const MAX_BACKUP_FIELDS = 10_000
 export const MAX_BACKUP_RECORDS = 50_000
+export const MAX_BACKUP_COMMENTS = 50_000
+export const MAX_BACKUP_SNAPSHOTS = 20_000
 
 export type BackupPage = {
   source_id: string
@@ -42,6 +44,9 @@ export type BackupRecord = {
   position: number
 }
 
+export type BackupComment = { page_source_id: string; body: string; anchor_id: string | null; created_at: string }
+export type BackupSnapshot = { page_source_id: string; title: string; content: TiptapContent; created_at: string }
+
 export type WorkspaceBackup = {
   format: 'canopy-workspace'
   version: typeof WORKSPACE_BACKUP_VERSION
@@ -50,6 +55,9 @@ export type WorkspaceBackup = {
   pages: BackupPage[]
   database_fields: BackupField[]
   database_records: BackupRecord[]
+  comments: BackupComment[]
+  snapshots: BackupSnapshot[]
+  asset_urls: string[]
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -69,6 +77,10 @@ export function parseWorkspaceBackup(text: string): WorkspaceBackup {
   if (value.pages.length > MAX_BACKUP_PAGES || value.database_fields.length > MAX_BACKUP_FIELDS || value.database_records.length > MAX_BACKUP_RECORDS) {
     throw new Error('The backup contains too many items for a safe import.')
   }
+  const comments = Array.isArray(value.comments) ? value.comments : []
+  const snapshots = Array.isArray(value.snapshots) ? value.snapshots : []
+  const assetUrls = Array.isArray(value.asset_urls) ? value.asset_urls : []
+  if (comments.length > MAX_BACKUP_COMMENTS || snapshots.length > MAX_BACKUP_SNAPSHOTS || assetUrls.length > 20_000) throw new Error('The backup contains too many supplemental items for a safe import.')
   const pages = value.pages as unknown[]
   const ids = new Set<string>()
   for (const page of pages) {
@@ -92,7 +104,25 @@ export function parseWorkspaceBackup(text: string): WorkspaceBackup {
       throw new Error('The backup contains an invalid database record.')
     }
   }
-  return value as WorkspaceBackup
+  for (const comment of comments) {
+    if (!isObject(comment) || typeof comment.page_source_id !== 'string' || !ids.has(comment.page_source_id) || typeof comment.body !== 'string') throw new Error('The backup contains an invalid comment.')
+  }
+  for (const snapshot of snapshots) {
+    if (!isObject(snapshot) || typeof snapshot.page_source_id !== 'string' || !ids.has(snapshot.page_source_id) || typeof snapshot.title !== 'string') throw new Error('The backup contains an invalid snapshot.')
+  }
+  if (!assetUrls.every(url => typeof url === 'string' && /^https?:\/\//.test(url))) throw new Error('The backup contains an invalid asset URL.')
+  return { ...value, comments, snapshots, asset_urls: assetUrls } as WorkspaceBackup
+}
+
+export function collectAssetUrls(value: unknown): string[] {
+  const urls = new Set<string>()
+  function visit(item: unknown) {
+    if (typeof item === 'string' && /^https?:\/\//.test(item)) urls.add(item)
+    else if (Array.isArray(item)) item.forEach(visit)
+    else if (isObject(item)) Object.values(item).forEach(visit)
+  }
+  visit(value)
+  return [...urls].sort()
 }
 
 export function backupFilename(name: string, date = new Date()): string {

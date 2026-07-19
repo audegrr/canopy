@@ -5,9 +5,9 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
-import { createLowlight, all as allLangs } from 'lowlight'
+import { createLowlight, common as commonLanguages } from 'lowlight'
 
-const lowlight = createLowlight(allLangs)
+const lowlight = createLowlight(commonLanguages)
 
 function flattenHast(node: any, inherited: string[] = []): { text: string; classes: string[] }[] {
   const out: { text: string; classes: string[] }[] = []
@@ -272,4 +272,3 @@ export const CustomCodeBlock = Node.create({
   addProseMirrorPlugins() { return [lowlightPlugin] },
   addNodeView() { return ReactNodeViewRenderer(CodeBlockComponent) },
 })
-

@@ -18,6 +18,7 @@ import { Icon } from './Icons'
 import WorkspaceBackupSection from './WorkspaceBackupSection'
 import TrashPanel from './TrashPanel'
 import PageRow from './PageRow'
+import { clearOfflinePages } from '@/lib/offline-page-cache'
 
 type Props = {
   user: User
@@ -856,12 +857,13 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     showToastMsg('Profile saved!')
   }
 
-  async function handleSignOut() { await supabase.auth.signOut(); router.push('/login') }
+  async function handleSignOut() { clearOfflinePages(user.id); await supabase.auth.signOut(); router.push('/login') }
 
   async function handleDeleteAccount() {
     // Delete all user data then sign out
     await supabase.from('pages').delete().eq('owner_id', user.id)
     await supabase.from('workspaces').delete().eq('owner_id', user.id)
+    clearOfflinePages(user.id)
     await supabase.auth.signOut()
     router.push('/login')
   }

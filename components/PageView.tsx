@@ -1,7 +1,7 @@
 'use client'
 /* eslint-disable @next/next/no-img-element -- Page covers, avatars, and uploads can be dynamic blob or remote URLs. */
 import { useState, useRef, useEffect, useEffectEvent, useMemo, ChangeEvent } from 'react'
-import { mdToTiptap } from '@/lib/mdToTiptap'
+import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -16,13 +16,18 @@ import { findFirstDifferingBlock, formatRelativeTime, nodesToMarkdown, tiptapToP
 import { downloadXlsx } from '@/lib/spreadsheet-xlsx'
 import { CoverGallery, CoverReposition, parseCoverPos } from './PageCoverControls'
 import { queueOfflineSave, readOfflineSaves, removeOfflineSave } from '@/lib/offline-save-queue'
-import VersionHistoryPanel, { type PageSnapshot } from './VersionHistoryPanel'
-import BacklinksPanel, { type Backlink } from './BacklinksPanel'
-import CommentsPanel, { type PageComment } from './CommentsPanel'
+import { cachePageForOffline } from '@/lib/offline-page-cache'
+import type { PageSnapshot } from './VersionHistoryPanel'
+import type { Backlink } from './BacklinksPanel'
+import type { PageComment } from './CommentsPanel'
+
+const VersionHistoryPanel = dynamic(() => import('./VersionHistoryPanel'))
+const BacklinksPanel = dynamic(() => import('./BacklinksPanel'))
+const CommentsPanel = dynamic(() => import('./CommentsPanel'))
 
 declare global {
   interface Window {
-    __pageCache: Map<string, { page: Page; canEdit: boolean; isOwner: boolean; isWorkspaceMember?: boolean; userId: string }> | undefined
+    __pageCache: Map<string, { page: Page; canEdit: boolean; isOwner: boolean; isWorkspaceMember: boolean; userId: string }> | undefined
   }
 }
 
@@ -538,6 +543,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
       const contentStr = JSON.stringify(pending.content ?? updates.content)
       if (pending.content ?? updates.content) savedContents.current.add(contentStr)
       const persisted = { ...pending, updated_at: ts }
+      const cachedPage = { ...page, ...persisted } as Page
+      if (userId && !isPublicShare) cachePageForOffline({ page: cachedPage, canEdit, isOwner, isWorkspaceMember, userId })
       const { error: saveError } = await supabase.from('pages').update(persisted).eq('id', page.id)
       if (saveError) {
         queueOfflineSave({ pageId: page.id, workspaceId: page.workspace_id, updates: persisted, queuedAt: ts })
@@ -557,7 +564,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
       const savedTitle = pending.title ?? updates.title
       if (savedTitle) baselineTitleRef.current = savedTitle
       // Update page state after save (not on every keystroke) to reduce re-renders
-      setPage(p => ({ ...p, ...(updates.content ? { content: updates.content } : {}), updated_at: ts }))
+      setPage(p => ({ ...p, ...persisted }))
       // Save a snapshot every 10 edits (silently ignore if table doesn't exist)
       saveCountRef.current += 1
       if (saveCountRef.current % 10 === 0) {
@@ -907,6 +914,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
     if (!file) return
     e.target.value = ''
     const text = await file.text()
+    const { mdToTiptap } = await import('@/lib/mdToTiptap')
     const doc = mdToTiptap(text)
     if (editorRef.current && doc.content.length > 0) {
       const pos = editorRef.current.state.selection.to

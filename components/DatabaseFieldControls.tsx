@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { DbField } from '@/lib/types'
 
@@ -10,7 +10,19 @@ const ctrlSt: React.CSSProperties = { padding: '4px 8px', border: '1px solid var
 
 const FIELD_TYPES_LIST: DbField['type'][] = ['text','number','select','multiselect','date','checkbox','relation','rollup','url','email','phone']
 
-export function SelectEditor({ field, currentValue, onSelect, onAddOption, onDeleteOption, onUpdateOptionColor, onClose, cellRect }: any) {
+type SelectOption = string | { label: string; color?: string }
+type SelectEditorProps = {
+  field: DbField
+  currentValue: string
+  onSelect: (value: string) => void
+  onAddOption: (label: string, color: string) => void
+  onDeleteOption: (label: string) => void
+  onUpdateOptionColor: (label: string, color: string) => void
+  onClose: () => void
+  cellRect?: DOMRect | null
+}
+
+export function SelectEditor({ field, currentValue, onSelect, onAddOption, onDeleteOption, onUpdateOptionColor, onClose, cellRect }: SelectEditorProps) {
   const [newLabel, setNewLabel] = useState('')
   const [colorFor, setColorFor] = useState<string | null>(null)
   const [newColor, setNewColor] = useState(SELECT_COLORS[0])
@@ -39,9 +51,9 @@ export function SelectEditor({ field, currentValue, onSelect, onAddOption, onDel
           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
           — Clear
         </div>
-        {(field.options || []).map((opt: any) => {
-          const label = opt.label || opt
-          const color = opt.color || '#e9e9e7'
+        {(field.options as SelectOption[] || []).map(opt => {
+          const label = typeof opt === 'string' ? opt : opt.label
+          const color = typeof opt === 'string' ? '#e9e9e7' : opt.color || '#e9e9e7'
           return (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 4px', borderRadius: 4, cursor: 'pointer' }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
@@ -166,7 +178,7 @@ export function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelat
   )
 }
 
-function MItem({ onClick, children, extra, active, danger }: any) {
+function MItem({ onClick, children, extra, active, danger }: { onClick: () => void; children: ReactNode; extra?: ReactNode; active?: boolean; danger?: boolean }) {
   return (
     <div onClick={onClick}
       style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, padding: '5px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: danger ? 'var(--red)' : active ? 'var(--accent)' : 'var(--text)', fontWeight: active ? 500 : 400 }}
@@ -196,4 +208,3 @@ export function RelationPagePicker({ value, onChange }: { value: string; onChang
     </div>
   )
 }
-

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { backupFilename, parseWorkspaceBackup, type WorkspaceBackup } from '@/lib/workspace-backup'
+import { backupFilename, collectAssetUrls, parseWorkspaceBackup, type WorkspaceBackup } from '@/lib/workspace-backup'
 import type { Workspace } from '@/lib/types'
 
 export default function WorkspaceBackupSection({ workspace }: { workspace: Workspace }) {
@@ -16,16 +16,21 @@ export default function WorkspaceBackupSection({ workspace }: { workspace: Works
     const { data: pages, error } = await supabase.from('pages').select('*').eq('workspace_id', workspace.id).is('deleted_at', null).order('position')
     if (error || !pages) { setMessage('Export failed. Please try again.'); setBusy(null); return }
     const pageIds = pages.map(page => page.id)
-    const [{ data: fields }, { data: records }] = pageIds.length ? await Promise.all([
+    const [{ data: fields }, { data: records }, { data: comments }, { data: snapshots }] = pageIds.length ? await Promise.all([
       supabase.from('db_fields').select('*').in('page_id', pageIds).order('position'),
       supabase.from('db_records').select('*').in('page_id', pageIds).order('position'),
-    ]) : [{ data: [] }, { data: [] }]
+      supabase.from('page_comments').select('page_id, body, anchor_id, created_at').in('page_id', pageIds).order('created_at'),
+      supabase.from('page_snapshots').select('page_id, title, content, created_at').in('page_id', pageIds).order('created_at'),
+    ]) : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }]
     const backup: WorkspaceBackup = {
       format: 'canopy-workspace', version: 1, exported_at: new Date().toISOString(),
       workspace: { name: workspace.name, icon: workspace.icon, accent_color: workspace.accent_color ?? null },
       pages: pages.map(page => ({ source_id: page.id, parent_source_id: page.parent_id, title: page.title || '', icon: page.icon || '', cover_url: page.cover_url || '', cover_position: page.cover_position ?? null, toc_max_level: page.toc_max_level ?? null, content: page.content || [], position: page.position || 0, is_database: !!page.is_database, is_locked: !!page.is_locked })),
       database_fields: (fields || []).map(field => ({ source_id: field.id, page_source_id: field.page_id, name: field.name, type: field.type, options: field.options || [], relation_page_source_id: field.relation_page_id, rollup_field_source_id: field.rollup_field_id, rollup_relation: field.rollup_relation, rollup_field: field.rollup_field, rollup_fn: field.rollup_fn, relation_column_source_id: field.relation_column_id, position: field.position || 0, hidden_from_viewers: !!field.hidden_from_viewers })),
       database_records: (records || []).map(record => ({ page_source_id: record.page_id, data: record.data || {}, position: record.position || 0 })),
+      comments: (comments || []).map(comment => ({ page_source_id: comment.page_id, body: comment.body, anchor_id: comment.anchor_id ?? null, created_at: comment.created_at })),
+      snapshots: (snapshots || []).map(snapshot => ({ page_source_id: snapshot.page_id, title: snapshot.title || '', content: snapshot.content || [], created_at: snapshot.created_at })),
+      asset_urls: collectAssetUrls(pages.map(page => ({ cover_url: page.cover_url, content: page.content }))),
     }
     const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' }))
     const link = document.createElement('a'); link.href = url; link.download = backupFilename(workspace.name); link.click(); URL.revokeObjectURL(url)
@@ -66,6 +71,21 @@ export default function WorkspaceBackupSection({ workspace }: { workspace: Works
           if (error) throw new Error(error.message)
         }
       }
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user && backup.comments.length) {
+        const rows = backup.comments.map(comment => ({ page_id: pageMap.get(comment.page_source_id), user_id: user.id, body: comment.body, anchor_id: comment.anchor_id }))
+        for (let index = 0; index < rows.length; index += 500) {
+          const { error } = await supabase.from('page_comments').insert(rows.slice(index, index + 500))
+          if (error) throw new Error(error.message)
+        }
+      }
+      if (user && backup.snapshots.length) {
+        const rows = backup.snapshots.map(snapshot => ({ page_id: pageMap.get(snapshot.page_source_id), saved_by: user.id, title: snapshot.title, content: snapshot.content }))
+        for (let index = 0; index < rows.length; index += 500) {
+          const { error } = await supabase.from('page_snapshots').insert(rows.slice(index, index + 500))
+          if (error) throw new Error(error.message)
+        }
+      }
       setMessage(`${backup.pages.length} page${backup.pages.length === 1 ? '' : 's'} imported. Reloading…`)
       window.setTimeout(() => window.location.reload(), 700)
     } catch (error) {
@@ -76,7 +96,7 @@ export default function WorkspaceBackupSection({ workspace }: { workspace: Works
 
   return <div style={{ marginTop: 22, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Portable backup</div>
-    <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 10 }}>Export pages and databases to a local JSON file, or add content from a previous Canopy backup. Existing content is never replaced.</div>
+    <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 10 }}>Export pages, databases, comments, version history and attachment links to a local JSON file. Existing content is never replaced.</div>
     <input ref={inputRef} type="file" accept="application/json,.json" hidden onChange={event => { const file = event.target.files?.[0]; if (file) void importWorkspace(file) }} />
     <div style={{ display: 'flex', gap: 8 }}>
       <button disabled={busy !== null} onClick={() => void exportWorkspace()} style={buttonStyle}>{busy === 'export' ? 'Exporting…' : 'Export workspace'}</button>

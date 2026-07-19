@@ -4,14 +4,17 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import PageView from '@/components/PageView'
 import Image from 'next/image'
+import { cachePageForOffline, getCachedPage, type CachedPageAccess } from '@/lib/offline-page-cache'
+import type { Page } from '@/lib/types'
 
 // Module-level cache — persists across navigations
-const cache = new Map<string, any>()
+const cache = new Map<string, CachedPageAccess>()
+type WorkspaceMembership = { workspace_id: string; role: string }
 
 // Pre-warm cache on hover
 if (typeof window !== 'undefined') {
-  window.addEventListener('canopy:prewarm', async (e: any) => {
-    const pid = e.detail?.pageId
+  window.addEventListener('canopy:prewarm', async event => {
+    const pid = (event as CustomEvent<{ pageId?: string }>).detail?.pageId
     if (!pid || cache.has(pid)) return
     try {
       const { createClient } = await import('@/lib/supabase/client')
@@ -31,14 +34,14 @@ if (typeof window !== 'undefined') {
         || isWsOwner
         || share?.permission === 'edit'
         || page.link_permission === 'edit'
-        || (wsMem || []).some((m: any) => m.workspace_id === page.workspace_id && ['owner','member'].includes(m.role))
-      const isMember = (wsMem || []).some((m: any) => m.workspace_id === page.workspace_id)
+        || (wsMem || []).some((m: WorkspaceMembership) => m.workspace_id === page.workspace_id && ['owner','member'].includes(m.role))
+      const isMember = (wsMem || []).some((m: WorkspaceMembership) => m.workspace_id === page.workspace_id)
       const isWorkspaceMember = isWsOwner || isMember
       const result = { page, canEdit, isOwner, isWorkspaceMember, userId: user.id }
       cache.set(pid, result)
       // Also sync to window.__pageCache so instant navigation uses correct permissions
-      ;(window as any).__pageCache = (window as any).__pageCache || new Map()
-      ;(window as any).__pageCache.set(pid, result)
+      window.__pageCache = window.__pageCache || new Map()
+      window.__pageCache.set(pid, result)
     } catch {}
   })
 }
@@ -48,7 +51,7 @@ export default function PageRoute() {
   const id = params?.id as string
   const router = useRouter()
   const [state, setState] = useState<{
-    page: any; canEdit: boolean; isOwner: boolean; isWorkspaceMember: boolean; userId: string
+    page: Page; canEdit: boolean; isOwner: boolean; isWorkspaceMember: boolean; userId: string
   } | null>(null)
   const [error, setError] = useState(false)
 
@@ -63,7 +66,7 @@ export default function PageRoute() {
     setState(null)
     setError(false)
     // Show page content instantly from window cache (canEdit=false until load() resolves)
-    const winCache = (window as any).__pageCache?.get(id)
+    const winCache = window.__pageCache?.get(id)
     if (winCache) setState(winCache)
 
     const supabase = createClient()
@@ -71,6 +74,10 @@ export default function PageRoute() {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
+      if (!navigator.onLine) {
+        const offline = getCachedPage(user.id, id)
+        if (offline) { setState(offline); document.title = (offline.page.title || 'Untitled') + ' — Canopy (offline)'; return }
+      }
 
       const [{ data: page }, { data: share }, { data: wsMember }] = await Promise.all([
         supabase.from('pages').select('*').eq('id', id).single(),
@@ -88,8 +95,9 @@ export default function PageRoute() {
           const data = await res.json()
           const result = { page: data.page, canEdit: data.canEdit, isOwner: data.isOwner, isWorkspaceMember: data.isWorkspaceMember, userId: data.userId }
           cache.set(id, result)
-          ;(window as any).__pageCache = (window as any).__pageCache || new Map()
-          ;(window as any).__pageCache.set(id, result)
+          window.__pageCache = window.__pageCache || new Map()
+          window.__pageCache.set(id, result)
+          cachePageForOffline(result as CachedPageAccess)
           setState(result)
           document.title = (data.page.title || 'Untitled') + ' — Canopy'
           return
@@ -109,7 +117,7 @@ export default function PageRoute() {
         .eq('id', resolvedPage.workspace_id).eq('owner_id', user.id).single()
       const isWsOwner = !!ownedWorkspace
 
-      const isMember = (wsMember || []).some((m: any) => m.workspace_id === resolvedPage.workspace_id)
+      const isMember = (wsMember || []).some((m: WorkspaceMembership) => m.workspace_id === resolvedPage.workspace_id)
       const canView = isOwner || isWsOwner || !!share || resolvedPage.link_permission !== 'none' || isMember
       if (!canView) { setError(true); return }
 
@@ -117,13 +125,14 @@ export default function PageRoute() {
         || isWsOwner
         || share?.permission === 'edit'
         || resolvedPage.link_permission === 'edit'
-        || (wsMember || []).some((m: any) => m.workspace_id === resolvedPage.workspace_id && ['owner','member'].includes(m.role))
+        || (wsMember || []).some((m: WorkspaceMembership) => m.workspace_id === resolvedPage.workspace_id && ['owner','member'].includes(m.role))
       const isWorkspaceMember = isWsOwner || isMember
       const result = { page: resolvedPage, canEdit, isOwner, isWorkspaceMember, userId: user.id }
       cache.set(id, result)
       // Keep window.__pageCache in sync so future instant navigations use real permissions
-      ;(window as any).__pageCache = (window as any).__pageCache || new Map()
-      ;(window as any).__pageCache.set(id, result)
+      window.__pageCache = window.__pageCache || new Map()
+      window.__pageCache.set(id, result)
+      cachePageForOffline(result as CachedPageAccess)
       setState(result)
       document.title = (resolvedPage.title || 'Untitled') + ' — Canopy'
     }

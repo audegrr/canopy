@@ -48,6 +48,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const [showImport, setShowImport] = useState(false)
   const [dbSearch, setDbSearch] = useState('')
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
+  const [visibleRowLimit, setVisibleRowLimit] = useState(200)
   const relatedFieldsRef = useRef<Record<string, DbField[]>>({})
   const supabase = useMemo(() => createClient(), [])
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'live' | 'offline'>('connecting')
@@ -291,6 +292,9 @@ export default function DatabaseView({ page, canEdit }: Props) {
       return sort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
     })
   }
+  const tableRecords = displayRecords.slice(0, visibleRowLimit)
+
+  useEffect(() => { setVisibleRowLimit(200) }, [page.id, dbSearch, filters, sort.field, sort.dir])
 
   // Viewers can't see fields marked hidden_from_viewers
   const visibleFields = canEdit ? fields : fields.filter(f => !f.hidden_from_viewers)
@@ -645,11 +649,11 @@ export default function DatabaseView({ page, canEdit }: Props) {
                         onDragEnd={() => { setDragColIdx(null); setDragOverColIdx(null) }}>
                         {/* Drop indicator left edge — when dropping before this col */}
                         {dragColIdx !== null && dragOverColIdx === colIdx && colIdx > 0 && dragColIdx !== colIdx && dragColIdx !== colIdx - 1 && (
-                          <div style={{ position: 'absolute', left: -1, top: 0, height: `${41 + displayRecords.length * 41}px`, width: 2, background: 'var(--accent)', zIndex: 10, pointerEvents: 'none', boxShadow: '0 0 4px var(--accent)' }} />
+                          <div style={{ position: 'absolute', left: -1, top: 0, height: `${41 + tableRecords.length * 41}px`, width: 2, background: 'var(--accent)', zIndex: 10, pointerEvents: 'none', boxShadow: '0 0 4px var(--accent)' }} />
                         )}
                         {/* Drop indicator right edge — when this is the last col and dropping after it */}
                         {dragColIdx !== null && dragOverColIdx === colIdx && colIdx === fields.length - 1 && dragColIdx !== colIdx && (
-                          <div style={{ position: 'absolute', right: -1, top: 0, height: `${41 + displayRecords.length * 41}px`, width: 2, background: 'var(--accent)', zIndex: 10, pointerEvents: 'none', boxShadow: '0 0 4px var(--accent)' }} />
+                          <div style={{ position: 'absolute', right: -1, top: 0, height: `${41 + tableRecords.length * 41}px`, width: 2, background: 'var(--accent)', zIndex: 10, pointerEvents: 'none', boxShadow: '0 0 4px var(--accent)' }} />
                         )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', fontWeight: 500, minWidth: '16px', textAlign: 'center', flexShrink: 0 }}>{FIELD_ICONS[f.type]}</span>
@@ -685,7 +689,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {displayRecords.map(rec => (
+                  {tableRecords.map(rec => (
                     <tr key={rec.id} style={{ background: selectedRows.has(rec.id) ? 'var(--accent-light)' : undefined }}>
                       <td data-export-hide style={{ width: 48, minWidth: 48, padding: 0, position: 'sticky', left: 0, background: selectedRows.has(rec.id) ? 'var(--accent-light)' : 'var(--surface)', borderRight: '1px solid var(--border)', textAlign: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
@@ -729,6 +733,9 @@ export default function DatabaseView({ page, canEdit }: Props) {
                 </tbody>
               </table>
             </div>
+            {tableRecords.length < displayRecords.length && <button type="button" onClick={() => setVisibleRowLimit(limit => limit + 200)} style={{ width: '100%', padding: '8px 16px', border: 0, borderTop: '1px solid var(--border)', background: 'var(--sidebar-bg)', color: 'var(--accent)', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: 12 }}>
+              Show 200 more · {tableRecords.length} of {displayRecords.length}
+            </button>}
             {/* + New record at bottom */}
             {canEdit && (
               <button data-export-hide onClick={addRecord}
