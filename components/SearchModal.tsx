@@ -10,6 +10,8 @@ type Result = {
   is_database: boolean
   match_in: 'title' | 'content'
   snippet: string
+  updated_at?: string
+  relevance?: number
 }
 
 type Props = {
@@ -23,6 +25,8 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
   const [results, setResults] = useState<Result[]>([])
   const [selected, setSelected] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [kind, setKind] = useState<'all' | 'page' | 'database'>('all')
+  const [period, setPeriod] = useState<'all' | 'week' | 'month'>('all')
   const inputRef = useRef<HTMLInputElement>(null)
   const dialogRef = useAccessibleDialog(true, onClose, inputRef)
   const supabase = useMemo(() => createClient(), [])
@@ -47,9 +51,12 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
         return
       }
       // Full-text search across title + content
-      const { data, error } = await supabase.rpc('search_pages_fts', {
+      const changedAfter = period === 'all' ? null : new Date(Date.now() - (period === 'week' ? 7 : 30) * 86_400_000).toISOString()
+      const { data, error } = await supabase.rpc('search_pages_advanced', {
         ws_id: workspaceId,
         q,
+        page_kind: kind,
+        changed_after: changedAfter,
       })
       if (error) {
         // Graceful fallback to title-only
@@ -68,7 +75,7 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
       setLoading(false)
     }, 220)
     return () => clearTimeout(timer)
-  }, [query, workspaceId, supabase])
+  }, [query, workspaceId, supabase, kind, period])
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === 'ArrowDown') { e.preventDefault(); setSelected(s => Math.min(s + 1, results.length - 1)) }
@@ -112,6 +119,15 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
             ? <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>…</span>
             : <kbd style={{ fontSize: 11, background: 'var(--sidebar-bg)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 6px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', flexShrink: 0 }}>Esc</kbd>
           }
+        </div>
+
+        <div style={{ display: 'flex', gap: 6, padding: '7px 16px', borderBottom: '1px solid var(--border)', background: 'var(--sidebar-bg)' }}>
+          <select aria-label="Content type" value={kind} onChange={event => setKind(event.target.value as typeof kind)} style={filterStyle}>
+            <option value="all">All content</option><option value="page">Pages</option><option value="database">Databases</option>
+          </select>
+          <select aria-label="Last updated" value={period} onChange={event => setPeriod(event.target.value as typeof period)} style={filterStyle}>
+            <option value="all">Any time</option><option value="week">Past week</option><option value="month">Past month</option>
+          </select>
         </div>
 
         {/* Results */}
@@ -162,3 +178,5 @@ export default function SearchModal({ workspaceId, onNavigate, onClose }: Props)
     </>
   )
 }
+
+const filterStyle: React.CSSProperties = { border: '1px solid var(--border)', borderRadius: 5, background: 'var(--surface)', color: 'var(--text-secondary)', padding: '3px 7px', fontSize: 11, fontFamily: 'var(--font-sans)' }

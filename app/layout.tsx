@@ -8,6 +8,7 @@ import {
 } from 'next/font/google'
 import './globals.css'
 import RegisterSW from '@/components/RegisterSW'
+import WebVitals from '@/components/WebVitals'
 
 // ── Heading (serif) font choices ──
 const newsreader = Newsreader({
@@ -179,6 +180,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={fontVariables}>
       <body>
         {children}
+        <WebVitals />
         <RegisterSW />
       </body>
     </html>

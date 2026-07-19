@@ -74,6 +74,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   const myPresenceRef = useRef<{ name: string; color: string; section: string; avatarUrl?: string }>({ name: 'User', color: '#999', section: '' })
   const [historyOpen, setHistoryOpen] = useState(false)
   const [snapshots, setSnapshots] = useState<{ id: string; title: string; content: any; created_at: string }[]>([])
+  const [previewSnapshotId, setPreviewSnapshotId] = useState<string | null>(null)
   const [snapshotLoading, setSnapshotLoading] = useState(false)
   const [backlinksOpen, setBacklinksOpen] = useState(false)
   const [backlinks, setBacklinks] = useState<{ id: string; title: string; icon: string }[]>([])
@@ -1547,12 +1548,24 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
                 <div key={snap.id} style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{snap.title || 'Untitled'}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{new Date(snap.created_at).toLocaleString()}</div>
+                  {previewSnapshotId === snap.id && (
+                    <div style={{ marginTop: 5, display: 'grid', gap: 6, fontSize: 11 }}>
+                      <div><strong>Saved version</strong><div style={historyPreviewStyle}>{tiptapToPlainText(snap.content)}</div></div>
+                      <div><strong>Current version</strong><div style={historyPreviewStyle}>{tiptapToPlainText(page.content)}</div></div>
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 5, marginTop: 4 }}>
+                  <button onClick={() => setPreviewSnapshotId(id => id === snap.id ? null : snap.id)}
+                    style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)' }}>
+                    {previewSnapshotId === snap.id ? 'Hide comparison' : 'Compare'}
+                  </button>
                   <button onClick={() => restoreSnapshot(snap)}
                     style={{ marginTop: 4, background: 'var(--accent-light)', border: 'none', borderRadius: 5, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: 'var(--accent)', fontFamily: 'var(--font-sans)', fontWeight: 500, alignSelf: 'flex-start' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent)'; (e.currentTarget as HTMLElement).style.color = '#fff' }}
                     onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}>
                     Restore this version
                   </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -1974,6 +1987,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
     </div>
   )
 }
+
+const historyPreviewStyle: React.CSSProperties = { marginTop: 2, maxHeight: 86, overflow: 'auto', whiteSpace: 'pre-wrap', border: '1px solid var(--border)', borderRadius: 4, padding: 6, color: 'var(--text-secondary)', background: 'var(--sidebar-bg)', lineHeight: 1.4 }
 
 function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, isDatabase }: { onPDF: () => void; onWord: () => void; onCSV?: () => void; onXLSX?: () => void; onMarkdown?: () => void; onPresentation?: () => void; isDatabase?: boolean }) {
   const [open, setOpen] = useState(false)

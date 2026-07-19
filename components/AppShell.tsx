@@ -15,6 +15,7 @@ import { useFontPrefs, HEADING_FONTS, BODY_FONTS, type HeadingFont, type BodyFon
 import { exportPageAsPDF, exportPageAsWord, exportPageAsCSV } from '@/lib/export'
 import EmojiPicker, { COMMON_EMOJIS } from './EmojiPicker'
 import { Icon } from './Icons'
+import WorkspaceBackupSection from './WorkspaceBackupSection'
 
 type Props = {
   user: User
@@ -583,6 +584,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
   async function loadTrash() {
     setTrashLoading(true)
+    await fetch('/api/trash/maintenance', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ workspace_id: currentWs.id }) }).catch(() => null)
     const { data } = await supabase
       .from('pages')
       .select('id, title, icon, deleted_at, workspace_id, parent_id, is_database, owner_id, position, cover_url, link_permission, created_at, updated_at')
@@ -1237,7 +1239,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               {trashLoading ? (
                 <div style={{ padding: '12px 14px', fontSize: '12px', color: 'var(--text-tertiary)' }}>Loading…</div>
               ) : trashedPages.length === 0 ? (
-                <div style={{ padding: '16px 14px', fontSize: '12px', color: 'var(--text-tertiary)', textAlign: 'center' }}>Trash is empty</div>
+                <div style={{ padding: '16px 14px', fontSize: '12px', color: 'var(--text-tertiary)', textAlign: 'center' }}>Trash is empty · items expire after 30 days</div>
               ) : (
                 <>
                   <div style={{ padding: '6px 14px', display: 'flex', justifyContent: 'flex-end' }}>
@@ -2470,6 +2472,7 @@ function WsSettingsModal({ workspace, tab, members, pendingInvites, owner, invit
                   </button>
                 )}
               </div>
+              <WorkspaceBackupSection workspace={workspace} />
             </div>
           )}
           {tab === 'danger' && (

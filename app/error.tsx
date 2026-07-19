@@ -9,6 +9,7 @@ export default function ErrorPage({ error, unstable_retry }: {
 }) {
   useEffect(() => {
     console.error('Unexpected application error', error)
+    navigator.sendBeacon('/api/telemetry/client-error', new Blob([JSON.stringify({ message: error.message, digest: error.digest, path: location.pathname })], { type: 'application/json' }))
   }, [error])
 
   return (
