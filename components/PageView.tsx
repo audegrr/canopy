@@ -16,6 +16,7 @@ import { findFirstDifferingBlock, formatRelativeTime, nodesToMarkdown, tiptapToP
 import { downloadXlsx } from '@/lib/spreadsheet-xlsx'
 import { CoverGallery, CoverReposition, parseCoverPos } from './PageCoverControls'
 import { queueOfflineSave, readOfflineSaves, removeOfflineSave } from '@/lib/offline-save-queue'
+import VersionHistoryPanel, { type PageSnapshot } from './VersionHistoryPanel'
 
 declare global {
   interface Window {
@@ -75,8 +76,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   const presenceChannelRef = useRef<any>(null)
   const myPresenceRef = useRef<{ name: string; color: string; section: string; avatarUrl?: string }>({ name: 'User', color: '#999', section: '' })
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [snapshots, setSnapshots] = useState<{ id: string; title: string; content: any; created_at: string }[]>([])
-  const [previewSnapshotId, setPreviewSnapshotId] = useState<string | null>(null)
+  const [snapshots, setSnapshots] = useState<PageSnapshot[]>([])
   const [snapshotLoading, setSnapshotLoading] = useState(false)
   const [backlinksOpen, setBacklinksOpen] = useState(false)
   const [backlinks, setBacklinks] = useState<{ id: string; title: string; icon: string }[]>([])
@@ -1087,7 +1087,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
     setComments(c => c.filter(x => x.id !== id))
   }
 
-  function restoreSnapshot(snap: { content: any; title: string }) {
+  function restoreSnapshot(snap: PageSnapshot) {
     editorRef.current?.commands.setContent(snap.content)
     setPage(p => ({ ...p, content: snap.content, title: snap.title }))
     if (titleRef.current) titleRef.current.textContent = snap.title
@@ -1559,45 +1559,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
 
         {/* History panel */}
         {historyOpen && canEdit && (
-          <div style={isMobile ? mobilePanel : { width: '280px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
-            {isMobile && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 199 }} onClick={() => setHistoryOpen(false)} />}
-            <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <span style={{ fontWeight: 600, fontSize: 14 }}>Version history</span>
-              <button onClick={() => setHistoryOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 16 }}>✕</button>
-            </div>
-            <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
-              {snapshotLoading && <div style={{ padding: '20px 16px', color: 'var(--text-tertiary)', fontSize: 13 }}>Loading…</div>}
-              {!snapshotLoading && snapshots.length === 0 && (
-                <div style={{ padding: '20px 16px', color: 'var(--text-tertiary)', fontSize: 13 }}>
-                  No saved versions yet. Versions are saved automatically every 10 edits.
-                </div>
-              )}
-              {snapshots.map(snap => (
-                <div key={snap.id} style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{snap.title || 'Untitled'}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>{new Date(snap.created_at).toLocaleString()}</div>
-                  {previewSnapshotId === snap.id && (
-                    <div style={{ marginTop: 5, display: 'grid', gap: 6, fontSize: 11 }}>
-                      <div><strong>Saved version</strong><div style={historyPreviewStyle}>{tiptapToPlainText(snap.content)}</div></div>
-                      <div><strong>Current version</strong><div style={historyPreviewStyle}>{tiptapToPlainText(page.content)}</div></div>
-                    </div>
-                  )}
-                  <div style={{ display: 'flex', gap: 5, marginTop: 4 }}>
-                  <button onClick={() => setPreviewSnapshotId(id => id === snap.id ? null : snap.id)}
-                    style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', fontSize: 11, cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-sans)' }}>
-                    {previewSnapshotId === snap.id ? 'Hide comparison' : 'Compare'}
-                  </button>
-                  <button onClick={() => restoreSnapshot(snap)}
-                    style={{ marginTop: 4, background: 'var(--accent-light)', border: 'none', borderRadius: 5, padding: '4px 10px', fontSize: 11, cursor: 'pointer', color: 'var(--accent)', fontFamily: 'var(--font-sans)', fontWeight: 500, alignSelf: 'flex-start' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent)'; (e.currentTarget as HTMLElement).style.color = '#fff' }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)'; (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}>
-                    Restore this version
-                  </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <VersionHistoryPanel snapshots={snapshots} currentContent={page.content} loading={snapshotLoading} mobile={isMobile} mobileStyle={mobilePanel} onClose={() => setHistoryOpen(false)} onRestore={restoreSnapshot} />
         )}
 
         {/* Backlinks panel */}
@@ -2016,7 +1978,6 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   )
 }
 
-const historyPreviewStyle: React.CSSProperties = { marginTop: 2, maxHeight: 86, overflow: 'auto', whiteSpace: 'pre-wrap', border: '1px solid var(--border)', borderRadius: 4, padding: 6, color: 'var(--text-secondary)', background: 'var(--sidebar-bg)', lineHeight: 1.4 }
 
 function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, isDatabase }: { onPDF: () => void; onWord: () => void; onCSV?: () => void; onXLSX?: () => void; onMarkdown?: () => void; onPresentation?: () => void; isDatabase?: boolean }) {
   const [open, setOpen] = useState(false)
