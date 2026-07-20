@@ -974,7 +974,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   ], [])
 
   const editor = useEditor({
-    shouldRerenderOnTransaction: true,
+    shouldRerenderOnTransaction: false,
     extensions,
     content: content || '',
     editable,
@@ -1178,6 +1178,21 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   // closures, so opt into dependency-based lifecycle management to prevent
   // setOptions() from dispatching a transaction on every React render.
   }, [extensions, editable])
+
+  // Manual replacement for shouldRerenderOnTransaction: true. tiptap-react's built-in
+  // version drives re-renders through useSyncExternalStoreWithSelector; the render-burst
+  // probe below shows Editor re-rendering 13x within 800ms on load, with every one of its
+  // own useState flags unchanged and the document itself never actually changing — i.e.
+  // the store's selector isn't settling. Subscribing to the 'transaction' event directly
+  // and forcing a re-render through plain setState sidesteps that internal mechanism while
+  // keeping the same toolbar reactivity (isActive() etc. re-evaluate on every transaction).
+  const [, forceEditorRerender] = useState(0)
+  useEffect(() => {
+    if (!editor) return
+    const onTransaction = () => forceEditorRerender(n => n + 1)
+    editor.on('transaction', onTransaction)
+    return () => { editor.off('transaction', onTransaction) }
+  }, [editor])
 
   // TEMPORARY DIAGNOSTIC — reports a state snapshot the instant a tight render
   // burst is detected, to identify which piece of state is churning during the
