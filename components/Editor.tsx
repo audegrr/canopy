@@ -1179,6 +1179,34 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   // setOptions() from dispatching a transaction on every React render.
   }, [extensions, editable])
 
+  // TEMPORARY DIAGNOSTIC — reports a state snapshot the instant a tight render
+  // burst is detected, to identify which piece of state is churning during the
+  // #185 loop. Remove once the root cause is found and fixed.
+  const renderTimesRef = useRef<number[]>([])
+  const loopReportedRef = useRef(false)
+  useEffect(() => {
+    const now = performance.now()
+    renderTimesRef.current.push(now)
+    renderTimesRef.current = renderTimesRef.current.filter(t => now - t < 800)
+    if (renderTimesRef.current.length > 12 && !loopReportedRef.current) {
+      loopReportedRef.current = true
+      const snap = {
+        renders800ms: renderTimesRef.current.length,
+        hasEditor: !!editor,
+        slashMenu: !!slashMenu, atMenu: !!atMenu, showColorPicker, showHighlightPicker,
+        showAiMenu, aiLoading, translateExpanded, tableToolbarPos: !!tableToolbarPos,
+        blockCtxMenu: !!blockCtxMenu, linkCtxMenu: !!linkCtxMenu, pickerPos: !!pickerPos,
+        aiWritePos: !!aiWritePos, atResultsLen: atResults.length,
+      }
+      try {
+        navigator.sendBeacon('/api/telemetry/client-error', new Blob([JSON.stringify({
+          message: '[probe:editor-state] ' + JSON.stringify(snap),
+          path: location.pathname,
+        })], { type: 'application/json' }))
+      } catch {}
+    }
+  })
+
   useEffect(() => {
     if (!editor) return
     editor.setEditable(editable)
