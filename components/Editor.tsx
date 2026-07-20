@@ -1197,6 +1197,9 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
         showAiMenu, aiLoading, translateExpanded, tableToolbarPos: !!tableToolbarPos,
         blockCtxMenu: !!blockCtxMenu, linkCtxMenu: !!linkCtxMenu, pickerPos: !!pickerPos,
         aiWritePos: !!aiWritePos, atResultsLen: atResults.length,
+        docLastType: editor?.state?.doc?.lastChild?.type?.name,
+        docTopCount: editor?.state?.doc?.childCount,
+        docSize: editor?.state?.doc?.content?.size,
       }
       try {
         navigator.sendBeacon('/api/telemetry/client-error', new Blob([JSON.stringify({
