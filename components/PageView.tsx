@@ -118,6 +118,34 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   const scheduleSaveEvent = useEffectEvent((updates: Partial<Page>) => scheduleSave(updates))
   const currentPageTitleEvent = useEffectEvent(() => page.title)
 
+  // TEMPORARY DIAGNOSTIC — same render-burst detector as Editor.tsx, to see
+  // whether PageView itself is the one looping (dragging Editor along as a
+  // normal re-rendering child) or whether it stays quiet while Editor loops
+  // on its own. Remove once the root cause is found and fixed.
+  const pvRenderTimesRef = useRef<number[]>([])
+  const pvLoopReportedRef = useRef(false)
+  useEffect(() => {
+    const now = performance.now()
+    pvRenderTimesRef.current.push(now)
+    pvRenderTimesRef.current = pvRenderTimesRef.current.filter(t => now - t < 800)
+    if (pvRenderTimesRef.current.length > 12 && !pvLoopReportedRef.current) {
+      pvLoopReportedRef.current = true
+      const snap = {
+        renders800ms: pvRenderTimesRef.current.length,
+        saved, saveOffline, headingsLen: headings.length, wordCount,
+        subPagesLen: subPages.length, presenceUsersLen: presenceUsers.length,
+        remoteConflict: !!remoteConflict, editorInstance: !!editorInstance,
+        pageContentRef: (() => { try { return JSON.stringify(page.content).length } catch { return -1 } })(),
+      }
+      try {
+        navigator.sendBeacon('/api/telemetry/client-error', new Blob([JSON.stringify({
+          message: '[probe:pageview-state] ' + JSON.stringify(snap),
+          path: location.pathname,
+        })], { type: 'application/json' }))
+      } catch {}
+    }
+  })
+
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
     check()
