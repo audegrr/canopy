@@ -12,7 +12,7 @@ import Highlight from '@tiptap/extension-highlight'
 import { BulletList as BulletListBase, TaskList, TaskItem } from '@tiptap/extension-list'
 import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table'
 import Image from '@tiptap/extension-image'
-import { Node, Mark, mergeAttributes, getMarkRange } from '@tiptap/core'
+import { Node, Mark, mergeAttributes, getMarkRange, type Extensions } from '@tiptap/core'
 import { TextSelection, Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import HeadingBase from '@tiptap/extension-heading'
@@ -925,50 +925,57 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   const bubbleMenuEnabledRef = useRef(true)
   const [tableToolbarPos, setTableToolbarPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
+  // Extensions must be a stable reference: useEditor (Tiptap 3) compares this array by
+  // per-element identity on every render, and .configure()/.extend() return a new object
+  // each call. An unmemoized array here made compareOptions() fail every render, triggering
+  // editor.setOptions() -> a transaction -> a re-render (via shouldRerenderOnTransaction) ->
+  // a new array again, an infinite loop that crashed the page with React error #185.
+  const extensions = useMemo<Extensions>(() => [
+    StarterKit.configure({ heading: false, codeBlock: false, bulletList: false, link: false, underline: false }),
+    CollapsibleHeading.configure({ levels: [1, 2, 3] }),
+    BulletList,
+    CustomCodeBlock,
+    Placeholder.configure({
+      placeholder: ({ node }) => node.type.name === 'heading' ? 'Heading' : "Type '/' for commands…"
+    }),
+    Typography,
+    TextStyle,
+    Color,
+    Highlight.configure({ multicolor: true }),
+    TaskList,
+    TaskItem.extend({
+      content: 'paragraph+ taskList?',
+      addOptions() {
+        return { ...this.parent?.(), nested: true }
+      },
+    }),
+    Table.configure({ resizable: true }),
+    TableRow, TableCell, TableHeader,
+    ResizableImage,
+    VideoNode,
+    FileNode,
+    Link.configure({ openOnClick: false, autolink: true }),
+    Youtube.configure({ controls: true, width: 640, height: 360 }),
+    HorizontalRule,
+    TextAlign.configure({ types: ['heading', 'paragraph'] }),
+    Underline,
+    CalloutExtension,
+    TocExtension,
+    SubpageExtension,
+    DatabaseBlockExtension,
+    PageMentionNode,
+    ColumnNode,
+    ColumnsNode,
+    EmbedNode,
+    BookmarkNode,
+    MathInlineNode,
+    MathBlockNode,
+    CommentMark,
+  ], [])
+
   const editor = useEditor({
     shouldRerenderOnTransaction: true,
-    extensions: [
-      StarterKit.configure({ heading: false, codeBlock: false, bulletList: false, link: false, underline: false }),
-      CollapsibleHeading.configure({ levels: [1, 2, 3] }),
-      BulletList,
-      CustomCodeBlock,
-      Placeholder.configure({
-        placeholder: ({ node }) => node.type.name === 'heading' ? 'Heading' : "Type '/' for commands…"
-      }),
-      Typography,
-      TextStyle,
-      Color,
-      Highlight.configure({ multicolor: true }),
-      TaskList,
-      TaskItem.extend({
-        content: 'paragraph+ taskList?',
-        addOptions() {
-          return { ...this.parent?.(), nested: true }
-        },
-      }),
-      Table.configure({ resizable: true }),
-      TableRow, TableCell, TableHeader,
-      ResizableImage,
-      VideoNode,
-      FileNode,
-      Link.configure({ openOnClick: false, autolink: true }),
-      Youtube.configure({ controls: true, width: 640, height: 360 }),
-      HorizontalRule,
-      TextAlign.configure({ types: ['heading', 'paragraph'] }),
-      Underline,
-      CalloutExtension,
-      TocExtension,
-      SubpageExtension,
-      DatabaseBlockExtension,
-      PageMentionNode,
-      ColumnNode,
-      ColumnsNode,
-      EmbedNode,
-      BookmarkNode,
-      MathInlineNode,
-      MathBlockNode,
-      CommentMark,
-    ],
+    extensions,
     content: content || '',
     editable,
     onUpdate: ({ editor }) => onUpdate(editor.getJSON()),
