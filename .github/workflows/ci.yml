@@ -19,6 +19,16 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
+      # npm ci wipes node_modules on every run, so this must be restored after
+      # install. Without it, Vitest's esbuild dep pre-bundle (exceljs,
+      # pptxgenjs, docx, @react-pdf/renderer, tiptap, ...) re-scans cold on
+      # every CI run, adding several minutes to `npm test`.
+      - uses: actions/cache@v4
+        with:
+          path: node_modules/.vite
+          key: vite-deps-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            vite-deps-${{ runner.os }}-
       - run: npm run lint
       - run: npm test
       - run: npm run build
