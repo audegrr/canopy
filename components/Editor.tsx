@@ -1173,7 +1173,11 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
         return false
       },
     },
-  })
+  // Tiptap compares every non-callback option by reference when no dependency
+  // list is provided. editorProps is intentionally rebuilt with the latest
+  // closures, so opt into dependency-based lifecycle management to prevent
+  // setOptions() from dispatching a transaction on every React render.
+  }, [extensions, editable])
 
   useEffect(() => {
     if (!editor) return
