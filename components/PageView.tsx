@@ -9,6 +9,7 @@ import type { Page } from '@/lib/types'
 import Editor from './Editor'
 import FindInPage from './FindInPage'
 import DragHandle from './DragHandle'
+import ErrorProbe from './ErrorProbe'
 import DatabaseView from './DatabaseView'
 import EmojiPicker from './EmojiPicker'
 import { Icon } from './Icons'
@@ -1448,15 +1449,17 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
               {page.is_database
                 ? <DatabaseView page={page} canEdit={canEdit} />
                 : <>
-                    {canEdit && <DragHandle editor={editorInstance} />}
-                    <Editor
-                      key={page.id}
-                      content={initialContentRef.current}
-                      editable={canEdit && !page.is_locked}
-                      onUpdate={onContentUpdate}
-                      onEditorReady={e => { setEditorInstance(e); editorRef.current = e; setTimeout(() => { editorReadyRef.current = true }, 200) }}
-                      workspaceId={page.workspace_id}
-                    />
+                    {canEdit && <ErrorProbe label="draghandle"><DragHandle editor={editorInstance} /></ErrorProbe>}
+                    <ErrorProbe label="editor">
+                      <Editor
+                        key={page.id}
+                        content={initialContentRef.current}
+                        editable={canEdit && !page.is_locked}
+                        onUpdate={onContentUpdate}
+                        onEditorReady={e => { setEditorInstance(e); editorRef.current = e; setTimeout(() => { editorReadyRef.current = true }, 200) }}
+                        workspaceId={page.workspace_id}
+                      />
+                    </ErrorProbe>
                   </>
               }
             </div>
