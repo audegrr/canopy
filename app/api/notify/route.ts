@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     const access = await getPageAccess(db, user.id, page)
     if (!access.canManage) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     title = `"${page.title || 'Untitled'}" was shared with you`
-    notifBody = `You received ${recipientShare.permission === 'edit' ? 'edit' : 'view'} access.`
+    notifBody = `You received ${recipientShare.permission === 'owner' ? 'manage' : recipientShare.permission === 'edit' ? 'edit' : 'view'} access.`
     data.page_title = page.title
   } else {
     const workspaceId = data.workspace_id

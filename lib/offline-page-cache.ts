@@ -4,7 +4,7 @@ const PREFIX = 'canopy:offline-pages:v1:'
 const MAX_PAGES = 20
 const MAX_BYTES = 5 * 1024 * 1024
 
-export type CachedPageAccess = { page: Page; canEdit: boolean; isOwner: boolean; isWorkspaceMember: boolean; userId: string }
+export type CachedPageAccess = { page: Page; canEdit: boolean; canManage: boolean; isOwner: boolean; isWorkspaceMember: boolean; userId: string }
 type Entry = CachedPageAccess & { cachedAt: string }
 
 function key(userId: string) { return PREFIX + userId }
@@ -26,7 +26,9 @@ export function cachePageForOffline(value: CachedPageAccess, storage: Pick<Stora
 export function getCachedPage(userId: string, pageId: string, storage: Pick<Storage, 'getItem'> = localStorage): CachedPageAccess | null {
   const entry = readCachedPages(userId, storage).find(item => item.page.id === pageId)
   if (!entry) return null
-  return { page: entry.page, canEdit: entry.canEdit, isOwner: entry.isOwner, isWorkspaceMember: entry.isWorkspaceMember, userId: entry.userId }
+  // Entries cached before canManage existed won't have it — fall back to isOwner,
+  // which was the only way to reach management UI at the time they were cached.
+  return { page: entry.page, canEdit: entry.canEdit, canManage: entry.canManage ?? entry.isOwner, isOwner: entry.isOwner, isWorkspaceMember: entry.isWorkspaceMember, userId: entry.userId }
 }
 
 export function clearOfflinePages(userId: string, storage: Pick<Storage, 'removeItem'> = localStorage) { storage.removeItem(key(userId)) }

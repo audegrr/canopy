@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(12);
+select plan(14);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.pages'::regclass),
@@ -47,6 +47,13 @@ select ok(not has_function_privilege(
 select ok(has_function_privilege(
   'service_role', 'public.move_page_tree_atomic(uuid,uuid,uuid,uuid,jsonb)', 'execute'
 ), 'service role can call the atomic page-move function');
+
+select ok(not has_function_privilege(
+  'anon', 'public.add_page_share(uuid,text)', 'execute'
+), 'anonymous users cannot call add_page_share directly');
+select ok(has_function_privilege(
+  'authenticated', 'public.add_page_share(uuid,text)', 'execute'
+), 'authenticated users can call add_page_share to self-join a shared link');
 
 select * from finish();
 rollback;

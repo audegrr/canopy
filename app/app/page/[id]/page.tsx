@@ -30,14 +30,19 @@ if (typeof window !== 'undefined') {
       const { data: wsMem } = await sb.from('workspace_members').select('role, workspace_id').eq('user_id', user.id)
       const { data: ownedWs } = await sb.from('workspaces').select('id').eq('id', page.workspace_id).eq('owner_id', user.id).single()
       const isWsOwner = !!ownedWs
-      const canEdit = isOwner
+      // Manage rights (sharing, moving/reorganizing) are owner_id / workspace
+      // owner_id / an explicit 'owner'-tier share only — see lib/access-policy.ts.
+      const canManage = isOwner
         || isWsOwner
+        || share?.permission === 'owner'
+        || (wsMem || []).some((m: WorkspaceMembership) => m.workspace_id === page.workspace_id && m.role === 'owner')
+      const canEdit = canManage
         || share?.permission === 'edit'
         || page.link_permission === 'edit'
         || (wsMem || []).some((m: WorkspaceMembership) => m.workspace_id === page.workspace_id && ['owner','member'].includes(m.role))
       const isMember = (wsMem || []).some((m: WorkspaceMembership) => m.workspace_id === page.workspace_id)
       const isWorkspaceMember = isWsOwner || isMember
-      const result = { page, canEdit, isOwner, isWorkspaceMember, userId: user.id }
+      const result = { page, canEdit, canManage, isOwner, isWorkspaceMember, userId: user.id }
       cache.set(pid, result)
       // Also sync to window.__pageCache so instant navigation uses correct permissions
       window.__pageCache = window.__pageCache || new Map()
@@ -51,7 +56,7 @@ export default function PageRoute() {
   const id = params?.id as string
   const router = useRouter()
   const [state, setState] = useState<{
-    page: Page; canEdit: boolean; isOwner: boolean; isWorkspaceMember: boolean; userId: string
+    page: Page; canEdit: boolean; canManage: boolean; isOwner: boolean; isWorkspaceMember: boolean; userId: string
   } | null>(null)
   const [error, setError] = useState(false)
 
@@ -93,7 +98,7 @@ export default function PageRoute() {
         const res = await fetch(`/api/page-data?id=${id}`)
         if (res.ok) {
           const data = await res.json()
-          const result = { page: data.page, canEdit: data.canEdit, isOwner: data.isOwner, isWorkspaceMember: data.isWorkspaceMember, userId: data.userId }
+          const result = { page: data.page, canEdit: data.canEdit, canManage: data.canManage, isOwner: data.isOwner, isWorkspaceMember: data.isWorkspaceMember, userId: data.userId }
           cache.set(id, result)
           window.__pageCache = window.__pageCache || new Map()
           window.__pageCache.set(id, result)
@@ -121,13 +126,16 @@ export default function PageRoute() {
       const canView = isOwner || isWsOwner || !!share || resolvedPage.link_permission !== 'none' || isMember
       if (!canView) { setError(true); return }
 
-      const canEdit = isOwner
+      const canManage = isOwner
         || isWsOwner
+        || share?.permission === 'owner'
+        || (wsMember || []).some((m: WorkspaceMembership) => m.workspace_id === resolvedPage.workspace_id && m.role === 'owner')
+      const canEdit = canManage
         || share?.permission === 'edit'
         || resolvedPage.link_permission === 'edit'
         || (wsMember || []).some((m: WorkspaceMembership) => m.workspace_id === resolvedPage.workspace_id && ['owner','member'].includes(m.role))
       const isWorkspaceMember = isWsOwner || isMember
-      const result = { page: resolvedPage, canEdit, isOwner, isWorkspaceMember, userId: user.id }
+      const result = { page: resolvedPage, canEdit, canManage, isOwner, isWorkspaceMember, userId: user.id }
       cache.set(id, result)
       // Keep window.__pageCache in sync so future instant navigations use real permissions
       window.__pageCache = window.__pageCache || new Map()
@@ -165,5 +173,5 @@ export default function PageRoute() {
     </div>
   )
 
-  return <PageView page={state.page} canEdit={state.canEdit} isOwner={state.isOwner} isWorkspaceMember={state.isWorkspaceMember} userId={state.userId} />
+  return <PageView page={state.page} canEdit={state.canEdit} canManage={state.canManage} isOwner={state.isOwner} isWorkspaceMember={state.isWorkspaceMember} userId={state.userId} />
 }

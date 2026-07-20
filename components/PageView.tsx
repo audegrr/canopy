@@ -27,13 +27,14 @@ const CommentsPanel = dynamic(() => import('./CommentsPanel'))
 
 declare global {
   interface Window {
-    __pageCache: Map<string, { page: Page; canEdit: boolean; isOwner: boolean; isWorkspaceMember: boolean; userId: string }> | undefined
+    __pageCache: Map<string, { page: Page; canEdit: boolean; canManage: boolean; isOwner: boolean; isWorkspaceMember: boolean; userId: string }> | undefined
   }
 }
 
 type Props = {
   page: Page
   canEdit: boolean
+  canManage?: boolean
   isOwner: boolean
   isWorkspaceMember?: boolean
   userId?: string
@@ -42,7 +43,7 @@ type Props = {
   onToggleFavorite?: () => void
 }
 
-export default function PageView({ page: initialPage, canEdit, isOwner, isWorkspaceMember = false, userId = '', isPublicShare = false, isFavorite, onToggleFavorite }: Props) {
+export default function PageView({ page: initialPage, canEdit, isOwner, canManage = isOwner, isWorkspaceMember = false, userId = '', isPublicShare = false, isFavorite, onToggleFavorite }: Props) {
   const [page, setPage] = useState(initialPage)
   const initialContentRef = useRef(initialPage.content)
   const [saved, setSaved] = useState(true)
@@ -160,8 +161,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
   }, [page.id, supabase])
 
   useEffect(() => {
-    if (shareOpen && isOwner) loadSharesEvent()
-  }, [shareOpen, isOwner])
+    if (shareOpen && canManage) loadSharesEvent()
+  }, [shareOpen, canManage])
 
   // Auto-open panel from URL param (e.g. ?panel=share from sidebar menu)
   useEffect(() => {
@@ -544,7 +545,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
       if (pending.content ?? updates.content) savedContents.current.add(contentStr)
       const persisted = { ...pending, updated_at: ts }
       const cachedPage = { ...page, ...persisted } as Page
-      if (userId && !isPublicShare) cachePageForOffline({ page: cachedPage, canEdit, isOwner, isWorkspaceMember, userId })
+      if (userId && !isPublicShare) cachePageForOffline({ page: cachedPage, canEdit, canManage, isOwner, isWorkspaceMember, userId })
       const { error: saveError } = await supabase.from('pages').update(persisted).eq('id', page.id)
       if (saveError) {
         queueOfflineSave({ pageId: page.id, workspaceId: page.workspace_id, updates: persisted, queuedAt: ts })
@@ -681,6 +682,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
       .ilike('email', email)
     const profile = profiles?.[0]
 
+    if (!profile && inviteRole === 'owner') {
+      showToast('This person needs a Canopy account before they can be given manage access')
+      return
+    }
+
     if (profile) {
       // Existing Canopy user — add directly to page_shares
       const { error } = await supabase.from('page_shares').upsert({
@@ -702,7 +708,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
           user_id: profile.id,
           type: 'page_share',
           title: `"${(page as any).title || 'Untitled'}" was shared with you`,
-          body: `You received ${inviteRole === 'edit' ? 'edit' : 'view'} access.`,
+          body: `You received ${inviteRole === 'owner' ? 'manage' : inviteRole === 'edit' ? 'edit' : 'view'} access.`,
           data: { page_id: page.id, page_title: (page as any).title }
         })
       }).catch(() => {})
@@ -1202,7 +1208,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
               <Icon name={page.is_locked ? 'lock' : 'unlock'} size={16} />
             </TopBarBtn>
           )}
-          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn iconOnly title="Share"><Icon name="share" size={16} /></TopBarBtn>}
+          {canManage && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn iconOnly title="Share"><Icon name="share" size={16} /></TopBarBtn>}
         </>}
 
         {/* Mobile: compact action row */}
@@ -1210,7 +1216,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
           <TopBarBtn onClick={() => { setCommentsOpen(o => !o); if (!commentsOpen) loadComments() }} active={commentsOpen} iconOnly title="Comments">
             <Icon name="comment" size={16} />{comments.length > 0 ? <span style={{ fontSize: 10, marginLeft: 1 }}>{comments.length}</span> : null}
           </TopBarBtn>
-          {isOwner && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn iconOnly title="Share"><Icon name="share" size={16} /></TopBarBtn>}
+          {canManage && <TopBarBtn active={shareOpen} onClick={() => setShareOpen(o => !o)} data-share-btn iconOnly title="Share"><Icon name="share" size={16} /></TopBarBtn>}
           {/* Mobile overflow menu */}
           <div style={{ position: 'relative' }}>
             <TopBarBtn onClick={() => setMobileMenuOpen(o => !o)} active={mobileMenuOpen}>⋯</TopBarBtn>
@@ -1581,7 +1587,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
         {commentsOpen && <CommentsPanel comments={comments} userId={userId} value={newComment} loading={commentLoading} pendingAnchorText={pendingAnchorText} mobile={isMobile} mobileStyle={mobilePanel} inputRef={commentInputRef} onValueChange={setNewComment} onSubmit={addComment} onDelete={deleteComment} onClearAnchor={() => { setPendingAnchorId(null); setPendingAnchorText('') }} onClose={() => setCommentsOpen(false)} />}
 
         {/* Share panel */}
-        {shareOpen && isOwner && (
+        {shareOpen && canManage && (
           <div className='share-panel-mobile' style={isMobile ? { ...mobilePanel, padding: 20, overflowY: 'auto', flexDirection: 'column', gap: 16 } : { width: '300px', background: 'var(--surface)', borderLeft: '1px solid var(--border)', padding: '20px', overflowY: 'auto', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {isMobile && <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', zIndex: 199 }} onClick={() => setShareOpen(false)} />}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1619,6 +1625,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
                 <select value={inviteRole} onChange={e => setInviteRole(e.target.value)} style={{ ...inputSt, flex: 1 }}>
                   <option value="view">Can view</option>
                   <option value="edit">Can edit</option>
+                  <option value="owner">Can manage</option>
                 </select>
                 <button onClick={inviteUser}
                   style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '7px 16px', borderRadius: '6px', fontFamily: 'var(--font-sans)', fontSize: '13px', cursor: 'pointer', fontWeight: 500 }}>
@@ -1665,7 +1672,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, isWorksp
                         {s.name && <div style={{ fontSize: '13px', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>}
                         <div style={{ fontSize: '12px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.email}</div>
                       </div>
-                      <span style={{ fontSize: '11px', background: s.permission === 'edit' ? '#dbeafe' : '#f3f4f6', color: s.permission === 'edit' ? '#1d4ed8' : '#6b7280', padding: '1px 6px', borderRadius: '8px', flexShrink: 0, fontWeight: 500 }}>{s.permission === 'edit' ? 'Can edit' : 'Can view'}</span>
+                      <span style={{ fontSize: '11px', background: s.permission === 'owner' ? '#ede9fe' : s.permission === 'edit' ? '#dbeafe' : '#f3f4f6', color: s.permission === 'owner' ? '#6d28d9' : s.permission === 'edit' ? '#1d4ed8' : '#6b7280', padding: '1px 6px', borderRadius: '8px', flexShrink: 0, fontWeight: 500 }}>{s.permission === 'owner' ? 'Can manage' : s.permission === 'edit' ? 'Can edit' : 'Can view'}</span>
                       <button onClick={() => removeUserShare(s.user_id)} title="Remove access"
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '14px', lineHeight: 1, padding: '2px', borderRadius: '3px' }}
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)'; (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}

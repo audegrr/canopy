@@ -7,8 +7,8 @@ const page = { id: 'p', workspace_id: 'w', parent_id: null, title: 'Cached', ico
 describe('offline page cache', () => {
   it('stores and replaces the latest copy of a page', () => {
     const storage = memoryStorage()
-    cachePageForOffline({ page, canEdit: true, isOwner: true, isWorkspaceMember: true, userId: 'u' }, storage)
-    cachePageForOffline({ page: { ...page, title: 'Updated' }, canEdit: true, isOwner: true, isWorkspaceMember: true, userId: 'u' }, storage)
+    cachePageForOffline({ page, canEdit: true, canManage: true, isOwner: true, isWorkspaceMember: true, userId: 'u' }, storage)
+    cachePageForOffline({ page: { ...page, title: 'Updated' }, canEdit: true, canManage: true, isOwner: true, isWorkspaceMember: true, userId: 'u' }, storage)
     expect(readCachedPages('u', storage)).toHaveLength(1)
     expect(getCachedPage('u', 'p', storage)?.page.title).toBe('Updated')
   })

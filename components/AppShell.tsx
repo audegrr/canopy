@@ -179,16 +179,18 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           const { data: page } = await supabase.from('pages').select('*').eq('id', p.id).single()
           if (page) {
             const isOwner = page.owner_id === user.id
-            // Resolve canEdit from available context without extra queries
+            // Resolve canEdit/canManage from available context without extra queries
             const memberWs = memberWorkspaces.find(ws => ws.id === page.workspace_id)
-            const sharedWithEdit = (p as (Page | SharedPage) & { permission?: string }).permission === 'edit'
-            const canEdit = isOwner
+            const sharedPermission = (p as (Page | SharedPage) & { permission?: string }).permission
+            const sharedWithEdit = sharedPermission === 'edit'
+            const canManage = isOwner || sharedPermission === 'owner' || (memberWs != null && memberWs._memberRole === 'owner')
+            const canEdit = canManage
               || page.link_permission === 'edit'
               || sharedWithEdit
               || (memberWs != null && ['member', 'owner'].includes(memberWs._memberRole))
             ;(window as any).__pageCache = (window as any).__pageCache || new Map()
             ;(window as any).__pageCache.set(p.id, {
-              page, isOwner, canEdit, userId: user.id,
+              page, isOwner, canEdit, canManage, userId: user.id,
             })
           }
         } catch {}
@@ -1040,10 +1042,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           onClick={() => navigate(`/app/page/${page.id}`)}
           onDragStart={() => {}} onDragOver={() => {}} onDragLeave={() => {}} onDrop={() => {}} onDragEnd={() => {}}
           onContextMenu={(e: React.MouseEvent) => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, pageId: page.id }) }}
-          onAddSubpage={page.permission === 'edit' ? () => createPage(page.id) : undefined}
+          onAddSubpage={(page.permission === 'edit' || page.permission === 'owner') ? () => createPage(page.id) : undefined}
           onMoreMenu={(e: React.MouseEvent) => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setContextMenu({ x: r.right + 4, y: r.bottom, pageId: page.id }) }}
           isDragging={false}
-          badge={page.permission === 'edit' ? 'edit' : 'view'}
+          badge={page.permission === 'owner' ? 'manage' : page.permission === 'edit' ? 'edit' : 'view'}
           isShared={true}
         />
         {isExpanded && <div>{renderSharedTree(page.id, depth + 1)}</div>}
@@ -1560,7 +1562,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         // A page is "fully own" if it's in the user's pages list AND not also appearing as a shared page
         // (sub-pages created by the user under shared parents appear in sharedPages with permission='edit')
         const isFullyOwn = pages.some(p => p.id === contextMenu.pageId) && !ctxShared
-        const canEditShared = !!ctxShared && ctxShared.permission === 'edit'
+        const canEditShared = !!ctxShared && (ctxShared.permission === 'edit' || ctxShared.permission === 'owner')
         const estimatedH = isFullyOwn ? (workspaces.length > 1 ? 340 : 310) : canEditShared ? 280 : 130
         const spaceBelow = window.innerHeight - contextMenu.y - 8
         const menuTop = spaceBelow >= estimatedH ? contextMenu.y : Math.max(8, contextMenu.y - estimatedH)

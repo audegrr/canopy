@@ -36,6 +36,7 @@ export async function GET(req: Request) {
   return NextResponse.json({
     page,
     canEdit: access.canEdit,
+    canManage: access.canManage,
     isOwner,
     isWorkspaceMember: access.isWorkspaceMember,
     userId: user.id,
