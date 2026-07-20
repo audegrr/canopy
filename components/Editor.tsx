@@ -1180,12 +1180,11 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   }, [extensions, editable])
 
   // Manual replacement for shouldRerenderOnTransaction: true. tiptap-react's built-in
-  // version drives re-renders through useSyncExternalStoreWithSelector; the render-burst
-  // probe below shows Editor re-rendering 13x within 800ms on load, with every one of its
-  // own useState flags unchanged and the document itself never actually changing — i.e.
-  // the store's selector isn't settling. Subscribing to the 'transaction' event directly
-  // and forcing a re-render through plain setState sidesteps that internal mechanism while
-  // keeping the same toolbar reactivity (isActive() etc. re-evaluate on every transaction).
+  // version drives re-renders through useSyncExternalStoreWithSelector, which on this
+  // page's editor never settled and threw React error #185 (Maximum update depth
+  // exceeded) on load. Subscribing to the 'transaction' event directly and forcing a
+  // re-render through plain setState sidesteps that internal mechanism while keeping
+  // the same toolbar reactivity (isActive() etc. re-evaluate on every transaction).
   const [, forceEditorRerender] = useState(0)
   useEffect(() => {
     if (!editor) return
@@ -1193,37 +1192,6 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
     editor.on('transaction', onTransaction)
     return () => { editor.off('transaction', onTransaction) }
   }, [editor])
-
-  // TEMPORARY DIAGNOSTIC — reports a state snapshot the instant a tight render
-  // burst is detected, to identify which piece of state is churning during the
-  // #185 loop. Remove once the root cause is found and fixed.
-  const renderTimesRef = useRef<number[]>([])
-  const loopReportedRef = useRef(false)
-  useEffect(() => {
-    const now = performance.now()
-    renderTimesRef.current.push(now)
-    renderTimesRef.current = renderTimesRef.current.filter(t => now - t < 800)
-    if (renderTimesRef.current.length > 12 && !loopReportedRef.current) {
-      loopReportedRef.current = true
-      const snap = {
-        renders800ms: renderTimesRef.current.length,
-        hasEditor: !!editor,
-        slashMenu: !!slashMenu, atMenu: !!atMenu, showColorPicker, showHighlightPicker,
-        showAiMenu, aiLoading, translateExpanded, tableToolbarPos: !!tableToolbarPos,
-        blockCtxMenu: !!blockCtxMenu, linkCtxMenu: !!linkCtxMenu, pickerPos: !!pickerPos,
-        aiWritePos: !!aiWritePos, atResultsLen: atResults.length,
-        docLastType: editor?.state?.doc?.lastChild?.type?.name,
-        docTopCount: editor?.state?.doc?.childCount,
-        docSize: editor?.state?.doc?.content?.size,
-      }
-      try {
-        navigator.sendBeacon('/api/telemetry/client-error', new Blob([JSON.stringify({
-          message: '[probe:editor-state] ' + JSON.stringify(snap),
-          path: location.pathname,
-        })], { type: 'application/json' }))
-      } catch {}
-    }
-  })
 
   useEffect(() => {
     if (!editor) return
