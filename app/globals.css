@@ -542,9 +542,6 @@ tr:hover .delete-row-btn { opacity: 1; color: var(--red) !important; }
 
   /* DB toolbar wraps cleanly — import button drops to second row */
   .db-toolbar-import { margin-left: 0 !important; }
-
-  .app-home-actions { flex-wrap: wrap; justify-content: center; }
-  .app-home-action-btn { width: 100% !important; max-width: 220px; }
 }
 
 /* ── DB ROW HOVER — show checkbox and open/delete buttons ───── */

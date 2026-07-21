@@ -49,8 +49,8 @@ export default function AppHome() {
         </p>
       </div>
 
-      {/* Quick actions — same width buttons */}
-      <div className="app-home-actions" style={{ display: 'flex', gap: '10px' }}>
+      {/* Quick actions — width matches the tip/shortcuts boxes below */}
+      <div className="app-home-actions" style={{ display: 'flex', gap: '10px', width: '100%', maxWidth: '360px' }}>
         <QuickAction icon="📄" label="New page" onClick={() => {
           (document.querySelector('[title="New page"]') as HTMLButtonElement)?.click()
         }} />
@@ -117,8 +117,8 @@ function QuickAction({ icon, label, onClick }: { icon: string; label: string; on
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         gap: '8px', padding: '10px 0',
-        // Fixed width large enough for "New database"
-        width: '180px',
+        // Equal-width, shrinks with the row so it never exceeds the boxes below
+        flex: 1, minWidth: 0,
         background: hovered ? 'var(--sidebar-bg)' : 'var(--surface)',
         border: `1px solid ${hovered ? 'var(--text-tertiary)' : 'var(--border)'}`,
         borderRadius: '8px', cursor: 'pointer',
