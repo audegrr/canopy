@@ -533,7 +533,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     const maxPos = [...pages, ...sharedPages].filter(p => p.parent_id === parentId).reduce((m, p) => Math.max(m, (p as any).position ?? 0), 0)
     const { data, error } = await supabase.from('pages').insert({
       workspace_id: targetWorkspaceId, parent_id: parentId, title: 'Untitled database',
-      icon: '🗄️', content: [], position: maxPos + 1, is_database: true, link_permission: 'none'
+      icon: '🗄️', content: [], position: maxPos + 1, is_database: true, link_permission: 'none', owner_id: user.id
     }).select().single()
     if (error) { showError('Failed to create database'); setContextMenu(null); return }
     if (data) {

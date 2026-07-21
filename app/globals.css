@@ -107,6 +107,12 @@ html, body {
 
 /* ── TIPTAP EDITOR ─────────────────────────────────────────── */
 .tiptap { outline: none; }
+/* Tiptap 3's core "Tabindex" extension puts tabindex="0" on the editor root
+   by default (new vs. Tiptap 2), which makes it match the generic
+   [tabindex]:focus-visible rule below and paints a green box around the
+   whole document while typing. ProseMirror's own cursor is focus indicator
+   enough here, so keep this element's own outline suppressed. */
+.tiptap:focus-visible { outline: none; }
 .tiptap.is-editor-empty { min-height: 200px; }
 .tiptap p { margin: 2px 0; line-height: 1.65; }
 .tiptap p.is-editor-empty:first-child::before {

@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { Page } from '@/lib/types'
-import Editor from './Editor'
 import FindInPage from './FindInPage'
 import DragHandle from './DragHandle'
 import DatabaseView from './DatabaseView'
@@ -21,6 +20,7 @@ import type { PageSnapshot } from './VersionHistoryPanel'
 import type { Backlink } from './BacklinksPanel'
 import type { PageComment } from './CommentsPanel'
 
+const Editor = dynamic(() => import('./Editor'), { ssr: false })
 const VersionHistoryPanel = dynamic(() => import('./VersionHistoryPanel'))
 const BacklinksPanel = dynamic(() => import('./BacklinksPanel'))
 const CommentsPanel = dynamic(() => import('./CommentsPanel'))
