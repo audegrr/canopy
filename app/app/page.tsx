@@ -62,7 +62,7 @@ export default function AppHome() {
       {/* Rotating tip */}
       <div style={{
         background: 'var(--sidebar-bg)', border: '1px solid var(--border)',
-        borderRadius: '10px', padding: '14px 20px', width: '360px',
+        borderRadius: '10px', padding: '14px 20px', width: '100%', maxWidth: '360px',
         textAlign: 'center', minHeight: '80px',
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'
       }}>
@@ -73,7 +73,7 @@ export default function AppHome() {
       </div>
 
       {/* Keyboard shortcuts — expands downward, full text */}
-      <details style={{ width: '360px' }}>
+      <details style={{ width: '100%', maxWidth: '360px' }}>
         <summary style={{
           fontSize: '12px', color: 'var(--text-tertiary)', cursor: 'pointer',
           listStyle: 'none', display: 'flex', alignItems: 'center', gap: '4px',
