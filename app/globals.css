@@ -203,14 +203,12 @@ html, body {
 .tiptap td.selectedCell, .tiptap th.selectedCell { background: var(--accent-light); }
 .tiptap .tableWrapper { overflow-x: auto; }
 .tiptap ul[data-type="taskList"] { list-style: none; padding-left: 0; }
-.tiptap ul[data-type="taskList"] li { display: flex; align-items: center; gap: 8px; }
-.tiptap ul[data-type="taskList"] li label { flex-shrink: 0; }
+.tiptap ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 8px; }
+.tiptap ul[data-type="taskList"] li label { flex-shrink: 0; margin-top: 5px; }
 .tiptap ul[data-type="taskList"] li label input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; display: block; }
 .tiptap ul[data-type="taskList"] li > div { flex: 1; min-width: 0; }
 .tiptap ul[data-type="taskList"] li[data-checked="true"] > div { text-decoration: line-through; color: var(--text-tertiary); }
 .tiptap li[data-type="taskItem"] > div > ul[data-type="taskList"] { padding-left: 1.5rem; margin: 4px 0 0; }
-.tiptap ul[data-type="taskList"] li:has(> div > ul[data-type="taskList"]) { align-items: flex-start; }
-.tiptap ul[data-type="taskList"] li:has(> div > ul[data-type="taskList"]) > label { margin-top: 5px; }
 .tiptap mark { background: #fdf3a7; border-radius: 2px; padding: 1px 0; }
 
 /* Subpage block */
@@ -525,6 +523,10 @@ tr:hover .delete-row-btn { opacity: 1; color: var(--red) !important; }
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
+
+  .app-home {
+    padding: 32px 20px !important;
+  }
 }
 
 @media (max-width: 480px) {
@@ -540,6 +542,9 @@ tr:hover .delete-row-btn { opacity: 1; color: var(--red) !important; }
 
   /* DB toolbar wraps cleanly — import button drops to second row */
   .db-toolbar-import { margin-left: 0 !important; }
+
+  .app-home-actions { flex-wrap: wrap; justify-content: center; }
+  .app-home-action-btn { width: 100% !important; max-width: 220px; }
 }
 
 /* ── DB ROW HOVER — show checkbox and open/delete buttons ───── */

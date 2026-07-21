@@ -33,7 +33,7 @@ export default function AppHome() {
   }, [])
 
   return (
-    <div style={{
+    <div className="app-home" style={{
       flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
       flexDirection: 'column', gap: '24px', padding: '40px 60px',
       background: 'var(--bg)', overflowY: 'auto'
@@ -50,7 +50,7 @@ export default function AppHome() {
       </div>
 
       {/* Quick actions — same width buttons */}
-      <div style={{ display: 'flex', gap: '10px' }}>
+      <div className="app-home-actions" style={{ display: 'flex', gap: '10px' }}>
         <QuickAction icon="📄" label="New page" onClick={() => {
           (document.querySelector('[title="New page"]') as HTMLButtonElement)?.click()
         }} />
@@ -110,6 +110,7 @@ function QuickAction({ icon, label, onClick }: { icon: string; label: string; on
   const [hovered, setHovered] = useState(false)
   return (
     <button
+      className="app-home-action-btn"
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
