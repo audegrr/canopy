@@ -202,12 +202,13 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     return () => { cancelled = true; clearTimeout(timer) }
   }, [currentWs.id, memberWorkspaces, pages, sharedPages, supabase, user.id])
 
-  // Restore last active workspace + page from localStorage.
+  // Restore last active workspace from localStorage.
   // Also syncs the canopy_workspace cookie so the server can read it on the
-  // next reload and skip the flash entirely.
+  // next reload and skip the flash entirely. This intentionally does NOT
+  // redirect to the last visited page — navigating to /app should always
+  // show the home screen, not silently bounce elsewhere.
   useEffect(() => {
     const savedWs = localStorage.getItem('canopy_workspace')
-    const savedPage = localStorage.getItem('canopy_last_page')
     if (savedWs) {
       // Always keep cookie in sync so next full reload lands on the right workspace
       setWorkspaceCookie(savedWs)
@@ -220,17 +221,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             link_permission: p.link_permission || 'none',
           })))
           setCurrentWs(found)
-          if (savedPage && savedPage !== '/app' && pathname === '/app') {
-            router.replace(savedPage)
-          }
         })
-      } else if (savedPage && savedPage !== '/app' && pathname === '/app') {
-        router.replace(savedPage)
       }
-    } else if (savedPage && savedPage !== '/app' && pathname === '/app') {
-      router.replace(savedPage)
     }
-  }, [currentWs.id, memberWorkspaces, pathname, router, workspaces])
+  }, [currentWs.id, memberWorkspaces, workspaces])
 
   useEffect(() => {
     if (isMobile) setSidebarOpen(false)
@@ -402,8 +396,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }
 
   function navigate(path: string) {
-    // Persist last page for refresh restore
-    if (path.startsWith('/app')) localStorage.setItem('canopy_last_page', path)
     // Already on this path — clear any overlay but don't trigger loading state
     if (path === pathname) { setInstantPage(null); return }
     const pageId = path.match(/\/app\/page\/([^?]+)/)?.[1]
