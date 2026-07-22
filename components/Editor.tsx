@@ -351,7 +351,12 @@ const TocExtension = Node.create({
           render()
           return true
         },
-        destroy: () => root.unmount(),
+        destroy: () => {
+          // Deferred to avoid "Attempted to synchronously unmount a root
+          // while React was already rendering" when ProseMirror tears this
+          // node view down during a React commit.
+          queueMicrotask(() => root.unmount())
+        },
       }
     }
   },
