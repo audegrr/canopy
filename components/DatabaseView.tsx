@@ -6,6 +6,7 @@ import { downloadXlsx } from '@/lib/spreadsheet-xlsx'
 import { FieldMenu, FieldTypePicker, RelationPagePicker, SelectEditor, CURRENCIES } from './DatabaseFieldControls'
 import DatabaseImportModal from './DatabaseImportModal'
 import { Icon } from './Icons'
+import { useNumberFormatPrefs } from '@/hooks/useNumberFormatPrefs'
 
 type View = 'table' | 'board' | 'gallery' | 'calendar'
 
@@ -24,18 +25,23 @@ const SELECT_COLORS = [
 
 const MIN_FIELD_COL = 100
 
+type DbFilter = { id: number; field: string; op: string; value: string }
+type DbSort = { field: string; dir: 'asc' | 'desc' }
+
 // Module-level cache, keyed by page.id — persists across navigations within
 // the same client session (unlike page content, fields/records live in their
 // own tables and would otherwise re-fetch from empty on every visit, unlike
-// a regular doc page whose content ships with the cached page row).
-const dbCache = new Map<string, { fields: DbField[]; records: DbRecord[]; relations: any[] }>()
+// a regular doc page whose content ships with the cached page row). Sort and
+// filters ride along too, so leaving a database and coming back keeps the
+// view you had rather than resetting it.
+const dbCache = new Map<string, { fields: DbField[]; records: DbRecord[]; relations: any[]; filters: DbFilter[]; sort: DbSort }>()
 
 export default function DatabaseView({ page, canEdit }: Props) {
   const [fields, setFields] = useState<DbField[]>(() => dbCache.get(page.id)?.fields ?? [])
   const [records, setRecords] = useState<DbRecord[]>(() => dbCache.get(page.id)?.records ?? [])
   const [view, setView] = useState<View>('table')
-  const [filters, setFilters] = useState<{ id: number; field: string; op: string; value: string }[]>([])
-  const [sort, setSort] = useState({ field: '', dir: 'asc' as 'asc' | 'desc' })
+  const [filters, setFilters] = useState<DbFilter[]>(() => dbCache.get(page.id)?.filters ?? [])
+  const [sort, setSort] = useState<DbSort>(() => dbCache.get(page.id)?.sort ?? { field: '', dir: 'asc' })
   const [editingCell, setEditingCell] = useState<{ recId: string; fieldId: string } | null>(null)
   const [addingField, setAddingField] = useState(false)
   const [newField, setNewField] = useState({ name: '', type: 'text' as DbField['type'], currency: 'EUR' })
@@ -59,6 +65,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const relatedFieldsRef = useRef<Record<string, DbField[]>>({})
   const supabase = useMemo(() => createClient(), [])
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'live' | 'offline'>('connecting')
+  const { resolvedLocale } = useNumberFormatPrefs()
   const contentRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(0)
 
@@ -125,7 +132,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
 
   // Keep the cross-mount cache in sync with whatever is on screen, regardless
   // of whether it changed via the initial load, realtime, or a local edit.
-  useEffect(() => { dbCache.set(page.id, { fields, records, relations }) }, [page.id, fields, records, relations])
+  useEffect(() => { dbCache.set(page.id, { fields, records, relations, filters, sort }) }, [page.id, fields, records, relations, filters, sort])
 
   useEffect(() => {
     const channel = supabase.channel(`database:${page.id}`)
@@ -578,10 +585,13 @@ export default function DatabaseView({ page, canEdit }: Props) {
       return <span style={{ fontSize: 13 }}>{linkedRecs.length}</span>
     }
     if (field.type === 'url' && val) return <a href={val} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} style={{ color: 'var(--accent)', fontSize: 13, textDecoration: 'underline' }}>{val}</a>
+    if (field.type === 'number' && val !== '' && val !== undefined && val !== null && !isNaN(Number(val))) {
+      return <span style={{ color: 'var(--text)', fontSize: 13 }}>{new Intl.NumberFormat(resolvedLocale).format(Number(val))}</span>
+    }
     if (field.type === 'currency') {
       if (val === '' || val === undefined || val === null || isNaN(Number(val))) return <span style={{ color: 'var(--text-tertiary)', fontSize: 13 }}></span>
       const currency = field.options?.[0] || 'EUR'
-      return <span style={{ color: 'var(--text)', fontSize: 13 }}>{new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(Number(val))}</span>
+      return <span style={{ color: 'var(--text)', fontSize: 13 }}>{new Intl.NumberFormat(resolvedLocale, { style: 'currency', currency }).format(Number(val))}</span>
     }
     return <span style={{ color: val ? 'var(--text)' : 'var(--text-tertiary)', fontSize: 13 }}>{val || ''}</span>
   }
@@ -1261,6 +1271,7 @@ function RelationPicker({ relPage, recs, activeRelIds, firstTextField, cellRect,
 
 function CrossDbRecordDetail({ rec, fields, pageTitle, onClose }: { rec: DbRecord; fields: DbField[]; pageTitle: string; onClose: () => void }) {
   const titleVal = fields[0] ? String(rec.data?.[fields[0].id] ?? '') : ''
+  const { resolvedLocale } = useNumberFormatPrefs()
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 499, background: 'rgba(15,10,5,0.2)' }} onClick={onClose} />
@@ -1289,7 +1300,11 @@ function CrossDbRecordDetail({ rec, fields, pageTitle, onClose }: { rec: DbRecor
                     ? <input type="checkbox" checked={!!val} readOnly style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
                     : f.type === 'select' && val
                       ? <span style={{ background: '#e9e9e750', padding: '1px 8px', borderRadius: 10, fontSize: 12 }}>{val}</span>
-                      : val ? String(val) : '—'
+                      : f.type === 'currency' && val !== '' && val != null && !isNaN(Number(val))
+                        ? new Intl.NumberFormat(resolvedLocale, { style: 'currency', currency: f.options?.[0] || 'EUR' }).format(Number(val))
+                        : f.type === 'number' && val !== '' && val != null && !isNaN(Number(val))
+                          ? new Intl.NumberFormat(resolvedLocale).format(Number(val))
+                          : val ? String(val) : '—'
                   }
                 </div>
               </div>

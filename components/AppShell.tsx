@@ -12,6 +12,7 @@ import ShortcutsModal from './ShortcutsModal'
 import { useNotifications } from '@/hooks/useNotifications'
 import { useTheme } from '@/hooks/useTheme'
 import { useFontPrefs, HEADING_FONTS, BODY_FONTS, type HeadingFont, type BodyFont } from '@/hooks/useFontPrefs'
+import { useNumberFormatPrefs, NUMBER_LOCALES, type NumberLocale } from '@/hooks/useNumberFormatPrefs'
 import { exportPageAsPDF, exportPageAsWord, exportPageAsCSV } from '@/lib/export'
 import EmojiPicker, { COMMON_EMOJIS } from './EmojiPicker'
 import { Icon } from './Icons'
@@ -46,6 +47,8 @@ function InstantPageView({ data, isFavorite, onToggleFavorite }: { data: any; is
   )
 }
 
+const ZOOM_LEVELS = [0.7, 0.8, 0.9, 1.0, 1.1, 1.2]
+
 export default function AppShell({ user, workspaces: initWS, currentWorkspace: initCWS, pages: initPages, sharedPages: initSharedPages, memberWorkspaces = [], children }: Props) {
   const [workspaces, setWorkspaces] = useState(initWS)
   const [currentWs, setCurrentWs] = useState(initCWS)
@@ -63,6 +66,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [sharedCollapsed, setSharedCollapsed] = useState(false)
   const { theme, setTheme } = useTheme()
   const { headingFont, setHeadingFont, bodyFont, setBodyFont } = useFontPrefs()
+  const { numberLocale, setNumberLocale } = useNumberFormatPrefs()
   const [wsMembers, setWsMembers] = useState<WsMember[]>([])
   const [pendingInvites, setPendingInvites] = useState<PendingInvite[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
@@ -85,12 +89,15 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [newWsModal, setNewWsModal] = useState(false)
   const [confirmDialog, setConfirmDialog] = useState<{ message: string; onConfirm: () => void } | null>(null)
   const [searchOpen, setSearchOpen] = useState(false)
-  const ZOOM_LEVELS = [0.7, 0.8, 0.9, 1.0, 1.1, 1.2]
-  const [zoom, setZoom] = useState<number>(() => {
-    if (typeof window === 'undefined') return 1.0
+  // Start at the SSR-safe default (1.0) and sync the persisted value after
+  // mount — reading localStorage in the initializer made the client's first
+  // render diverge from the server-rendered HTML whenever the saved zoom
+  // wasn't 1.0, which React flags as a hydration mismatch on this button.
+  const [zoom, setZoom] = useState<number>(1.0)
+  useEffect(() => {
     const saved = parseFloat(localStorage.getItem('canopy_zoom') || '1')
-    return ZOOM_LEVELS.includes(saved) ? saved : 1.0
-  })
+    if (ZOOM_LEVELS.includes(saved)) setZoom(saved)
+  }, [])
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [newWsName, setNewWsName] = useState('')
   const [newWsIcon, setNewWsIcon] = useState('🌿')
@@ -1515,6 +1522,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         <SettingsModal
           user={user} tab={settingsTab} theme={theme}
           headingFont={headingFont} bodyFont={bodyFont}
+          numberLocale={numberLocale} onNumberLocaleChange={setNumberLocale}
           profileName={profileName} setProfileName={setProfileName}
           onTabChange={setSettingsTab} onThemeChange={setTheme}
           onHeadingFontChange={setHeadingFont} onBodyFontChange={setBodyFont}
@@ -2146,9 +2154,10 @@ function TemplatePicker({ workspaceId, userId, onSelect, onClose }: { workspaceI
 }
 
 // ── SETTINGS MODAL ───────────────────────────────────────────
-function SettingsModal({ user, tab, theme, headingFont, bodyFont, profileName, setProfileName, onTabChange, onThemeChange, onHeadingFontChange, onBodyFontChange, onSave, onClose, onDeleteAccount }: {
+function SettingsModal({ user, tab, theme, headingFont, bodyFont, numberLocale, onNumberLocaleChange, profileName, setProfileName, onTabChange, onThemeChange, onHeadingFontChange, onBodyFontChange, onSave, onClose, onDeleteAccount }: {
   user: User; tab: 'profile' | 'appearance' | 'danger'; theme: 'light' | 'dark' | 'system'
   headingFont: HeadingFont; bodyFont: BodyFont
+  numberLocale: NumberLocale; onNumberLocaleChange: (l: NumberLocale) => void
   profileName: string; setProfileName: (v: string) => void
   onTabChange: (t: 'profile' | 'appearance' | 'danger') => void; onThemeChange: (t: 'light' | 'dark' | 'system') => void
   onHeadingFontChange: (f: HeadingFont) => void; onBodyFontChange: (f: BodyFont) => void
@@ -2275,6 +2284,20 @@ function SettingsModal({ user, tab, theme, headingFont, bodyFont, profileName, s
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0, fontFamily: 'var(--font-body)' }}>Body</div>
                 <FontPicker value={bodyFont} options={BODY_FONTS} onChange={onBodyFontChange} />
+              </div>
+
+              <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px', fontFamily: 'var(--font-body)' }}>Numbers</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', width: '60px', flexShrink: 0, fontFamily: 'var(--font-body)' }}>Format</div>
+                <select value={numberLocale} onChange={e => onNumberLocaleChange(e.target.value as NumberLocale)}
+                  style={{ flex: 1, border: '1px solid var(--border)', borderRadius: '5px', padding: '5px 8px', fontSize: '12.5px', fontFamily: 'var(--font-body)', color: 'var(--text)', background: 'var(--surface)', outline: 'none', cursor: 'pointer' }}>
+                  {NUMBER_LOCALES.map(l => (
+                    <option key={l.id} value={l.id}>{l.label}{l.sample ? ` — ${l.sample}` : ''}</option>
+                  ))}
+                </select>
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginLeft: '68px', fontFamily: 'var(--font-body)' }}>
+                Controls how numbers and currency amounts are displayed in databases.
               </div>
             </div>
           )}
