@@ -5,6 +5,7 @@ import type { DbField } from '@/lib/types'
 import { MAX_SPREADSHEET_BYTES, validateSpreadsheetShape } from '@/lib/spreadsheet-limits'
 import { useAccessibleDialog } from '@/hooks/useAccessibleDialog'
 import { readXlsx } from '@/lib/spreadsheet-xlsx'
+import { Icon } from './Icons'
 
 type ImportFieldDef = { header: string; existingId: string | null }
 
@@ -127,7 +128,7 @@ export default function DatabaseImportModal({ existingFields, onImport, onClose 
               onDragOver={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)'; (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)' }}
               onDragLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
               onDrop={e => { e.preventDefault(); (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; const f = e.dataTransfer.files[0]; if (f) handleFile(f) }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>📊</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8, color: 'var(--text-tertiary)' }}><Icon name="import" size={32} /></div>
               <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text)', marginBottom: 4 }}>Drop a CSV or Excel file here</div>
               <div style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>or click to browse · First row must be column headers</div>
             </div>

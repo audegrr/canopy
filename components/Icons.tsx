@@ -216,6 +216,39 @@ const ICONS: Record<string, () => React.ReactNode> = {
     <path d="M17 9H7l5 3.5-5 3.5h10"/>
     <path d="M3 5h18M3 19h18"/>
   </>,
+  eye: () => <>
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </>,
+  'eye-off': () => <>
+    <path d="M17.94 17.94A10.9 10.9 0 0 1 12 19c-6.5 0-10-7-10-7a18.4 18.4 0 0 1 4.22-5.19M9.9 4.24A9.1 9.1 0 0 1 12 5c6.5 0 10 7 10 7a18.4 18.4 0 0 1-2.16 3.19"/>
+    <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+    <path d="M1 1l22 22"/>
+  </>,
+  refresh: () => <>
+    <path d="M21 12a9 9 0 0 1-15.5 6.36M3 12a9 9 0 0 1 15.5-6.36"/>
+    <path d="M21 3v6h-6M3 21v-6h6"/>
+  </>,
+  calendar: () => <>
+    <rect x="3" y="4" width="18" height="18" rx="2"/>
+    <path d="M16 2v4M8 2v4M3 10h18"/>
+  </>,
+  kanban: () => <>
+    <rect x="3" y="3" width="18" height="18" rx="2"/>
+    <path d="M9 3v18M15 3v18"/>
+  </>,
+  gallery: () => <>
+    <rect x="3" y="3" width="8" height="8" rx="1.5"/>
+    <rect x="13" y="3" width="8" height="8" rx="1.5"/>
+    <rect x="3" y="13" width="8" height="8" rx="1.5"/>
+    <rect x="13" y="13" width="8" height="8" rx="1.5"/>
+  </>,
+  square: () => <rect x="4" y="4" width="16" height="16" rx="3"/>,
+  'check-square': () => <>
+    <rect x="4" y="4" width="16" height="16" rx="3"/>
+    <path d="m9 12 2 2 4-4"/>
+  </>,
+  filter: () => <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3Z"/>,
 }
 
 export function Icon({ name, size = 16, style, className }: { name: string; size?: number; style?: React.CSSProperties; className?: string }) {

@@ -5,6 +5,7 @@ import type { Page, DbField, DbRecord } from '@/lib/types'
 import { downloadXlsx } from '@/lib/spreadsheet-xlsx'
 import { FieldMenu, RelationPagePicker, SelectEditor } from './DatabaseFieldControls'
 import DatabaseImportModal from './DatabaseImportModal'
+import { Icon } from './Icons'
 
 type View = 'table' | 'board' | 'gallery' | 'calendar'
 
@@ -311,12 +312,22 @@ export default function DatabaseView({ page, canEdit }: Props) {
   function CellValue({ rec, field }: { rec: DbRecord; field: DbField }) {
     const val = rec.data?.[field.id]
     const isEditing = editingCell?.recId === rec.id && editingCell?.fieldId === field.id
-    const inputRef = useRef<HTMLInputElement>(null)
+    const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
 
     useEffect(() => {
       if (isEditing && inputRef.current && field.type !== 'checkbox' && field.type !== 'select' && field.type !== 'relation') {
         // Focus after a tiny delay so the click event positions the cursor first
-        const t = setTimeout(() => inputRef.current?.focus(), 10)
+        const t = setTimeout(() => {
+          inputRef.current?.focus()
+          // Text cells wrap over multiple lines in display mode — grow the
+          // textarea to match so the start of the value stays visible instead
+          // of scrolling off behind a single-line box.
+          if (field.type === 'text' && inputRef.current) {
+            const el = inputRef.current as HTMLTextAreaElement
+            el.style.height = 'auto'
+            el.style.height = el.scrollHeight + 'px'
+          }
+        }, 10)
         return () => clearTimeout(t)
       }
     }, [isEditing, field.type])
@@ -412,13 +423,31 @@ export default function DatabaseView({ page, canEdit }: Props) {
           </>
         )
       }
+      if (field.type === 'text') {
+        // Plain text cells wrap over multiple lines in display mode (see the
+        // `<span>` below) — use a growing textarea so long values don't get
+        // clipped to one line while editing, hiding everything but the tail.
+        return (
+          <textarea ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+            defaultValue={String(val ?? '')}
+            rows={1}
+            onInput={e => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px' }}
+            onBlur={e => updateCell(rec.id, field.id, e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); updateCell(rec.id, field.id, (e.target as HTMLTextAreaElement).value) }
+              if (e.key === 'Escape') setEditingCell(null)
+            }}
+            style={{ width: '100%', display: 'block', resize: 'none', overflow: 'hidden', border: 'none', outline: 'none', boxShadow: 'none', borderRadius: 0, background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: 13, lineHeight: 'inherit', color: 'var(--text)', padding: 0 }}
+            onMouseDown={e => e.stopPropagation()} />
+        )
+      }
       return (
-        <input ref={inputRef}
+        <input ref={inputRef as React.RefObject<HTMLInputElement>}
           defaultValue={String(val ?? '')}
           onBlur={e => updateCell(rec.id, field.id, e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') updateCell(rec.id, field.id, (e.target as HTMLInputElement).value); if (e.key === 'Escape') setEditingCell(null) }}
-          type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'email' ? 'email' : field.type === 'url' ? 'url' : 'text'}
-          style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--text)', padding: 0 }}
+          type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'email' ? 'email' : 'url'}
+          style={{ width: '100%', border: 'none', outline: 'none', boxShadow: 'none', borderRadius: 0, background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--text)', padding: 0 }}
           onMouseDown={e => e.stopPropagation()} />
       )
     }
@@ -497,7 +526,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: 13, padding: '3px 6px', borderRadius: 4, fontFamily: 'var(--font-sans)' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)'; (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)'; (e.currentTarget as HTMLElement).style.background = 'none' }}>
-                🗑️
+                <Icon name="trash" size={14} />
               </button>
             )}
             <button onClick={onClose}
@@ -536,15 +565,16 @@ export default function DatabaseView({ page, canEdit }: Props) {
         <div style={{ display: 'flex', background: 'var(--sidebar-bg)', borderRadius: 6, padding: 2, gap: 2 }}>
           {(['table', 'board', 'gallery', 'calendar'] as View[]).map(v => (
             <button key={v} onClick={() => setView(v)}
-              style={{ background: view === v ? 'var(--surface)' : 'none', border: 'none', padding: '4px 10px', borderRadius: 4, fontSize: 12, cursor: 'pointer', color: view === v ? 'var(--text)' : 'var(--text-secondary)', fontFamily: 'var(--font-sans)', fontWeight: view === v ? 500 : 400, boxShadow: view === v ? 'var(--shadow-sm)' : 'none' }}>
-              {v === 'table' ? '☰ Table' : v === 'board' ? '⊞ Board' : v === 'gallery' ? '⊟ Gallery' : '📅 Calendar'}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, background: view === v ? 'var(--surface)' : 'none', border: 'none', padding: '4px 10px', borderRadius: 4, fontSize: 12, cursor: 'pointer', color: view === v ? 'var(--text)' : 'var(--text-secondary)', fontFamily: 'var(--font-sans)', fontWeight: view === v ? 500 : 400, boxShadow: view === v ? 'var(--shadow-sm)' : 'none' }}>
+              <Icon name={v === 'table' ? 'table' : v === 'board' ? 'kanban' : v === 'gallery' ? 'gallery' : 'calendar'} size={13} />
+              {v === 'table' ? 'Table' : v === 'board' ? 'Board' : v === 'gallery' ? 'Gallery' : 'Calendar'}
             </button>
           ))}
         </div>
         <div style={{ width: 1, height: 18, background: 'var(--border)' }} />
         <button onClick={() => setShowFilters(o => !o)}
-          style={{ background: showFilters ? 'var(--accent-light)' : 'none', color: showFilters ? 'var(--accent)' : 'var(--text-secondary)', border: 'none', padding: '4px 10px', borderRadius: 5, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
-          ⚡ Filter {activeFilters.length > 0 && `(${activeFilters.length})`}
+          style={{ display: 'flex', alignItems: 'center', gap: 5, background: showFilters ? 'var(--accent-light)' : 'none', color: showFilters ? 'var(--accent)' : 'var(--text-secondary)', border: 'none', padding: '4px 10px', borderRadius: 5, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}>
+          <Icon name="filter" size={12} /> Filter {activeFilters.length > 0 && `(${activeFilters.length})`}
         </button>
         <select value={sort.field} onChange={e => setSort(s => ({ ...s, field: e.target.value }))} style={ctrlSt}>
           <option value="">↕ Sort</option>
@@ -575,10 +605,10 @@ export default function DatabaseView({ page, canEdit }: Props) {
         </span>
         {canEdit && (
           <button onClick={() => setShowImport(true)} className="db-toolbar-import"
-            style={{ background: 'none', color: 'var(--text-secondary)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 5, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', color: 'var(--text-secondary)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: 5, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
-            ⬇️ Import
+            <Icon name="import" size={12} /> Import
           </button>
         )}
       </div>
@@ -661,7 +691,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                             onClick={e => { e.stopPropagation(); if (canEdit) setRenamingFieldId(f.id) }}>
                             {f.name}
                             {canEdit && f.hidden_from_viewers && (
-                              <span title="Hidden from viewers" style={{ fontSize: 10, color: 'var(--text-tertiary)', opacity: 0.6 }}>🚫</span>
+                              <span title="Hidden from viewers" style={{ display: 'flex', color: 'var(--text-tertiary)', opacity: 0.6 }}><Icon name="eye-off" size={11} /></span>
                             )}
                           </span>
                           {canEdit && <FieldMenu field={f}

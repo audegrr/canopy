@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { NodeViewWrapper } from '@tiptap/react'
 import { createClient } from '@/lib/supabase/client'
+import { Icon } from './Icons'
 
 type Field = { id: string; name: string; type: string; options?: any[] }
 type Record_ = { id: string; data: Record<string, any> }
@@ -86,7 +87,7 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
   if (!page) return (
     <NodeViewWrapper>
       <div style={{ border: '1px dashed var(--border)', borderRadius: '8px', padding: '12px 16px', margin: '8px 0', color: 'var(--text-tertiary)', fontSize: '13px', display: 'flex', gap: '8px', alignItems: 'center' }}>
-        <span>🗄️</span> Database not found
+        <Icon name="db" size={14} /> Database not found
         {canEdit && <button type="button" aria-label="Remove missing database block" onClick={deleteNode} style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '12px' }}>✕</button>}
       </div>
     </NodeViewWrapper>
@@ -124,8 +125,8 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
               <div style={{ display: 'flex', background: 'var(--border)', borderRadius: '5px', padding: '2px', gap: '2px' }}>
                 {(['table', 'board'] as const).map(v => (
                   <button type="button" key={v} onClick={() => setViewMode(v)} aria-pressed={view === v} aria-label={`${v} view`}
-                    style={{ background: view === v ? 'var(--surface)' : 'none', border: 'none', padding: '3px 8px', borderRadius: '3px', fontSize: '11px', cursor: 'pointer', color: view === v ? 'var(--text)' : 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', fontWeight: view === v ? 500 : 400 }}>
-                    {v === 'table' ? '☰' : '⊞'}
+                    style={{ display: 'flex', background: view === v ? 'var(--surface)' : 'none', border: 'none', padding: '3px 8px', borderRadius: '3px', fontSize: '11px', cursor: 'pointer', color: view === v ? 'var(--text)' : 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', fontWeight: view === v ? 500 : 400 }}>
+                    <Icon name={v === 'table' ? 'table' : 'kanban'} size={12} />
                   </button>
                 ))}
               </div>
@@ -243,7 +244,7 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
 
 function CellDisplay({ value, field }: { value: any; field: Field }) {
   if (value === undefined || value === null || value === '') return <span style={{ color: 'var(--text-tertiary)', fontSize: '12px' }}>—</span>
-  if (field.type === 'checkbox') return <span style={{ fontSize: '13px' }}>{value ? '✅' : '⬜'}</span>
+  if (field.type === 'checkbox') return <Icon name={value ? 'check-square' : 'square'} size={14} style={{ color: value ? 'var(--accent)' : 'var(--text-tertiary)' }} />
   if (field.type === 'select' && value) {
     const opt = (field.options || []).find((o: any) => (o.label || o) === value)
     const color = opt?.color || '#e9e9e7'

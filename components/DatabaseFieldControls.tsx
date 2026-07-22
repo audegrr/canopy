@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { DbField } from '@/lib/types'
+import { Icon } from './Icons'
 
 const FIELD_ICONS: Record<string, string> = { text: 'Aa', number: '#', select: '◉', multiselect: '◈', date: '▦', checkbox: '☐', relation: '⤴', rollup: 'Σ', url: '⊕', email: '@', phone: '℡' }
 const SELECT_COLORS = ['#fde68a','#bbf7d0','#bfdbfe','#fecaca','#e9d5ff','#fed7aa','#cffafe','#fbcfe8','#d1fae5','#ddd6fe']
@@ -143,8 +144,8 @@ export function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelat
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 499 }} onClick={() => setOpen(false)} />
           <div style={{ position: 'fixed', left: menuPos.x, top: menuPos.y, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: 5, boxShadow: 'var(--shadow-lg)', zIndex: 500, minWidth: 160 }}>
-            <MItem onClick={() => { onRename(); setOpen(false) }}>✏️ Rename</MItem>
-            <MItem onClick={() => setShowTypes(o => !o)} extra="›">🔄 Change type</MItem>
+            <MItem onClick={() => { onRename(); setOpen(false) }}><IconLabel icon="edit">Rename</IconLabel></MItem>
+            <MItem onClick={() => setShowTypes(o => !o)} extra="›"><IconLabel icon="refresh">Change type</IconLabel></MItem>
             {showTypes && (
               <div style={{ paddingLeft: 8, borderTop: '1px solid var(--border)', marginTop: 2, paddingTop: 2, maxHeight: 200, overflowY: 'auto' }}>
                 {FIELD_TYPES_LIST.map(t => (
@@ -167,10 +168,10 @@ export function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelat
               </div>
             )}
             <MItem onClick={() => { onToggleHidden(); setOpen(false) }}>
-              {field.hidden_from_viewers ? '👁️ Show to viewers' : '🚫 Hide from viewers'}
+              <IconLabel icon={field.hidden_from_viewers ? 'eye' : 'eye-off'}>{field.hidden_from_viewers ? 'Show to viewers' : 'Hide from viewers'}</IconLabel>
             </MItem>
             <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
-            <MItem onClick={() => { onDelete(); setOpen(false) }} danger>🗑️ Delete field</MItem>
+            <MItem onClick={() => { onDelete(); setOpen(false) }} danger><IconLabel icon="trash">Delete field</IconLabel></MItem>
           </div>
         </>
       )}
@@ -187,6 +188,15 @@ function MItem({ onClick, children, extra, active, danger }: { onClick: () => vo
       <span>{children}</span>
       {extra && <span style={{ color: 'var(--text-tertiary)' }}>{extra}</span>}
     </div>
+  )
+}
+
+function IconLabel({ icon, children }: { icon: string; children: ReactNode }) {
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+      <Icon name={icon} size={13} />
+      {children}
+    </span>
   )
 }
 

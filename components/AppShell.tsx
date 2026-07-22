@@ -535,8 +535,18 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         if (parentId) setExpandedShared(s => new Set([...s, parentId]))
       } else {
         setPages(p => [...p, data as Page])
+        if (parentId) setExpandedPages(e => new Set([...e, parentId]))
       }
-      navigate(`/app/page/${data.id}`)
+      // Show the new database instantly from a synthesized cache entry, same as
+      // createPageWithTemplate — avoids a router.push race where the freshly
+      // inserted row isn't cached yet and the route briefly resolves to whatever
+      // was last prefetched (e.g. a sibling sub-page hovered in the sidebar).
+      const instantData = { page: data as Page, canEdit: true, isOwner: true, userId: user.id }
+      if (!(window as any).__pageCache) (window as any).__pageCache = new Map()
+      ;(window as any).__pageCache.set(data.id, instantData)
+      setInstantPage(instantData)
+      window.history.pushState({}, '', `/app/page/${data.id}`)
+      setNavigating(false)
     }
     setContextMenu(null)
   }
