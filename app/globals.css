@@ -344,6 +344,9 @@ html, body {
 }
 .db-table td { border: 1px solid var(--border); padding: 4px 6px; vertical-align: middle; }
 .db-table tr:hover td { background: rgba(0,0,0,.018); }
+.col-resize-handle:hover { background: var(--accent); opacity: 0.4; }
+.row-number { position: absolute; opacity: 1; transition: opacity 0.1s; pointer-events: none; }
+.db-table tbody tr:hover .row-number { opacity: 0 !important; }
 .db-cell { min-height: 26px; cursor: pointer; padding: 2px 4px; border-radius: 3px; }
 .db-cell:hover { background: var(--sidebar-hover); }
 .db-tag { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 500; }

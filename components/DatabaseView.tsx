@@ -22,6 +22,8 @@ const SELECT_COLORS = [
   '#fed7aa','#cffafe','#fbcfe8','#d1fae5','#ddd6fe'
 ]
 
+const MIN_FIELD_COL = 100
+
 // Module-level cache, keyed by page.id — persists across navigations within
 // the same client session (unlike page content, fields/records live in their
 // own tables and would otherwise re-fetch from empty on every visit, unlike
@@ -185,6 +187,38 @@ export default function DatabaseView({ page, canEdit }: Props) {
     await supabase.from('db_fields').update(updates).eq('id', id)
     setFields(f => f.map(x => x.id === id ? { ...x, ...updates } as DbField : x))
   }
+
+  // Manual column-resize drag. resizeStateRef tracks the in-progress drag
+  // (field id, pointer start x, width at drag start); resizePreview mirrors
+  // it into render so the column follows the pointer live. The mousemove/up
+  // listeners are registered once and no-op until a drag starts, rather than
+  // being attached/detached per drag. The ref is only ever touched inside
+  // these event handlers, never during render.
+  const resizeStateRef = useRef<{ fieldId: string; startX: number; startWidth: number } | null>(null)
+  const resizeWidthRef = useRef(0)
+  const [resizePreview, setResizePreview] = useState<{ fieldId: string; width: number } | null>(null)
+  const commitColumnResize = useEffectEvent((fieldId: string, width: number) => {
+    updateField(fieldId, { width })
+  })
+  useEffect(() => {
+    function onMove(e: MouseEvent) {
+      const rs = resizeStateRef.current
+      if (!rs) return
+      const width = Math.max(MIN_FIELD_COL, rs.startWidth + (e.clientX - rs.startX))
+      resizeWidthRef.current = width
+      setResizePreview({ fieldId: rs.fieldId, width })
+    }
+    function onUp() {
+      const rs = resizeStateRef.current
+      if (!rs) return
+      resizeStateRef.current = null
+      commitColumnResize(rs.fieldId, resizeWidthRef.current)
+      setResizePreview(null)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
+  }, [])
 
   async function addSelectOption(fieldId: string, option: string, color?: string) {
     const field = fields.find(f => f.id === fieldId)
@@ -599,6 +633,25 @@ export default function DatabaseView({ page, canEdit }: Props) {
     )
   }
 
+  // Column widths: manually-resized fields keep their stored width; the rest
+  // split whatever space is left evenly, down to MIN_FIELD_COL.
+  const CHECKBOX_COL = 48
+  const ADD_COL = canEdit ? 36 : 0
+  // A couple of px of slack absorbs sub-pixel rounding from the division
+  // below plus border rendering on sticky columns — without it the table
+  // ends up a hair wider than the scroll container and shows a permanent
+  // few-px scrollbar even when everything fits.
+  const SAFETY_MARGIN = 2
+  const manualWidths = new Map(visibleFields.filter(f => f.width != null).map(f => [f.id, Math.max(MIN_FIELD_COL, f.width!)]))
+  const autoFields = visibleFields.filter(f => !manualWidths.has(f.id))
+  const sumManual = [...manualWidths.values()].reduce((a, b) => a + b, 0)
+  const availableForAuto = containerWidth - CHECKBOX_COL - ADD_COL - sumManual - SAFETY_MARGIN
+  const autoFieldWidth = autoFields.length > 0
+    ? Math.max(MIN_FIELD_COL, Math.floor(availableForAuto / autoFields.length))
+    : MIN_FIELD_COL
+  const widthFor = (f: DbField) =>
+    resizePreview && resizePreview.fieldId === f.id ? resizePreview.width : (manualWidths.get(f.id) ?? autoFieldWidth)
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* DB Header */}
@@ -697,20 +750,13 @@ export default function DatabaseView({ page, canEdit }: Props) {
 
       {/* Content */}
       <div ref={contentRef} style={{ flex: 1, overflow: 'auto' }}>
-        {view === 'table' && (() => {
-          const CHECKBOX_COL = 48
-          const ADD_COL = canEdit ? 36 : 0
-          const MIN_FIELD_COL = 140
-          const fieldColWidth = visibleFields.length > 0
-            ? Math.max(MIN_FIELD_COL, Math.floor((containerWidth - CHECKBOX_COL - ADD_COL) / visibleFields.length))
-            : MIN_FIELD_COL
-          return (
+        {view === 'table' && (
           <>
             <div className="db-table-wrapper">
               <table className="db-table" style={{ tableLayout: 'fixed' }}>
                 <colgroup>
                   <col style={{ width: CHECKBOX_COL }} />
-                  {visibleFields.map(f => <col key={f.id} style={{ width: fieldColWidth }} />)}
+                  {visibleFields.map(f => <col key={f.id} style={{ width: widthFor(f) }} />)}
                   {canEdit && <col style={{ width: ADD_COL }} />}
                 </colgroup>
                 <thead>
@@ -765,6 +811,21 @@ export default function DatabaseView({ page, canEdit }: Props) {
                             onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setRenamingFieldId(null) }}
                             style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: '6px 8px', border: '2px solid var(--accent)', borderRadius: 4, fontFamily: 'var(--font-sans)', fontSize: 12, background: 'var(--surface)', zIndex: 200, outline: 'none' }} />
                         )}
+                        {canEdit && (
+                          <div
+                            className="col-resize-handle"
+                            onMouseDown={e => {
+                              e.preventDefault(); e.stopPropagation()
+                              const currentWidth = widthFor(f)
+                              resizeStateRef.current = { fieldId: f.id, startX: e.clientX, startWidth: currentWidth }
+                              resizeWidthRef.current = currentWidth
+                              setResizePreview({ fieldId: f.id, width: currentWidth })
+                            }}
+                            onDoubleClick={() => updateField(f.id, { width: null })}
+                            onClick={e => e.stopPropagation()}
+                            title="Drag to resize · double-click to auto-fit"
+                            style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 6, cursor: 'col-resize', zIndex: 6 }} />
+                        )}
                       </th>
                     ))}
                     {canEdit && <th data-export-hide style={{ width: 36, minWidth: 36 }}>
@@ -773,10 +834,11 @@ export default function DatabaseView({ page, canEdit }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {tableRecords.map(rec => (
+                  {tableRecords.map((rec, rowIdx) => (
                     <tr key={rec.id} style={{ background: selectedRows.has(rec.id) ? 'var(--accent-light)' : undefined }}>
                       <td data-export-hide style={{ width: 48, minWidth: 48, padding: 0, position: 'sticky', left: 0, background: selectedRows.has(rec.id) ? 'var(--accent-light)' : 'var(--surface)', borderRight: '1px solid var(--border)', textAlign: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+                          <span className="row-number" style={{ fontSize: 11, color: 'var(--text-tertiary)', opacity: selectedRows.has(rec.id) ? 0 : 1 }}>{rowIdx + 1}</span>
                           {canEdit && (
                             <input type="checkbox" checked={selectedRows.has(rec.id)}
                               onChange={e => setSelectedRows(s => {
@@ -830,8 +892,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
               </button>
             )}
           </>
-          )
-        })()}
+        )}
 
         {view === 'board' && (
           <div style={{ display: 'flex', gap: 12, padding: 16, overflowX: 'auto', alignItems: 'flex-start', minHeight: 200 }}>
@@ -1107,6 +1168,10 @@ export default function DatabaseView({ page, canEdit }: Props) {
       {toast && (
         <div style={{ position: 'fixed', bottom: 24, right: 24, background: '#37352f', color: '#fff', padding: '10px 16px', borderRadius: 8, fontSize: 13, zIndex: 300 }} className="fade-in">{toast}</div>
       )}
+      {/* Full-viewport cursor override while a column resize drag is active
+          — avoids the pointer flickering back to default as it crosses
+          non-th elements while dragging. */}
+      {resizePreview && <div style={{ position: 'fixed', inset: 0, zIndex: 9999, cursor: 'col-resize' }} />}
     </div>
   )
 }

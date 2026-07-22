@@ -13,6 +13,14 @@ const ctrlSt: React.CSSProperties = { padding: '4px 8px', border: '1px solid var
 
 const FIELD_TYPES_LIST: DbField['type'][] = ['text','number','currency','select','multiselect','date','checkbox','relation','rollup','url','email','phone']
 
+// Anchors a fixed-position dropdown below a trigger button, but keeps its
+// top edge high enough that a menu up to maxHeight tall never runs past the
+// bottom of the viewport (which happened for menus opened near the bottom
+// of the page, e.g. the "Add field" row after the last table row).
+function anchorMenuPos(rect: DOMRect, maxHeight: number, gap = 4) {
+  return { x: rect.left, y: Math.max(8, Math.min(rect.bottom + gap, window.innerHeight - maxHeight - 8)) }
+}
+
 type SelectOption = string | { label: string; color?: string }
 type SelectEditorProps = {
   field: DbField
@@ -131,7 +139,7 @@ export function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelat
       <button ref={btnRef} onClick={() => {
         if (!open) {
           const r = btnRef.current?.getBoundingClientRect()
-          if (r) setMenuPos({ x: r.left, y: r.bottom + 4 })
+          if (r) setMenuPos(anchorMenuPos(r, 420))
         }
         setOpen(o => !o); setShowTypes(false)
       }}
@@ -149,7 +157,7 @@ export function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelat
               a position:fixed child behind later sibling columns/cells no
               matter how high its own z-index is set. */}
           <div style={{ position: 'fixed', inset: 0, zIndex: 499 }} onClick={() => setOpen(false)} />
-          <div style={{ position: 'fixed', left: menuPos.x, top: menuPos.y, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: 5, boxShadow: 'var(--shadow-lg)', zIndex: 500, minWidth: 160 }}>
+          <div style={{ position: 'fixed', left: menuPos.x, top: menuPos.y, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: 5, boxShadow: 'var(--shadow-lg)', zIndex: 500, minWidth: 160, maxHeight: 'calc(100vh - 16px)', overflowY: 'auto' }}>
             <MItem onClick={() => { onRename(); setOpen(false) }}><IconLabel icon="edit">Rename</IconLabel></MItem>
             <MItem onClick={() => setShowTypes(o => !o)} extra="›"><IconLabel icon="refresh">Change type</IconLabel></MItem>
             {showTypes && (
@@ -206,7 +214,7 @@ export function FieldTypePicker({ value, onChange }: { value: DbField['type']; o
   return (
     <div style={{ position: 'relative', flexShrink: 0 }}>
       <button ref={btnRef} type="button" onClick={() => {
-        if (!open) { const r = btnRef.current?.getBoundingClientRect(); if (r) setMenuPos({ x: r.left, y: r.bottom + 4 }) }
+        if (!open) { const r = btnRef.current?.getBoundingClientRect(); if (r) setMenuPos(anchorMenuPos(r, 260)) }
         setOpen(o => !o)
       }} style={{ ...ctrlSt, display: 'flex', alignItems: 'center', gap: 6, minWidth: 130, justifyContent: 'space-between' }}>
         <IconLabel icon={FIELD_TYPE_ICON[value]}>{value.charAt(0).toUpperCase() + value.slice(1)}</IconLabel>

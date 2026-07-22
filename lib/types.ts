@@ -69,6 +69,7 @@ export type DbField = {
   relation_column_id: string | null
   position: number
   hidden_from_viewers?: boolean
+  width?: number | null
 }
 
 export type DbRecord = {
