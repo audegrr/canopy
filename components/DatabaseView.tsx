@@ -534,7 +534,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
     if (field.type === 'url' && val) return <a href={val} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} style={{ color: 'var(--accent)', fontSize: 13, textDecoration: 'underline' }}>{val}</a>
     if (field.type === 'currency') {
       if (val === '' || val === undefined || val === null || isNaN(Number(val))) return <span style={{ color: 'var(--text-tertiary)', fontSize: 13 }}></span>
-      const currency = field.options?.[0] || 'USD'
+      const currency = field.options?.[0] || 'EUR'
       return <span style={{ color: 'var(--text)', fontSize: 13 }}>{new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(Number(val))}</span>
     }
     return <span style={{ color: val ? 'var(--text)' : 'var(--text-tertiary)', fontSize: 13 }}>{val || ''}</span>
@@ -725,7 +725,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                           </span>
                           {canEdit && <FieldMenu field={f}
                             onRename={() => setRenamingFieldId(f.id)}
-                            onChangeType={type => updateField(f.id, { type, ...(type === 'currency' && !f.options?.length ? { options: ['USD'] } : {}) })}
+                            onChangeType={type => updateField(f.id, { type, ...(type === 'currency' && !f.options?.length ? { options: ['EUR'] } : {}) })}
                             onDelete={() => deleteField(f.id)}
                             onLinkRelation={(pageId) => updateField(f.id, { relation_page_id: pageId })}
                             onSetCurrency={(code) => updateField(f.id, { options: [code] })}

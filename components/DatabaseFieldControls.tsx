@@ -7,7 +7,7 @@ import type { DbField } from '@/lib/types'
 import { Icon } from './Icons'
 
 const FIELD_TYPE_ICON: Record<string, string> = { text: 'field-text', number: 'field-number', currency: 'currency', select: 'tag', multiselect: 'tags', date: 'calendar', checkbox: 'check-square', relation: 'relation', rollup: 'sigma', url: 'link', email: 'mail', phone: 'phone' }
-const CURRENCIES = ['USD', 'EUR', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY', 'CNY']
+const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY', 'CNY']
 const SELECT_COLORS = ['#fde68a','#bbf7d0','#bfdbfe','#fecaca','#e9d5ff','#fed7aa','#cffafe','#fbcfe8','#d1fae5','#ddd6fe']
 const ctrlSt: React.CSSProperties = { padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'var(--font-sans)', fontSize: 12, background: 'var(--sidebar-bg)', color: 'var(--text)', outline: 'none', cursor: 'pointer' }
 
@@ -176,7 +176,7 @@ export function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelat
             {field.type === 'currency' && !showTypes && (
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 4, marginTop: 2, padding: '4px 8px 0' }}>
                 <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4, fontWeight: 500 }}>Currency</div>
-                <select value={field.options?.[0] || 'USD'} onChange={e => onSetCurrency(e.target.value)}
+                <select value={field.options?.[0] || 'EUR'} onChange={e => onSetCurrency(e.target.value)}
                   onClick={e => e.stopPropagation()}
                   style={{ width: '100%', padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'var(--font-sans)', fontSize: 12, background: 'var(--sidebar-bg)', color: 'var(--text)', outline: 'none', cursor: 'pointer' }}>
                   {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
