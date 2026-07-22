@@ -6,12 +6,12 @@ import { createClient } from '@/lib/supabase/client'
 import type { DbField } from '@/lib/types'
 import { Icon } from './Icons'
 
-const FIELD_TYPE_ICON: Record<string, string> = { text: 'field-text', number: 'field-number', currency: 'currency', select: 'tag', multiselect: 'tags', date: 'calendar', checkbox: 'check-square', relation: 'relation', rollup: 'sigma', url: 'link', email: 'mail', phone: 'phone' }
-const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY', 'CNY']
+export const FIELD_TYPE_ICON: Record<string, string> = { text: 'field-text', number: 'field-number', currency: 'currency', select: 'tag', multiselect: 'tags', date: 'calendar', checkbox: 'check-square', relation: 'relation', rollup: 'sigma', url: 'link', email: 'mail', phone: 'phone' }
+export const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY', 'CNY']
 const SELECT_COLORS = ['#fde68a','#bbf7d0','#bfdbfe','#fecaca','#e9d5ff','#fed7aa','#cffafe','#fbcfe8','#d1fae5','#ddd6fe']
 const ctrlSt: React.CSSProperties = { padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'var(--font-sans)', fontSize: 12, background: 'var(--sidebar-bg)', color: 'var(--text)', outline: 'none', cursor: 'pointer' }
 
-const FIELD_TYPES_LIST: DbField['type'][] = ['text','number','select','multiselect','date','checkbox','relation','rollup','url','email','phone']
+const FIELD_TYPES_LIST: DbField['type'][] = ['text','number','currency','select','multiselect','date','checkbox','relation','rollup','url','email','phone']
 
 type SelectOption = string | { label: string; color?: string }
 type SelectEditorProps = {
@@ -188,6 +188,41 @@ export function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelat
             </MItem>
             <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
             <MItem onClick={() => { onDelete(); setOpen(false) }} danger><IconLabel icon="trash">Delete field</IconLabel></MItem>
+          </div>
+        </>,
+        document.body
+      )}
+    </div>
+  )
+}
+
+// Standalone type dropdown for the "Add field" form — shares FIELD_TYPE_ICON,
+// MItem and IconLabel with FieldMenu's "Change type" submenu so the icons
+// shown when creating a field always match the ones shown when changing one.
+export function FieldTypePicker({ value, onChange }: { value: DbField['type']; onChange: (t: DbField['type']) => void }) {
+  const [open, setOpen] = useState(false)
+  const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  return (
+    <div style={{ position: 'relative', flexShrink: 0 }}>
+      <button ref={btnRef} type="button" onClick={() => {
+        if (!open) { const r = btnRef.current?.getBoundingClientRect(); if (r) setMenuPos({ x: r.left, y: r.bottom + 4 }) }
+        setOpen(o => !o)
+      }} style={{ ...ctrlSt, display: 'flex', alignItems: 'center', gap: 6, minWidth: 130, justifyContent: 'space-between' }}>
+        <IconLabel icon={FIELD_TYPE_ICON[value]}>{value.charAt(0).toUpperCase() + value.slice(1)}</IconLabel>
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+          <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      {open && menuPos && createPortal(
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 499 }} onClick={() => setOpen(false)} />
+          <div style={{ position: 'fixed', left: menuPos.x, top: menuPos.y, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: 5, boxShadow: 'var(--shadow-lg)', zIndex: 500, minWidth: 160, maxHeight: 260, overflowY: 'auto' }}>
+            {FIELD_TYPES_LIST.map(t => (
+              <MItem key={t} onClick={() => { onChange(t); setOpen(false) }} active={t === value}>
+                <IconLabel icon={FIELD_TYPE_ICON[t]}>{t.charAt(0).toUpperCase() + t.slice(1)}</IconLabel>
+              </MItem>
+            ))}
           </div>
         </>,
         document.body

@@ -3,7 +3,7 @@ import { useState, useEffect, useEffectEvent, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Page, DbField, DbRecord } from '@/lib/types'
 import { downloadXlsx } from '@/lib/spreadsheet-xlsx'
-import { FieldMenu, RelationPagePicker, SelectEditor } from './DatabaseFieldControls'
+import { FieldMenu, FieldTypePicker, RelationPagePicker, SelectEditor, CURRENCIES } from './DatabaseFieldControls'
 import DatabaseImportModal from './DatabaseImportModal'
 import { Icon } from './Icons'
 
@@ -22,8 +22,6 @@ const SELECT_COLORS = [
   '#fed7aa','#cffafe','#fbcfe8','#d1fae5','#ddd6fe'
 ]
 
-const FIELD_TYPES: DbField['type'][] = ['text','number','currency','select','multiselect','date','checkbox','relation','rollup','url','email','phone']
-
 // Module-level cache, keyed by page.id — persists across navigations within
 // the same client session (unlike page content, fields/records live in their
 // own tables and would otherwise re-fetch from empty on every visit, unlike
@@ -38,7 +36,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const [sort, setSort] = useState({ field: '', dir: 'asc' as 'asc' | 'desc' })
   const [editingCell, setEditingCell] = useState<{ recId: string; fieldId: string } | null>(null)
   const [addingField, setAddingField] = useState(false)
-  const [newField, setNewField] = useState({ name: '', type: 'text' as DbField['type'] })
+  const [newField, setNewField] = useState({ name: '', type: 'text' as DbField['type'], currency: 'EUR' })
   const [showFilters, setShowFilters] = useState(false)
   const [relatedPages, setRelatedPages] = useState<{id: string; title: string; icon: string}[]>([])
   const [relatedRecords, setRelatedRecords] = useState<Record<string, DbRecord[]>>({})
@@ -59,6 +57,19 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const relatedFieldsRef = useRef<Record<string, DbField[]>>({})
   const supabase = useMemo(() => createClient(), [])
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'live' | 'offline'>('connecting')
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [containerWidth, setContainerWidth] = useState(0)
+
+  // Re-measure the scrollable area whenever it resizes (window resize,
+  // sidebar toggle, etc.) so column widths below can shrink to fit it —
+  // avoids needing horizontal scroll to see the whole table when possible.
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    const ro = new ResizeObserver(entries => setContainerWidth(entries[0].contentRect.width))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   async function loadData() {
     try {
@@ -157,11 +168,12 @@ export default function DatabaseView({ page, canEdit }: Props) {
   async function addField() {
     if (!newField.name.trim()) return
     const maxPos = fields.reduce((m, f) => Math.max(m, f.position), 0)
-    const { data } = await supabase.from('db_fields').insert({
+    const { data, error } = await supabase.from('db_fields').insert({
       page_id: page.id, name: newField.name.trim(), type: newField.type,
-      options: [], position: maxPos + 1
+      options: newField.type === 'currency' ? [newField.currency] : [], position: maxPos + 1
     }).select().single()
-    if (data) { setFields(f => [...f, data]); setNewField({ name: '', type: 'text' }); setAddingField(false) }
+    if (error) { showToastMsg('Failed to add field'); return }
+    if (data) { setFields(f => [...f, data]); setNewField({ name: '', type: 'text', currency: 'EUR' }); setAddingField(false) }
   }
 
   async function deleteField(id: string) {
@@ -684,11 +696,23 @@ export default function DatabaseView({ page, canEdit }: Props) {
       )}
 
       {/* Content */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
-        {view === 'table' && (
+      <div ref={contentRef} style={{ flex: 1, overflow: 'auto' }}>
+        {view === 'table' && (() => {
+          const CHECKBOX_COL = 48
+          const ADD_COL = canEdit ? 36 : 0
+          const MIN_FIELD_COL = 140
+          const fieldColWidth = visibleFields.length > 0
+            ? Math.max(MIN_FIELD_COL, Math.floor((containerWidth - CHECKBOX_COL - ADD_COL) / visibleFields.length))
+            : MIN_FIELD_COL
+          return (
           <>
             <div className="db-table-wrapper">
-              <table className="db-table" style={{ minWidth: '100%' }}>
+              <table className="db-table" style={{ tableLayout: 'fixed' }}>
+                <colgroup>
+                  <col style={{ width: CHECKBOX_COL }} />
+                  {visibleFields.map(f => <col key={f.id} style={{ width: fieldColWidth }} />)}
+                  {canEdit && <col style={{ width: ADD_COL }} />}
+                </colgroup>
                 <thead>
                   <tr>
                     <th data-export-hide style={{ width: 48, minWidth: 48, position: 'sticky', left: 0, background: 'var(--surface)', zIndex: 1, textAlign: 'center' }}>
@@ -700,7 +724,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
                       )}
                     </th>
                     {visibleFields.map((f, colIdx) => (
-                      <th key={f.id} style={{ minWidth: 140, position: 'relative' }}
+                      <th key={f.id} style={{ position: 'relative', overflow: 'hidden' }}
                         draggable={canEdit && colIdx > 0}
                         onDragStart={() => colIdx > 0 && handleColDragStart(colIdx)}
                         onDragOver={e => { e.preventDefault(); handleColDragOver(colIdx) }}
@@ -716,9 +740,9 @@ export default function DatabaseView({ page, canEdit }: Props) {
                         )}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', fontWeight: 500, minWidth: '16px', textAlign: 'center', flexShrink: 0 }}>{FIELD_ICONS[f.type]}</span>
-                          <span style={{ flex: 1, cursor: canEdit ? 'pointer' : 'default', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}
+                          <span style={{ flex: 1, minWidth: 0, cursor: canEdit ? 'pointer' : 'default', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden' }}
                             onClick={e => { e.stopPropagation(); if (canEdit) setRenamingFieldId(f.id) }}>
-                            {f.name}
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                             {canEdit && f.hidden_from_viewers && (
                               <span title="Hidden from viewers" style={{ display: 'flex', color: 'var(--text-tertiary)', opacity: 0.6 }}><Icon name="eye-off" size={11} /></span>
                             )}
@@ -806,7 +830,8 @@ export default function DatabaseView({ page, canEdit }: Props) {
               </button>
             )}
           </>
-        )}
+          )
+        })()}
 
         {view === 'board' && (
           <div style={{ display: 'flex', gap: 12, padding: 16, overflowX: 'auto', alignItems: 'flex-start', minHeight: 200 }}>
@@ -995,9 +1020,12 @@ export default function DatabaseView({ page, canEdit }: Props) {
             <input value={newField.name} onChange={e => setNewField(f => ({ ...f, name: e.target.value }))} placeholder="Field name" autoFocus
               onKeyDown={e => { if (e.key === 'Enter') addField(); if (e.key === 'Escape') setAddingField(false) }}
               style={{ padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'var(--font-sans)', fontSize: 13, background: 'var(--surface)', color: 'var(--text)', outline: 'none', width: 160 }} />
-            <select value={newField.type} onChange={e => setNewField(f => ({ ...f, type: e.target.value as DbField['type'] }))} style={ctrlSt}>
-              {FIELD_TYPES.map(t => <option key={t} value={t}>{FIELD_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
-            </select>
+            <FieldTypePicker value={newField.type} onChange={t => setNewField(f => ({ ...f, type: t }))} />
+            {newField.type === 'currency' && (
+              <select value={newField.currency} onChange={e => setNewField(f => ({ ...f, currency: e.target.value }))} style={ctrlSt}>
+                {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            )}
             {newField.type === 'relation' && <RelationPagePicker value="" onChange={pageId => setNewField(f => ({ ...f, relation_page_id: pageId } as any))} />}
             <button onClick={addField} style={{ background: 'var(--accent)', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 6, fontFamily: 'var(--font-sans)', fontSize: 13, cursor: 'pointer', fontWeight: 500 }}>Add</button>
             <button onClick={() => setAddingField(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', fontSize: 13 }}>Cancel</button>
