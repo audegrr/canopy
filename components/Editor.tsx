@@ -1,6 +1,6 @@
 'use client'
 /* eslint-disable @next/next/no-img-element -- Editor nodes render user-provided blob, data, and remote image URLs. */
-import { useRef, useState, useEffect, useMemo } from 'react'
+import { useRef, useState, useEffect, useMemo, useCallback } from 'react'
 import { useEditor, EditorContent, NodeViewWrapper, NodeViewContent, ReactNodeViewRenderer } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
 import StarterKit from '@tiptap/starter-kit'
@@ -21,6 +21,15 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { createRoot } from 'react-dom/client'
 import { createClient } from '@/lib/supabase/client'
+
+// Stable reference — @tiptap/react's <BubbleMenu> re-dispatches a metadata
+// transaction whenever its `options` prop changes by reference (it's in that
+// effect's own dependency array). An inline object literal here would be a
+// new reference every render, and since our own transaction listener forces
+// a re-render on every transaction, that becomes an infinite dispatch loop
+// (each dispatch -> re-render -> new object -> dispatch...) that trips
+// React's "Maximum update depth exceeded" guard.
+const BUBBLE_MENU_OPTIONS = { placement: 'top' as const }
 
 // ── Video node ─────────────────────────────────────────
 const VideoNode = Node.create({
@@ -923,6 +932,16 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   const [linkCtxMenu, setLinkCtxMenu] = useState<{ x: number; y: number; from: number; to: number; href: string; text: string } | null>(null)
   const [, setBubbleMenuEnabled] = useState(true)
   const bubbleMenuEnabledRef = useRef(true)
+  // Stable reference for the same reason as BUBBLE_MENU_OPTIONS above — an
+  // inline arrow function would recreate on every render and re-trigger
+  // BubbleMenu's internal update effect. Only reads bubbleMenuEnabledRef
+  // (a ref) and the `editor` passed in at call time, so it has no reactive
+  // dependencies and can stay referentially stable forever.
+  const bubbleMenuShouldShow = useCallback(({ editor }: { editor: any }) => {
+    if (!bubbleMenuEnabledRef.current) return false
+    if (!editor.isFocused) return false
+    return editor.isActive('image') || (!editor.state.selection.empty)
+  }, [])
   const [tableToolbarPos, setTableToolbarPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
   // Extensions must be a stable reference: useEditor (Tiptap 3) compares this array by
@@ -1457,12 +1476,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   const main = (
     <div style={{ position: 'relative' }}>
       {/* Floating bubble menu on selection */}
-      <BubbleMenu editor={editor} options={{ placement: 'top' }}
-        shouldShow={({ editor }) => {
-          if (!bubbleMenuEnabledRef.current) return false
-          if (!editor.isFocused) return false
-          return editor.isActive('image') || (!editor.state.selection.empty)
-        }}>
+      <BubbleMenu editor={editor} options={BUBBLE_MENU_OPTIONS}
+        shouldShow={bubbleMenuShouldShow}>
         <div className="floating-toolbar" style={{ overflowX: 'auto', maxWidth: 'calc(100vw - 32px)', flexWrap: 'nowrap' }} onMouseDown={e => e.preventDefault()}>
           {/* Image-only controls */}
           {editor.isActive('image') && <>
