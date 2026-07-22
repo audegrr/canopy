@@ -12,7 +12,7 @@ type View = 'table' | 'board' | 'gallery' | 'calendar'
 type Props = { page: Page; canEdit: boolean }
 
 const FIELD_ICONS: Record<string, string> = {
-  text: 'Aa', number: '#', select: '◉', multiselect: '◈',
+  text: 'Aa', number: '#', currency: '$', select: '◉', multiselect: '◈',
   date: '▦', checkbox: '☐', relation: '⤴', rollup: 'Σ',
   url: '⊕', email: '@', phone: '℡'
 }
@@ -22,11 +22,17 @@ const SELECT_COLORS = [
   '#fed7aa','#cffafe','#fbcfe8','#d1fae5','#ddd6fe'
 ]
 
-const FIELD_TYPES: DbField['type'][] = ['text','number','select','multiselect','date','checkbox','relation','rollup','url','email','phone']
+const FIELD_TYPES: DbField['type'][] = ['text','number','currency','select','multiselect','date','checkbox','relation','rollup','url','email','phone']
+
+// Module-level cache, keyed by page.id — persists across navigations within
+// the same client session (unlike page content, fields/records live in their
+// own tables and would otherwise re-fetch from empty on every visit, unlike
+// a regular doc page whose content ships with the cached page row).
+const dbCache = new Map<string, { fields: DbField[]; records: DbRecord[]; relations: any[] }>()
 
 export default function DatabaseView({ page, canEdit }: Props) {
-  const [fields, setFields] = useState<DbField[]>([])
-  const [records, setRecords] = useState<DbRecord[]>([])
+  const [fields, setFields] = useState<DbField[]>(() => dbCache.get(page.id)?.fields ?? [])
+  const [records, setRecords] = useState<DbRecord[]>(() => dbCache.get(page.id)?.records ?? [])
   const [view, setView] = useState<View>('table')
   const [filters, setFilters] = useState<{ id: number; field: string; op: string; value: string }[]>([])
   const [sort, setSort] = useState({ field: '', dir: 'asc' as 'asc' | 'desc' })
@@ -36,7 +42,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const [showFilters, setShowFilters] = useState(false)
   const [relatedPages, setRelatedPages] = useState<{id: string; title: string; icon: string}[]>([])
   const [relatedRecords, setRelatedRecords] = useState<Record<string, DbRecord[]>>({})
-  const [relations, setRelations] = useState<any[]>([])
+  const [relations, setRelations] = useState<any[]>(() => dbCache.get(page.id)?.relations ?? [])
   const [toast, setToast] = useState('')
   const [dragColIdx, setDragColIdx] = useState<number | null>(null)
   const [dragOverColIdx, setDragOverColIdx] = useState<number | null>(null)
@@ -103,6 +109,10 @@ export default function DatabaseView({ page, canEdit }: Props) {
 
   const loadDataEvent = useEffectEvent(() => loadData())
   useEffect(() => { loadDataEvent() }, [page.id])
+
+  // Keep the cross-mount cache in sync with whatever is on screen, regardless
+  // of whether it changed via the initial load, realtime, or a local edit.
+  useEffect(() => { dbCache.set(page.id, { fields, records, relations }) }, [page.id, fields, records, relations])
 
   useEffect(() => {
     const channel = supabase.channel(`database:${page.id}`)
@@ -288,8 +298,21 @@ export default function DatabaseView({ page, canEdit }: Props) {
     )
   }
   if (sort.field) {
+    const sortFieldType = fields.find(f => f.id === sort.field)?.type
+    const isNumeric = sortFieldType === 'number' || sortFieldType === 'currency'
     displayRecords.sort((a, b) => {
-      const av = String(a.data?.[sort.field] ?? ''), bv = String(b.data?.[sort.field] ?? '')
+      const rawA = a.data?.[sort.field], rawB = b.data?.[sort.field]
+      if (isNumeric) {
+        // Compare as numbers, not strings — otherwise "11000" sorts before
+        // "4000" because '1' < '4' lexicographically.
+        const na = rawA === '' || rawA == null ? NaN : Number(rawA)
+        const nb = rawB === '' || rawB == null ? NaN : Number(rawB)
+        if (isNaN(na) && isNaN(nb)) return 0
+        if (isNaN(na)) return 1
+        if (isNaN(nb)) return -1
+        return sort.dir === 'asc' ? na - nb : nb - na
+      }
+      const av = String(rawA ?? ''), bv = String(rawB ?? '')
       return sort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
     })
   }
@@ -446,7 +469,8 @@ export default function DatabaseView({ page, canEdit }: Props) {
           defaultValue={String(val ?? '')}
           onBlur={e => updateCell(rec.id, field.id, e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') updateCell(rec.id, field.id, (e.target as HTMLInputElement).value); if (e.key === 'Escape') setEditingCell(null) }}
-          type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'email' ? 'email' : 'url'}
+          type={field.type === 'number' || field.type === 'currency' ? 'number' : field.type === 'date' ? 'date' : field.type === 'email' ? 'email' : 'url'}
+          step={field.type === 'currency' ? '0.01' : undefined}
           style={{ width: '100%', border: 'none', outline: 'none', boxShadow: 'none', borderRadius: 0, background: 'transparent', fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--text)', padding: 0 }}
           onMouseDown={e => e.stopPropagation()} />
       )
@@ -508,6 +532,11 @@ export default function DatabaseView({ page, canEdit }: Props) {
       return <span style={{ fontSize: 13 }}>{linkedRecs.length}</span>
     }
     if (field.type === 'url' && val) return <a href={val} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} style={{ color: 'var(--accent)', fontSize: 13, textDecoration: 'underline' }}>{val}</a>
+    if (field.type === 'currency') {
+      if (val === '' || val === undefined || val === null || isNaN(Number(val))) return <span style={{ color: 'var(--text-tertiary)', fontSize: 13 }}></span>
+      const currency = field.options?.[0] || 'USD'
+      return <span style={{ color: 'var(--text)', fontSize: 13 }}>{new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(Number(val))}</span>
+    }
     return <span style={{ color: val ? 'var(--text)' : 'var(--text-tertiary)', fontSize: 13 }}>{val || ''}</span>
   }
 
@@ -696,9 +725,10 @@ export default function DatabaseView({ page, canEdit }: Props) {
                           </span>
                           {canEdit && <FieldMenu field={f}
                             onRename={() => setRenamingFieldId(f.id)}
-                            onChangeType={type => updateField(f.id, { type })}
+                            onChangeType={type => updateField(f.id, { type, ...(type === 'currency' && !f.options?.length ? { options: ['USD'] } : {}) })}
                             onDelete={() => deleteField(f.id)}
                             onLinkRelation={(pageId) => updateField(f.id, { relation_page_id: pageId })}
+                            onSetCurrency={(code) => updateField(f.id, { options: [code] })}
                             onToggleHidden={() => updateField(f.id, { hidden_from_viewers: !f.hidden_from_viewers })} />}
                         </div>
                         {/* Inline rename input */}

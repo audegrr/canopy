@@ -59,7 +59,7 @@ export type DbField = {
   id: string
   page_id: string
   name: string
-  type: 'text' | 'number' | 'select' | 'multiselect' | 'date' | 'checkbox' | 'relation' | 'rollup' | 'url' | 'email' | 'phone'
+  type: 'text' | 'number' | 'currency' | 'select' | 'multiselect' | 'date' | 'checkbox' | 'relation' | 'rollup' | 'url' | 'email' | 'phone'
   options: any[]
   relation_page_id: string | null
   rollup_field_id: string | null

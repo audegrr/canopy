@@ -249,6 +249,31 @@ const ICONS: Record<string, () => React.ReactNode> = {
     <path d="m9 12 2 2 4-4"/>
   </>,
   filter: () => <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3Z"/>,
+  'field-text': () => <path d="M4 7V4h16v3M9 20h6M12 4v16"/>,
+  'field-number': () => <path d="M4 9h16M4 15h16M10 3 8 21M16 3l-2 18"/>,
+  tag: () => <>
+    <path d="M12.59 2.59a2 2 0 0 0-1.42-.59H4a2 2 0 0 0-2 2v7.17a2 2 0 0 0 .59 1.41l8 8a2 2 0 0 0 2.82 0l7.17-7.17a2 2 0 0 0 0-2.82Z"/>
+    <circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none"/>
+  </>,
+  tags: () => <>
+    <rect x="3" y="3" width="12" height="8" rx="2.5"/>
+    <rect x="9" y="13" width="12" height="8" rx="2.5"/>
+  </>,
+  relation: () => <>
+    <circle cx="6" cy="6" r="3"/>
+    <circle cx="18" cy="18" r="3"/>
+    <path d="m8.5 8.5 7 7"/>
+  </>,
+  sigma: () => <path d="M18 4H6l6 8-6 8h12"/>,
+  mail: () => <>
+    <rect x="2" y="4" width="20" height="16" rx="2"/>
+    <path d="m22 6-10 7L2 6"/>
+  </>,
+  phone: () => <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>,
+  currency: () => <>
+    <circle cx="12" cy="12" r="9"/>
+    <path d="M12 6v12M15 9.5c0-1.5-1.4-2.5-3-2.5-1.8 0-3 1-3 2.3 0 3 6 1.4 6 4.4 0 1.3-1.2 2.3-3 2.3-1.6 0-3-1-3-2.5"/>
+  </>,
 }
 
 export function Icon({ name, size = 16, style, className }: { name: string; size?: number; style?: React.CSSProperties; className?: string }) {

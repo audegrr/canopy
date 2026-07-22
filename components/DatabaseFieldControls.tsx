@@ -1,11 +1,13 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { createClient } from '@/lib/supabase/client'
 import type { DbField } from '@/lib/types'
 import { Icon } from './Icons'
 
-const FIELD_ICONS: Record<string, string> = { text: 'Aa', number: '#', select: '◉', multiselect: '◈', date: '▦', checkbox: '☐', relation: '⤴', rollup: 'Σ', url: '⊕', email: '@', phone: '℡' }
+const FIELD_TYPE_ICON: Record<string, string> = { text: 'field-text', number: 'field-number', currency: 'currency', select: 'tag', multiselect: 'tags', date: 'calendar', checkbox: 'check-square', relation: 'relation', rollup: 'sigma', url: 'link', email: 'mail', phone: 'phone' }
+const CURRENCIES = ['USD', 'EUR', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY', 'CNY']
 const SELECT_COLORS = ['#fde68a','#bbf7d0','#bfdbfe','#fecaca','#e9d5ff','#fed7aa','#cffafe','#fbcfe8','#d1fae5','#ddd6fe']
 const ctrlSt: React.CSSProperties = { padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'var(--font-sans)', fontSize: 12, background: 'var(--sidebar-bg)', color: 'var(--text)', outline: 'none', cursor: 'pointer' }
 
@@ -119,7 +121,7 @@ export function SelectEditor({ field, currentValue, onSelect, onAddOption, onDel
   )
 }
 
-export function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelation, onToggleHidden }: { field: DbField; onRename: () => void; onChangeType: (t: DbField['type']) => void; onDelete: () => void; onLinkRelation: (pageId: string, colId?: string) => void; onToggleHidden: () => void }) {
+export function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelation, onSetCurrency, onToggleHidden }: { field: DbField; onRename: () => void; onChangeType: (t: DbField['type']) => void; onDelete: () => void; onLinkRelation: (pageId: string, colId?: string) => void; onSetCurrency: (code: string) => void; onToggleHidden: () => void }) {
   const [open, setOpen] = useState(false)
   const [showTypes, setShowTypes] = useState(false)
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null)
@@ -140,8 +142,12 @@ export function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelat
           <path d="M4 6l4 4 4-4" stroke="var(--text-tertiary)" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </button>
-      {open && menuPos && (
+      {open && menuPos && createPortal(
         <>
+          {/* Portaled to <body> — a table <th> establishes its own stacking
+              context (position + z-index from .db-table th), which would trap
+              a position:fixed child behind later sibling columns/cells no
+              matter how high its own z-index is set. */}
           <div style={{ position: 'fixed', inset: 0, zIndex: 499 }} onClick={() => setOpen(false)} />
           <div style={{ position: 'fixed', left: menuPos.x, top: menuPos.y, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: 5, boxShadow: 'var(--shadow-lg)', zIndex: 500, minWidth: 160 }}>
             <MItem onClick={() => { onRename(); setOpen(false) }}><IconLabel icon="edit">Rename</IconLabel></MItem>
@@ -154,7 +160,7 @@ export function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelat
                     if (t !== 'relation') setOpen(false)
                     else setShowTypes(false) // Stay open to pick relation table
                   }} active={t === field.type}>
-                    {FIELD_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}
+                    <IconLabel icon={FIELD_TYPE_ICON[t]}>{t.charAt(0).toUpperCase() + t.slice(1)}</IconLabel>
                   </MItem>
                 ))}
               </div>
@@ -167,13 +173,24 @@ export function FieldMenu({ field, onRename, onChangeType, onDelete, onLinkRelat
                   onChange={(pageId) => { if (pageId) onLinkRelation(pageId) }} />
               </div>
             )}
+            {field.type === 'currency' && !showTypes && (
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 4, marginTop: 2, padding: '4px 8px 0' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 4, fontWeight: 500 }}>Currency</div>
+                <select value={field.options?.[0] || 'USD'} onChange={e => onSetCurrency(e.target.value)}
+                  onClick={e => e.stopPropagation()}
+                  style={{ width: '100%', padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'var(--font-sans)', fontSize: 12, background: 'var(--sidebar-bg)', color: 'var(--text)', outline: 'none', cursor: 'pointer' }}>
+                  {CURRENCIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+            )}
             <MItem onClick={() => { onToggleHidden(); setOpen(false) }}>
               <IconLabel icon={field.hidden_from_viewers ? 'eye' : 'eye-off'}>{field.hidden_from_viewers ? 'Show to viewers' : 'Hide from viewers'}</IconLabel>
             </MItem>
             <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0' }} />
             <MItem onClick={() => { onDelete(); setOpen(false) }} danger><IconLabel icon="trash">Delete field</IconLabel></MItem>
           </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   )
