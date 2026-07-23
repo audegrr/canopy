@@ -2366,50 +2366,61 @@ function InviteLinkSection({ workspaceId }: { workspaceId: string }) {
   const [role, setRole] = useState<'member' | 'viewer'>('member')
   const [loading, setLoading] = useState(false)
   const [copyError, setCopyError] = useState('')
+  const [copied, setCopied] = useState(false)
   const linkInputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
 
   async function generate() {
     setLoading(true)
+    setCopied(false)
+    setCopyError('')
     const { data } = await supabase.from('workspace_invites').insert({ workspace_id: workspaceId, role }).select('token').single()
     if (data) setLink(`${window.location.origin}/invite/${data.token}`)
     setLoading(false)
   }
 
-  function copyAndClose() {
+  async function copyLink() {
     if (!link) return
     setCopyError('')
+    setCopied(false)
 
-    // Copy the visible input synchronously while the click's user activation
-    // is still valid. Waiting for a rejected Clipboard API promise first can
-    // make browser fallbacks lose permission to write.
+    // Start the persistent Clipboard API write during the click gesture. Keep
+    // the source field mounted until it settles so closing this section cannot
+    // invalidate a selection-based fallback.
+    let persistentCopy: Promise<void> | null = null
+    try {
+      if (navigator.clipboard?.writeText) {
+        persistentCopy = navigator.clipboard.writeText(link)
+      }
+    } catch {
+      persistentCopy = null
+    }
+
     const input = linkInputRef.current
-    let copied = false
+    let legacyCopied = false
     try {
       if (input) {
         input.focus()
         input.select()
         input.setSelectionRange(0, input.value.length)
-        copied = document.execCommand('copy')
+        legacyCopied = document.execCommand('copy')
       }
     } catch {
-      copied = false
+      legacyCopied = false
     }
 
-    if (copied) {
-      setLink(null)
-      return
+    if (persistentCopy) {
+      try {
+        await persistentCopy
+        setCopied(true)
+        return
+      } catch {
+        // The synchronous copy above may still have succeeded.
+      }
     }
 
-    if (navigator.clipboard?.writeText) {
-      void navigator.clipboard.writeText(link).then(
-        () => setLink(null),
-        () => setCopyError('Copy failed — select the link and copy it manually.'),
-      )
-      return
-    }
-
-    setCopyError('Copy failed — select the link and copy it manually.')
+    if (legacyCopied) setCopied(true)
+    else setCopyError('Copy failed — select the link and copy it manually.')
   }
 
   return (
@@ -2418,8 +2429,8 @@ function InviteLinkSection({ workspaceId }: { workspaceId: string }) {
       {link ? (
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <input ref={linkInputRef} readOnly value={link} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 5, padding: '5px 8px', fontSize: 11, fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--sidebar-bg)', outline: 'none' }} />
-          <button type="button" onClick={copyAndClose}
-            style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500, whiteSpace: 'nowrap' }}>Copy & close</button>
+          <button type="button" onClick={copyLink}
+            style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500, whiteSpace: 'nowrap' }}>{copied ? 'Copied!' : 'Copy'}</button>
           {copyError && <span role="alert" style={{ fontSize: 10, color: 'var(--red)' }}>{copyError}</span>}
         </div>
       ) : (
