@@ -61,6 +61,7 @@ export async function POST(req: Request) {
 
   const origin = safePublicOrigin(req)
   if (!origin) return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
+  const emailInvitesEnabled = process.env.SUPABASE_EMAIL_INVITES_ENABLED === 'true'
 
   // Keep an active workspace token stable. Rotating it before sending the
   // email made links already delivered to the recipient stop working.
@@ -105,12 +106,65 @@ export async function POST(req: Request) {
 
   // Avoid Supabase's per-address email throttle while keeping the original
   // invitation usable.
-  if (activeInvite && Date.now() - new Date(activeInvite.created_at).getTime() < 60_000) {
+  if (emailInvitesEnabled && activeInvite && Date.now() - new Date(activeInvite.created_at).getTime() < 60_000) {
     return NextResponse.json({ ok: true, alreadyInvited: true })
   }
 
   const next = encodeURIComponent(`/invite/${invite.token}`)
   const redirectTo = `${origin}/auth/callback?next=${next}`
+  const inviteEmail = email
+  const publicOrigin = origin
+  const pendingInvite = invite
+
+  async function createManualInviteLink() {
+    let authUserExists = !!authUser
+    if (!authUserExists) {
+      const { data: refreshedRows } = await admin.rpc('get_auth_user_by_email', { p_email: inviteEmail })
+      authUserExists = !!refreshedRows?.[0]
+    }
+
+    let generated = await admin.auth.admin.generateLink({
+      type: authUserExists ? 'magiclink' : 'invite',
+      email: inviteEmail,
+      options: { redirectTo },
+    })
+
+    // Some mailer failures create the Auth user before returning an error.
+    // Retry as a magic link if the initial invite-link generation detects it.
+    if (generated.error && !authUserExists) {
+      generated = await admin.auth.admin.generateLink({
+        type: 'magiclink',
+        email: inviteEmail,
+        options: { redirectTo },
+      })
+    }
+
+    const properties = generated.data.properties
+    if (generated.error || !properties?.hashed_token || !properties.verification_type) {
+      console.error('[invite] failed to generate fallback link:', authErrorDetails(generated.error))
+      if (createdInvite) await admin.from('workspace_invites').delete().eq('id', pendingInvite.id)
+      return NextResponse.json(
+        { error: 'The email service is unavailable and a fallback link could not be created.' },
+        { status: 502 },
+      )
+    }
+
+    const confirmUrl = new URL('/auth/confirm', publicOrigin)
+    confirmUrl.searchParams.set('token_hash', properties.hashed_token)
+    confirmUrl.searchParams.set('type', properties.verification_type)
+    confirmUrl.searchParams.set('next', `/invite/${pendingInvite.token}`)
+
+    return NextResponse.json({
+      ok: true,
+      emailSent: false,
+      inviteLink: confirmUrl.toString(),
+    })
+  }
+
+  // Email delivery is opt-in because this project's Supabase mailer currently
+  // times out before returning an empty error. Skip that known-slow failure and
+  // generate the signed manual link immediately.
+  if (!emailInvitesEnabled) return createManualInviteLink()
 
   // Supabase cannot call inviteUserByEmail twice for an address that already
   // has an Auth user. For a pending account, send a non-creating magic link
@@ -125,52 +179,7 @@ export async function POST(req: Request) {
 
   if (authError) {
     console.error('[invite] failed to send auth email:', authErrorDetails(authError))
-
-    // A broken or rate-limited Supabase mailer must not make workspace
-    // invitations unusable. Generate the same signed Auth link without
-    // sending it, then let the owner copy and share it manually.
-    let authUserExists = !!authUser
-    if (!authUserExists) {
-      const { data: refreshedRows } = await admin.rpc('get_auth_user_by_email', { p_email: email })
-      authUserExists = !!refreshedRows?.[0]
-    }
-
-    let generated = await admin.auth.admin.generateLink({
-      type: authUserExists ? 'magiclink' : 'invite',
-      email,
-      options: { redirectTo },
-    })
-
-    // Some mailer failures create the Auth user before returning an error.
-    // Retry as a magic link if the initial invite-link generation detects it.
-    if (generated.error && !authUserExists) {
-      generated = await admin.auth.admin.generateLink({
-        type: 'magiclink',
-        email,
-        options: { redirectTo },
-      })
-    }
-
-    const properties = generated.data.properties
-    if (generated.error || !properties?.hashed_token || !properties.verification_type) {
-      console.error('[invite] failed to generate fallback link:', authErrorDetails(generated.error))
-      if (createdInvite) await admin.from('workspace_invites').delete().eq('id', invite.id)
-      return NextResponse.json(
-        { error: 'The email service is unavailable and a fallback link could not be created.' },
-        { status: 502 },
-      )
-    }
-
-    const confirmUrl = new URL('/auth/confirm', origin)
-    confirmUrl.searchParams.set('token_hash', properties.hashed_token)
-    confirmUrl.searchParams.set('type', properties.verification_type)
-    confirmUrl.searchParams.set('next', `/invite/${invite.token}`)
-
-    return NextResponse.json({
-      ok: true,
-      emailSent: false,
-      inviteLink: confirmUrl.toString(),
-    })
+    return createManualInviteLink()
   }
 
   return NextResponse.json({ ok: true, emailSent: true, resent: !!authUser })

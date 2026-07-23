@@ -855,9 +855,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     } else if (body.emailSent === false && body.inviteLink) {
       const copied = await navigator.clipboard.writeText(body.inviteLink).then(() => true).catch(() => false)
       if (copied) {
-        showToastMsg('Email unavailable — invitation link copied!')
+        showToastMsg('Invitation link copied — send it to your teammate')
       } else {
-        window.prompt('Email unavailable. Copy this invitation link:', body.inviteLink)
+        window.prompt('Copy this link and send it to your teammate. They can create a Canopy account from it:', body.inviteLink)
       }
     } else if (body.resent) {
       showToastMsg('Invitation email resent!')
