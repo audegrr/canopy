@@ -818,6 +818,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     const email = inviteEmail.trim().toLowerCase()
     if (!email) return
 
+    showToastMsg('Checking user…')
     const res = await fetch('/api/invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -852,9 +853,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     } else if (body.alreadyInvited) {
       showToastMsg('Invitation already sent')
     } else if (body.accountNotFound && body.inviteLink) {
-      window.prompt('This person does not have a Canopy account yet. Copy and send them this sign-up link:', body.inviteLink)
+      window.prompt('User not found. Copy and send this invitation link:', body.inviteLink)
     } else if (body.emailSent === false && body.inviteLink) {
-      window.prompt('Copy and send this invitation link:', body.inviteLink)
+      window.prompt('User not found. Copy and send this invitation link:', body.inviteLink)
     } else if (body.resent) {
       showToastMsg('Invitation email resent!')
     } else {

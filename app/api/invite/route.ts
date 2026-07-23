@@ -15,8 +15,6 @@ export async function POST(req: Request) {
   const workspace_id = body?.workspace_id
   const role = body?.role === 'member' ? 'member' : body?.role === 'viewer' ? 'viewer' : null
   if (!email || !isUuid(workspace_id) || !role) return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
-  const limited = await rateLimit(`invite:${user.id}`, 20, 60 * 60 * 1000)
-  if (limited) return limited
 
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   if (!serviceRoleKey) return NextResponse.json({ error: 'Server misconfigured' }, { status: 500 })
@@ -25,8 +23,27 @@ export async function POST(req: Request) {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
   })
 
+  // These checks are independent. Running them concurrently removes several
+  // sequential network round trips from the invite button's critical path.
+  const now = new Date().toISOString()
+  const [limited, workspaceResult, authResult, activeInviteResult] = await Promise.all([
+    rateLimit(`invite:${user.id}`, 20, 60 * 60 * 1000),
+    admin.from('workspaces').select('owner_id, name').eq('id', workspace_id).single(),
+    admin.rpc('get_auth_user_by_email', { p_email: email }),
+    admin
+      .from('workspace_invites')
+      .select('id, token, role, created_at')
+      .eq('workspace_id', workspace_id)
+      .eq('invited_email', email)
+      .gt('expires_at', now)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+  if (limited) return limited
+
   // Verify caller is owner of this workspace
-  const { data: workspace, error: workspaceError } = await admin.from('workspaces').select('owner_id, name').eq('id', workspace_id).single()
+  const { data: workspace, error: workspaceError } = workspaceResult
   if (workspaceError) {
     console.error('[invite] failed to load workspace:', workspaceError.message)
     return NextResponse.json({ error: 'Unable to load workspace' }, { status: 500 })
@@ -36,7 +53,7 @@ export async function POST(req: Request) {
   }
 
   // Check if the email has an auth account and whether it is confirmed
-  const { data: authRows } = await admin.rpc('get_auth_user_by_email', { p_email: email })
+  const { data: authRows } = authResult
   const authUser = authRows?.[0] as { id: string; has_account: boolean } | undefined
 
   // ── Case 1: real account → add directly using the auth user ID ──────────
@@ -65,15 +82,7 @@ export async function POST(req: Request) {
 
   // Keep an active workspace token stable. Rotating it before sending the
   // email made links already delivered to the recipient stop working.
-  const { data: activeInvite, error: activeInviteError } = await admin
-    .from('workspace_invites')
-    .select('id, token, role, created_at')
-    .eq('workspace_id', workspace_id)
-    .eq('invited_email', email)
-    .gt('expires_at', new Date().toISOString())
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const { data: activeInvite, error: activeInviteError } = activeInviteResult
   if (activeInviteError) {
     console.error('[invite] failed to load pending invite:', activeInviteError.message)
     return NextResponse.json({ error: 'Unable to load pending invitation' }, { status: 500 })
@@ -90,12 +99,25 @@ export async function POST(req: Request) {
       }
     }
   } else {
-    await admin.from('workspace_invites').delete().eq('workspace_id', workspace_id).eq('invited_email', email)
-    const { data, error: inviteError } = await admin
-      .from('workspace_invites')
-      .insert({ workspace_id, role, created_by: user.id, invited_email: email })
-      .select('id, token, role, created_at')
-      .single()
+    // Expired-row cleanup does not have to finish before the replacement is
+    // created (there is no workspace/email uniqueness constraint).
+    const [cleanupResult, insertResult] = await Promise.all([
+      admin
+        .from('workspace_invites')
+        .delete()
+        .eq('workspace_id', workspace_id)
+        .eq('invited_email', email)
+        .lte('expires_at', now),
+      admin
+        .from('workspace_invites')
+        .insert({ workspace_id, role, created_by: user.id, invited_email: email })
+        .select('id, token, role, created_at')
+        .single(),
+    ])
+    if (cleanupResult.error) {
+      console.error('[invite] failed to clean up expired invites:', cleanupResult.error.message)
+    }
+    const { data, error: inviteError } = insertResult
     if (inviteError || !data) {
       console.error('[invite] failed to create invite record:', inviteError?.message)
       return NextResponse.json({ error: inviteError?.message ?? 'Failed to create invite' }, { status: 500 })
@@ -116,10 +138,17 @@ export async function POST(req: Request) {
   const publicOrigin = origin
   const pendingInvite = invite
 
-  // A brand-new user does not need an Auth link yet. The workspace URL sends
-  // them straight to sign-up with the invite token preserved, which is both
-  // faster and matches the original "copy this URL" flow.
-  if (!emailInvitesEnabled && !authUser) {
+  // A person without a completed account does not need an Auth link yet. Old
+  // invite attempts may have left an empty Auth placeholder behind; remove it
+  // so the recipient can complete normal sign-up from the workspace URL.
+  if (!emailInvitesEnabled && !authUser?.has_account) {
+    if (authUser) {
+      const { error: cleanupAuthError } = await admin.auth.admin.deleteUser(authUser.id)
+      if (cleanupAuthError) {
+        console.error('[invite] failed to remove incomplete Auth user:', authErrorDetails(cleanupAuthError))
+        return createManualInviteLink()
+      }
+    }
     return NextResponse.json({
       ok: true,
       accountNotFound: true,
