@@ -832,7 +832,6 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
     const body = await res.json()
     setInviteEmail('')
-    await loadWsMembers()
 
     if (body.alreadyMember) {
       showToastMsg('Already a member')
@@ -855,15 +854,19 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     } else if (body.emailSent === false && body.inviteLink) {
       const copied = await navigator.clipboard.writeText(body.inviteLink).then(() => true).catch(() => false)
       if (copied) {
-        showToastMsg('Invitation link copied — send it to your teammate')
+        showToastMsg('No Canopy account yet — invitation link copied')
       } else {
-        window.prompt('Copy this link and send it to your teammate. They can create a Canopy account from it:', body.inviteLink)
+        window.prompt('This person does not have a Canopy account yet. Copy and send them this sign-up link:', body.inviteLink)
       }
     } else if (body.resent) {
       showToastMsg('Invitation email resent!')
     } else {
       showToastMsg('Invitation email sent!')
     }
+
+    // Do not delay the result while refreshing members, profiles, and pending
+    // invitations in the settings modal.
+    void loadWsMembers()
   }
 
   async function removeMember(userId: string) {
