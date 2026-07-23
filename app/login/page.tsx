@@ -9,7 +9,11 @@ function LoginForm() {
   const searchParams = useSearchParams()
   const [email, setEmail] = useState(searchParams.get('email') ?? '')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const [error, setError] = useState(
+    searchParams.get('error') === 'invalid_or_expired_link'
+      ? 'This sign-in link is invalid or has expired. Ask the workspace owner for a new invitation.'
+      : ''
+  )
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const supabase = createClient()

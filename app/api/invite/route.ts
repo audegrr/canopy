@@ -124,10 +124,65 @@ export async function POST(req: Request) {
     : await admin.auth.admin.inviteUserByEmail(email, { redirectTo })
 
   if (authError) {
-    console.error('[invite] failed to send auth email:', authError.message)
-    if (createdInvite) await admin.from('workspace_invites').delete().eq('id', invite.id)
-    return NextResponse.json({ error: `Failed to send invitation: ${authError.message}` }, { status: 500 })
+    console.error('[invite] failed to send auth email:', authErrorDetails(authError))
+
+    // A broken or rate-limited Supabase mailer must not make workspace
+    // invitations unusable. Generate the same signed Auth link without
+    // sending it, then let the owner copy and share it manually.
+    let authUserExists = !!authUser
+    if (!authUserExists) {
+      const { data: refreshedRows } = await admin.rpc('get_auth_user_by_email', { p_email: email })
+      authUserExists = !!refreshedRows?.[0]
+    }
+
+    let generated = await admin.auth.admin.generateLink({
+      type: authUserExists ? 'magiclink' : 'invite',
+      email,
+      options: { redirectTo },
+    })
+
+    // Some mailer failures create the Auth user before returning an error.
+    // Retry as a magic link if the initial invite-link generation detects it.
+    if (generated.error && !authUserExists) {
+      generated = await admin.auth.admin.generateLink({
+        type: 'magiclink',
+        email,
+        options: { redirectTo },
+      })
+    }
+
+    const properties = generated.data.properties
+    if (generated.error || !properties?.hashed_token || !properties.verification_type) {
+      console.error('[invite] failed to generate fallback link:', authErrorDetails(generated.error))
+      if (createdInvite) await admin.from('workspace_invites').delete().eq('id', invite.id)
+      return NextResponse.json(
+        { error: 'The email service is unavailable and a fallback link could not be created.' },
+        { status: 502 },
+      )
+    }
+
+    const confirmUrl = new URL('/auth/confirm', origin)
+    confirmUrl.searchParams.set('token_hash', properties.hashed_token)
+    confirmUrl.searchParams.set('type', properties.verification_type)
+    confirmUrl.searchParams.set('next', `/invite/${invite.token}`)
+
+    return NextResponse.json({
+      ok: true,
+      emailSent: false,
+      inviteLink: confirmUrl.toString(),
+    })
   }
 
-  return NextResponse.json({ ok: true, resent: !!authUser })
+  return NextResponse.json({ ok: true, emailSent: true, resent: !!authUser })
+}
+
+function authErrorDetails(error: unknown) {
+  if (!error || typeof error !== 'object') return { message: String(error ?? 'Unknown error') }
+  const value = error as Record<string, unknown>
+  return {
+    name: typeof value.name === 'string' ? value.name : undefined,
+    message: typeof value.message === 'string' ? value.message : undefined,
+    code: typeof value.code === 'string' ? value.code : undefined,
+    status: typeof value.status === 'number' ? value.status : undefined,
+  }
 }

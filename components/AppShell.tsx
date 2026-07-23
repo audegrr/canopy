@@ -852,6 +852,13 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       showToastMsg('Member added!')
     } else if (body.alreadyInvited) {
       showToastMsg('Invitation already sent')
+    } else if (body.emailSent === false && body.inviteLink) {
+      const copied = await navigator.clipboard.writeText(body.inviteLink).then(() => true).catch(() => false)
+      if (copied) {
+        showToastMsg('Email unavailable — invitation link copied!')
+      } else {
+        window.prompt('Email unavailable. Copy this invitation link:', body.inviteLink)
+      }
     } else if (body.resent) {
       showToastMsg('Invitation email resent!')
     } else {
