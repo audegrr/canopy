@@ -116,6 +116,18 @@ export async function POST(req: Request) {
   const publicOrigin = origin
   const pendingInvite = invite
 
+  // A brand-new user does not need an Auth link yet. The workspace URL sends
+  // them straight to sign-up with the invite token preserved, which is both
+  // faster and matches the original "copy this URL" flow.
+  if (!emailInvitesEnabled && !authUser) {
+    return NextResponse.json({
+      ok: true,
+      accountNotFound: true,
+      emailSent: false,
+      inviteLink: `${origin}/invite/${invite.token}`,
+    })
+  }
+
   async function createManualInviteLink() {
     let authUserExists = !!authUser
     if (!authUserExists) {
