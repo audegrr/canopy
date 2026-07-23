@@ -2365,6 +2365,7 @@ function InviteLinkSection({ workspaceId }: { workspaceId: string }) {
   const [link, setLink] = useState<string | null>(null)
   const [role, setRole] = useState<'member' | 'viewer'>('member')
   const [loading, setLoading] = useState(false)
+  const [copyError, setCopyError] = useState('')
   const supabase = createClient()
 
   async function generate() {
@@ -2374,14 +2375,48 @@ function InviteLinkSection({ workspaceId }: { workspaceId: string }) {
     setLoading(false)
   }
 
+  async function copyAndClose() {
+    if (!link) return
+    setCopyError('')
+
+    let copied = false
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(link)
+        copied = true
+      }
+    } catch {
+      // Clipboard access can be denied by browser permissions or embedding.
+    }
+
+    if (!copied) {
+      const textarea = document.createElement('textarea')
+      textarea.value = link
+      textarea.setAttribute('readonly', '')
+      textarea.style.cssText = 'position:fixed;top:-9999px;left:-9999px'
+      document.body.appendChild(textarea)
+      textarea.focus()
+      textarea.select()
+      copied = document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
+
+    if (copied) {
+      setLink(null)
+    } else {
+      setCopyError('Copy failed — select the link and copy it manually.')
+    }
+  }
+
   return (
     <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)' }}>
       <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Invite link</div>
       {link ? (
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <input readOnly value={link} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 5, padding: '5px 8px', fontSize: 11, fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--sidebar-bg)', outline: 'none' }} />
-          <button onClick={() => { navigator.clipboard.writeText(link); setLink(null) }}
+          <button type="button" onClick={copyAndClose}
             style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500, whiteSpace: 'nowrap' }}>Copy & close</button>
+          {copyError && <span role="alert" style={{ fontSize: 10, color: 'var(--red)' }}>{copyError}</span>}
         </div>
       ) : (
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
