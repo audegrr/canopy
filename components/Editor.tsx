@@ -1117,32 +1117,6 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
           return true
         },
       },
-      handlePaste(view, event) {
-        if (!view.editable) return false
-        const text = event.clipboardData?.getData('text/plain')?.trim() || ''
-        let isCanopyInviteLink = false
-        try {
-          const pastedUrl = new URL(text)
-          isCanopyInviteLink = pastedUrl.origin === window.location.origin && pastedUrl.pathname.startsWith('/invite/')
-        } catch {
-          // Non-URL text should follow the editor's normal paste behavior.
-        }
-
-        // Invitation URLs must remain usable as plain links. Converting them
-        // into async bookmark cards consumed the paste event without reliably
-        // inserting anything into the document.
-        if (!isCanopyInviteLink && /^https?:\/\/\S+$/.test(text)) {
-          const { state } = view
-          const { $from } = state.selection
-          const isEmptyParagraph = $from.parent.type.name === 'paragraph' && $from.parent.textContent === ''
-          if (isEmptyParagraph) {
-            event.preventDefault()
-            setTimeout(() => insertBookmark(text), 0)
-            return true
-          }
-        }
-        return false
-      },
       handleKeyDown(view, event) {
         if (!view.editable) return false
         if (event.key === '@' && workspaceId) {
