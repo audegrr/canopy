@@ -955,7 +955,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   // editor.setOptions() -> a transaction -> a re-render (via shouldRerenderOnTransaction) ->
   // a new array again, an infinite loop that crashed the page with React error #185.
   const extensions = useMemo<Extensions>(() => [
-    StarterKit.configure({ heading: false, codeBlock: false, bulletList: false, link: false, underline: false }),
+    StarterKit.configure({ heading: false, codeBlock: false, bulletList: false, link: false, underline: false, horizontalRule: false }),
     CollapsibleHeading.configure({ levels: [1, 2, 3] }),
     BulletList,
     CustomCodeBlock,

@@ -851,8 +851,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       }).catch(() => {})
       showToastMsg('Member added!')
     } else if (body.alreadyInvited) {
-      await navigator.clipboard.writeText(body.inviteLink).catch(() => {})
-      showToastMsg('Already invited — link copied to clipboard!')
+      showToastMsg('Invitation already sent')
+    } else if (body.resent) {
+      showToastMsg('Invitation email resent!')
     } else {
       showToastMsg('Invitation email sent!')
     }

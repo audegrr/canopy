@@ -49,14 +49,6 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
 
   // Invite not found even with admin client + email fallback.
   if (!invite) {
-    // Maybe it was already accepted — check workspace membership.
-    const { data: anyMembership } = await admin
-      .from('workspace_members')
-      .select('workspace_id')
-      .eq('user_id', user.id)
-      .limit(1)
-      .maybeSingle()
-    if (anyMembership) redirect('/app')
     return <InviteError message="This invite link is invalid or has already been used." />
   }
 
@@ -77,15 +69,20 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
     .maybeSingle()
 
   if (!existing) {
-    await admin.from('workspace_members').insert({
+    const { error: memberError } = await admin.from('workspace_members').insert({
       workspace_id: invite.workspace_id,
       user_id: user.id,
       role: invite.role,
     })
+    if (memberError) {
+      console.error('[invite] failed to accept invitation:', memberError.message)
+      return <InviteError message="We could not add you to this workspace. Please try the invitation again." />
+    }
   }
 
   // Mark invite as used.
-  await admin.from('workspace_invites').delete().eq('id', invite.id)
+  const { error: deleteError } = await admin.from('workspace_invites').delete().eq('id', invite.id)
+  if (deleteError) console.error('[invite] failed to consume invitation:', deleteError.message)
 
   // If user has no display name they came through the invite-only path
   // and need to complete their profile before using the app.
