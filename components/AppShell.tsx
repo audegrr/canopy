@@ -2366,61 +2366,36 @@ function InviteLinkSection({ workspaceId }: { workspaceId: string }) {
   const [role, setRole] = useState<'member' | 'viewer'>('member')
   const [loading, setLoading] = useState(false)
   const [copyError, setCopyError] = useState('')
-  const [copied, setCopied] = useState(false)
-  const linkInputRef = useRef<HTMLInputElement>(null)
+  const [copying, setCopying] = useState(false)
   const supabase = createClient()
 
   async function generate() {
     setLoading(true)
-    setCopied(false)
     setCopyError('')
     const { data } = await supabase.from('workspace_invites').insert({ workspace_id: workspaceId, role }).select('token').single()
     if (data) setLink(`${window.location.origin}/invite/${data.token}`)
     setLoading(false)
   }
 
-  async function copyLink() {
+  async function copyAndClose() {
     if (!link) return
     setCopyError('')
-    setCopied(false)
+    if (!navigator.clipboard?.writeText) {
+      setCopyError('Clipboard access is unavailable — select the link and copy it manually.')
+      return
+    }
 
-    // Start the persistent Clipboard API write during the click gesture. Keep
-    // the source field mounted until it settles so closing this section cannot
-    // invalidate a selection-based fallback.
-    let persistentCopy: Promise<void> | null = null
+    setCopying(true)
     try {
-      if (navigator.clipboard?.writeText) {
-        persistentCopy = navigator.clipboard.writeText(link)
-      }
+      // Wait for the browser to commit the value to the persistent system
+      // clipboard before unmounting the source field.
+      await navigator.clipboard.writeText(link)
+      setLink(null)
     } catch {
-      persistentCopy = null
+      setCopyError('Copy failed — select the link and copy it manually.')
+    } finally {
+      setCopying(false)
     }
-
-    const input = linkInputRef.current
-    let legacyCopied = false
-    try {
-      if (input) {
-        input.focus()
-        input.select()
-        input.setSelectionRange(0, input.value.length)
-        legacyCopied = document.execCommand('copy')
-      }
-    } catch {
-      legacyCopied = false
-    }
-
-    if (persistentCopy) {
-      try {
-        await persistentCopy
-        setCopied(true)
-        return
-      } catch {
-        // The synchronous copy above may still have succeeded.
-      }
-    }
-
-    if (legacyCopied) setCopied(true)
-    else setCopyError('Copy failed — select the link and copy it manually.')
   }
 
   return (
@@ -2428,9 +2403,9 @@ function InviteLinkSection({ workspaceId }: { workspaceId: string }) {
       <div style={{ fontSize: '10.5px', fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>Invite link</div>
       {link ? (
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-          <input ref={linkInputRef} readOnly value={link} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 5, padding: '5px 8px', fontSize: 11, fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--sidebar-bg)', outline: 'none' }} />
-          <button type="button" onClick={copyLink}
-            style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500, whiteSpace: 'nowrap' }}>{copied ? 'Copied!' : 'Copy'}</button>
+          <input readOnly value={link} style={{ flex: 1, border: '1px solid var(--border)', borderRadius: 5, padding: '5px 8px', fontSize: 11, fontFamily: 'var(--font-sans)', color: 'var(--text)', background: 'var(--sidebar-bg)', outline: 'none' }} />
+          <button type="button" onClick={copyAndClose} disabled={copying}
+            style={{ background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 11, cursor: copying ? 'wait' : 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 500, whiteSpace: 'nowrap', opacity: copying ? 0.7 : 1 }}>{copying ? 'Copying…' : 'Copy & close'}</button>
           {copyError && <span role="alert" style={{ fontSize: 10, color: 'var(--red)' }}>{copyError}</span>}
         </div>
       ) : (
