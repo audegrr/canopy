@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import type { Page } from '@/lib/types'
+import type { DbField, DbRecord, Page, TiptapContent, TiptapNode } from '@/lib/types'
 import FindInPage from './FindInPage'
 import DragHandle from './DragHandle'
 import DatabaseView from './DatabaseView'
@@ -50,7 +50,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
   const [saveOffline, setSaveOffline] = useState(false)
   const [showIconPicker, setShowIconPicker] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
-  const [shares, setShares] = useState<any[]>([])
+  const [shares, setShares] = useState<{ user_id: string; page_id: string; permission: string; email: string; name?: string | null }[]>([])
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('view')
   const [generatedLink, setGeneratedLink] = useState<string | null>(null)
@@ -58,16 +58,17 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
   const [showSubpagePicker, setShowSubpagePicker] = useState(false)
   const [showImagePicker, setShowImagePicker] = useState(false)
   const [mediaTab, setMediaTab] = useState<'image'|'video'|'file'>('image')
-  const imagePickerCallbackRef = useRef<{ onUrl: (u: string) => void; onFile: (s: string) => void } | null>(null)
+  type MediaInsertCallback = (src: string, name?: string, size?: number, mime?: string) => void
+  const imagePickerCallbackRef = useRef<{ onUrl: MediaInsertCallback; onFile: MediaInsertCallback } | null>(null)
   const [imageUrl, setImageUrl] = useState('')
   const [subpagePickerCallback, setSubpagePickerCallback] = useState<((id: string) => void) | null>(null)
-  const [subpageList, setSubpageList] = useState<any[]>([])
+  const [subpageList, setSubpageList] = useState<{ id: string; title: string; icon: string; parent_id: string | null; isShared?: boolean }[]>([])
   const [, setIsUploadingCover] = useState(false)
   const [isRepositioning, setIsRepositioning] = useState(false)
-  const saveTimer = useRef<any>(null)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingSaveRef = useRef<Partial<Page> | null>(null)
   const [editorInstance, setEditorInstance] = useState<any>(null)
-  const [remoteConflict, setRemoteConflict] = useState<{ content: any; title: string } | null>(null)
+  const [remoteConflict, setRemoteConflict] = useState<{ content: TiptapNode; title: string } | null>(null)
   const [presenceUsers, setPresenceUsers] = useState<{ userId: string; name: string; color: string; avatarUrl?: string; section?: string }[]>([])
   const savedRef = useRef(true)
   const lastSaveTimestamp = useRef<string | null>(null)
@@ -130,14 +131,14 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
   // an edit, so without this a freshly opened, unedited page shows an empty TOC.
   useEffect(() => {
     if (page.is_database) return
-    const topNodes: any[] = Array.isArray(page.content) ? page.content : (page.content?.content || [])
+    const topNodes: TiptapNode[] = Array.isArray(page.content) ? page.content : (page.content?.content || [])
     const hs: { level: number; text: string; idx: number }[] = []
     let hIdx = 0
-    function collectHeadings(node: any) {
+    function collectHeadings(node: TiptapNode) {
       if (node.type === 'heading') {
-        const text = (node.content || []).map((c: any) => c.text || '').join('')
+        const text = (node.content || []).map(c => c.text || '').join('')
         const idx = hIdx++
-        if (text) hs.push({ level: node.attrs?.level || 1, text, idx })
+        if (text) hs.push({ level: Number(node.attrs?.level) || 1, text, idx })
       }
       if (node.content) node.content.forEach(collectHeadings)
     }
@@ -301,7 +302,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
 
       channel
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pages', filter: `id=eq.${page.id}` }, payload => {
-        const remote = payload.new as any
+        const remote = payload.new as Partial<Page>
         // Normalise timestamp to ISO so JS and PostgreSQL formats compare correctly
         const normTs = (t: string | null) => { try { return t ? new Date(t).toISOString() : '' } catch { return t ?? '' } }
         if (remote.updated_at && normTs(remote.updated_at) === normTs(lastSaveTimestamp.current)) return
@@ -335,7 +336,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
           const titleConflict = localTitleChanged && remoteTitleChanged && remote.title !== localTitle
 
           const mergeResult = remote.content
-            ? tryMergeDocuments(baselineContentRef.current, remote.content, editorRef.current.getJSON())
+            ? tryMergeDocuments(baselineContentRef.current, remote.content as TiptapNode, editorRef.current.getJSON())
             : { merged: null, hasConflict: false }
 
           if (!mergeResult.hasConflict && !titleConflict) {
@@ -355,7 +356,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
             showToast('Changes from another user were merged')
           } else {
             // True conflict — same block(s) changed by both users
-            setRemoteConflict({ content: remote.content, title: remote.title })
+            setRemoteConflict({ content: remote.content as TiptapNode, title: remote.title ?? '' })
           }
         }
       })
@@ -379,16 +380,17 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
 
   // Listen for subpage picker request from editor
   useEffect(() => {
-    async function onPicker(e: any) {
+    async function onPicker(evt: Event) {
+      const e = evt as CustomEvent<{ onSelect?: (id: string) => void }>
       const supabaseClient = createClient()
       const { data: ownPages } = await supabaseClient.from('pages').select('id, title, icon, parent_id').eq('workspace_id', page.workspace_id).neq('id', page.id).is('deleted_at', null).order('title')
       const { data: sharedPagesData } = await supabaseClient.rpc('get_shared_pages', { user_uuid: (await supabaseClient.auth.getUser()).data.user?.id || '' })
       const data = [
         ...(ownPages || []),
-        ...(sharedPagesData || []).filter((sp: any) => sp.id !== page.id).map((sp: any) => ({ id: sp.id, title: sp.title, icon: sp.icon, parent_id: sp.parent_id, isShared: true }))
+        ...(sharedPagesData || []).filter((sp: { id: string }) => sp.id !== page.id).map((sp: { id: string; title: string; icon: string; parent_id: string | null }) => ({ id: sp.id, title: sp.title, icon: sp.icon, parent_id: sp.parent_id, isShared: true }))
       ]
       // Show children of current page first, then others
-      const sorted = (data || []).sort((a: any, b: any) => {
+      const sorted = (data || []).sort((a: { parent_id: string | null }, b: { parent_id: string | null }) => {
         const aIsChild = a.parent_id === page.id ? -1 : 0
         const bIsChild = b.parent_id === page.id ? -1 : 0
         return aIsChild - bIsChild
@@ -403,10 +405,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
 
   // Image picker listener
   useEffect(() => {
-    function onImagePicker(e: any) {
+    function onImagePicker(evt: Event) {
+      const e = evt as CustomEvent<{ tab?: 'image' | 'video' | 'file'; onUrl?: MediaInsertCallback; onFile?: MediaInsertCallback }>
       setMediaTab(e.detail?.tab || 'image')
       // Callback comes from Editor via ref, stored in event detail or separately
-      if (e.detail?.onUrl) {
+      if (e.detail?.onUrl && e.detail?.onFile) {
         imagePickerCallbackRef.current = { onUrl: e.detail.onUrl, onFile: e.detail.onFile }
       }
       setImageUrl('')
@@ -420,8 +423,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
     window.addEventListener('canopy:showVideoPicker', onVideoPicker)
     window.addEventListener('canopy:showFilePicker', onFilePicker)
 
-    async function onUploadFile(e: any) {
-      const file: File = e.detail?.file
+    async function onUploadFile(evt: Event) {
+      const e = evt as CustomEvent<{ file?: File }>
+      const file = e.detail?.file
       if (!file) return
       const url = await uploadFileRef.current?.(file)
       if (!url) return
@@ -591,31 +595,31 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
     document.title = (title || 'Untitled') + ' — Canopy'
   }
 
-  function onContentUpdate(content: any) {
+  function onContentUpdate(content: TiptapContent) {
     localContentRef.current = content
     // Don't call setPage(content) on every keystroke — reduces re-renders and cursor jumps.
     // page.content is updated in scheduleSave after the debounced write completes.
     scheduleSave({ content })
     updatePageCache({ content })
     // Deep traversal for headings — matches querySelectorAll DOM order
-    const topNodes: any[] = Array.isArray(content) ? content : (content?.content || [])
+    const topNodes: TiptapNode[] = Array.isArray(content) ? content : (content?.content || [])
     const hs: { level: number; text: string; idx: number }[] = []
     let hIdx = 0
-    function collectHeadings(node: any) {
+    function collectHeadings(node: TiptapNode) {
       if (node.type === 'heading') {
-        const text = (node.content || []).map((c: any) => c.text || '').join('')
+        const text = (node.content || []).map(c => c.text || '').join('')
         // idx must track every rendered heading element (even empty ones), since
         // the DOM query in the TOC click handler matches h1/h2/h3 elements 1:1
         // including empty heading placeholders.
         const idx = hIdx++
-        if (text) hs.push({ level: node.attrs?.level || 1, text, idx })
+        if (text) hs.push({ level: Number(node.attrs?.level) || 1, text, idx })
       }
       if (node.content) node.content.forEach(collectHeadings)
     }
     topNodes.forEach(collectHeadings)
     setHeadings(hs)
     // Word count
-    const text = topNodes.map((n: any) => extractText(n)).join(' ')
+    const text = topNodes.map(n => extractText(n)).join(' ')
     setWordCount(text.trim() ? text.trim().split(/\s+/).length : 0)
     // Broadcast current section via presence
     const topSection = hs.find(h => h.level <= 2)?.text || ''
@@ -625,9 +629,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
     }
   }
 
-  function extractText(node: any): string {
+  function extractText(node: TiptapNode): string {
     if (node.text) return node.text
-    return (node.content || []).map((c: any) => extractText(c)).join(' ')
+    return (node.content || []).map(c => extractText(c)).join(' ')
   }
 
   function setIcon(icon: string) {
@@ -638,7 +642,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
     window.dispatchEvent(new CustomEvent('canopy:pageUpdate', { detail: { id: page.id, icon } }))
   }
 
-  const uploadFileRef = useRef<(file: File) => Promise<string | null>>(null as any)
+  const uploadFileRef = useRef<((file: File) => Promise<string | null>) | null>(null)
   async function uploadFile(file: File, bucket = 'images'): Promise<string | null> {
     const ext = file.name.split('.').pop()
     const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
@@ -707,9 +711,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
         body: JSON.stringify({
           user_id: profile.id,
           type: 'page_share',
-          title: `"${(page as any).title || 'Untitled'}" was shared with you`,
+          title: `"${page.title || 'Untitled'}" was shared with you`,
           body: `You received ${inviteRole === 'owner' ? 'manage' : inviteRole === 'edit' ? 'edit' : 'view'} access.`,
-          data: { page_id: page.id, page_title: (page as any).title }
+          data: { page_id: page.id, page_title: page.title }
         })
       }).catch(() => {})
       setInviteEmail('')
@@ -791,7 +795,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
           }
         }))
       }
-      setSubPages(sp => [...sp, data as any])
+      setSubPages(sp => [...sp, data])
       router.push(`/app/page/${data.id}`)
     }
   }
@@ -864,9 +868,9 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
       supabase.from('db_records').select('*').eq('page_id', page.id).order('position'),
     ])
     if (!fields) return
-    const header = fields.map((f: any) => `"${f.name.replace(/"/g, '""')}"`).join(',')
-    const rows = (records || []).map((rec: any) =>
-      fields.map((f: any) => `"${String(rec.data?.[f.id] ?? '').replace(/"/g, '""')}"`)
+    const header = (fields as DbField[]).map(f => `"${f.name.replace(/"/g, '""')}"`).join(',')
+    const rows = ((records || []) as DbRecord[]).map(rec =>
+      (fields as DbField[]).map(f => `"${String(rec.data?.[f.id] ?? '').replace(/"/g, '""')}"`)
         .join(',')
     )
     const csv = [header, ...rows].join('\n')
@@ -887,8 +891,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
       supabase.from('db_records').select('*').eq('page_id', page.id).order('position'),
     ])
     if (!fields) return
-    const header = fields.map((f: any) => f.name)
-    const rows = (records || []).map((rec: any) => fields.map((f: any) => {
+    const header = (fields as DbField[]).map(f => f.name)
+    const rows = ((records || []) as DbRecord[]).map(rec => (fields as DbField[]).map(f => {
       const v = rec.data?.[f.id]
       if (f.type === 'checkbox') return v ? 'Yes' : 'No'
       if (f.type === 'number') return v !== undefined && v !== '' ? Number(v) : ''
@@ -899,7 +903,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
   }
 
   function exportMarkdown() {
-    const nodes: any[] = Array.isArray(page.content) ? page.content : ((page.content as any)?.content || [])
+    const nodes: TiptapNode[] = Array.isArray(page.content) ? page.content : (page.content?.content || [])
     const md = `# ${page.icon ? page.icon + ' ' : ''}${page.title || 'Untitled'}\n\n` + nodesToMarkdown(nodes)
     const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' })
     const url = URL.createObjectURL(blob)
@@ -1031,7 +1035,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
       .select('id, full_name, email')
       .in('id', userIds)
     const profileMap = Object.fromEntries((profiles || []).map(p => [p.id, p]))
-    setComments(data.map(c => ({ ...c, profile: profileMap[c.user_id] || null })) as any)
+    setComments(data.map(c => ({ ...c, profile: profileMap[c.user_id] || null })))
   }
 
   async function addComment() {
@@ -1056,7 +1060,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
       const profile = myPresenceRef.current.name
         ? { full_name: myPresenceRef.current.name, email: '' }
         : null
-      setComments(c => [...c, { ...data, profile } as any])
+      setComments(c => [...c, { ...data, profile }])
       setNewComment('')
       setPendingAnchorId(null)
       setPendingAnchorText('')
@@ -1275,7 +1279,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
             </button>
             <button onClick={() => {
               if (remoteConflict.content) editorRef.current?.commands.setContent(remoteConflict.content, { emitUpdate: false })
-              setPage(p => ({ ...p, content: remoteConflict.content ?? p.content, title: remoteConflict.title ?? p.title }))
+              setPage(p => ({ ...p, content: (remoteConflict.content as TiptapContent) ?? p.content, title: remoteConflict.title ?? p.title }))
               if (remoteConflict.title && titleRef.current) titleRef.current.textContent = remoteConflict.title
               if (saveTimer.current) clearTimeout(saveTimer.current)
               setSaved(true)
@@ -1707,7 +1711,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
                       const cb = imagePickerCallbackRef.current
                       if (mediaTab === 'image') { if (cb?.onUrl) cb.onUrl(url); else window.dispatchEvent(new CustomEvent('canopy:insertImage', { detail: { src: url } })) }
                       else if (mediaTab === 'video') { if (cb?.onUrl) cb.onUrl(url); else window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } })) }
-                      else { if (cb?.onUrl) (cb.onUrl as any)(url); else window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: url.split('/').pop() } })) }
+                      else { if (cb?.onUrl) cb.onUrl(url); else window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: url.split('/').pop() } })) }
                       setShowImagePicker(false); setImageUrl(''); imagePickerCallbackRef.current = null
                     }
                     if (e.key === 'Escape') setShowImagePicker(false)
@@ -1724,7 +1728,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
                       if (cb?.onUrl) cb.onUrl(url)
                       else window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
                     } else {
-                      if (cb?.onUrl) (cb.onUrl as any)(url)
+                      if (cb?.onUrl) cb.onUrl(url)
                       else window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: url.split('/').pop() } }))
                     }
                     setShowImagePicker(false)
@@ -1763,7 +1767,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
                     if (cb?.onFile) cb.onFile(url)
                     else window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
                   } else {
-                    if (cb?.onFile) (cb.onFile as any)(url, file.name, file.size, file.type)
+                    if (cb?.onFile) cb.onFile(url, file.name, file.size, file.type)
                     else window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: file.name, size: file.size } }))
                   }
                 }
@@ -1789,7 +1793,7 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
                     if (cb?.onFile) cb.onFile(url)
                     else window.dispatchEvent(new CustomEvent('canopy:insertVideo', { detail: { src: url } }))
                   } else {
-                    if (cb?.onFile) (cb.onFile as any)(url, file.name, file.size, file.type)
+                    if (cb?.onFile) cb.onFile(url, file.name, file.size, file.type)
                     else window.dispatchEvent(new CustomEvent('canopy:insertFile', { detail: { src: url, name: file.name, size: file.size } }))
                   }
                 }
@@ -1934,7 +1938,7 @@ function ExportMenu({ onPDF, onWord, onCSV, onXLSX, onMarkdown, isDatabase }: { 
   )
 }
 
-function TopBarBtn({ onClick, active, iconOnly, children, ...props }: { onClick: () => void; active?: boolean; iconOnly?: boolean; children: React.ReactNode; [key: string]: any }) {
+function TopBarBtn({ onClick, active, iconOnly, children, ...props }: { onClick: () => void; active?: boolean; iconOnly?: boolean; children: React.ReactNode } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   const [hovered, setHovered] = useState(false)
   return (
     <button

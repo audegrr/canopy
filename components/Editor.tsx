@@ -21,6 +21,7 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { createRoot } from 'react-dom/client'
 import { createClient } from '@/lib/supabase/client'
+import type { TiptapContent, TiptapNode } from '@/lib/types'
 
 // Stable reference — @tiptap/react's <BubbleMenu> re-dispatches a metadata
 // transaction whenever its `options` prop changes by reference (it's in that
@@ -416,9 +417,9 @@ function PageMentionView({ node }: any) {
       const supabase = createClient()
       const { data } = await supabase.from('pages').select('title, icon, content').eq('id', node.attrs.pageId).single()
       if (!data) return
-      const nodes: any[] = Array.isArray(data.content) ? data.content : (data.content?.content || [])
+      const nodes: TiptapNode[] = Array.isArray(data.content) ? data.content : (data.content?.content || [])
       const words: string[] = []
-      function extract(n: any) {
+      function extract(n: TiptapNode) {
         if (n.text) words.push(n.text)
         if (n.content) n.content.forEach(extract)
       }
@@ -890,9 +891,9 @@ const CommentMark = Mark.create({
 // ── CUSTOM CODE BLOCK ─────────────────────────────────────────────────────────
 
 type Props = {
-  content: any
+  content: TiptapContent
   editable: boolean
-  onUpdate: (content: any) => void
+  onUpdate: (content: TiptapContent) => void
   onEditorReady?: (editor: any) => void
   workspaceId?: string
 }
@@ -1016,8 +1017,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
     onCreate: ({ editor }) => {
         if (onEditorReady) onEditorReady(editor)
         // Listen for image insert from picker
-        function onInsert(e: any) {
-          const src = e.detail?.src
+        function onInsert(evt: Event) {
+          const src = (evt as CustomEvent<{ src?: string }>).detail?.src
           if (!src) return
           editor.chain().focus().insertContent([
             { type: 'image', attrs: { src } },
@@ -1026,8 +1027,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
         }
         window.addEventListener('canopy:insertImage', onInsert)
 
-        function onInsertVideo(e: any) {
-          const src = e.detail?.src
+        function onInsertVideo(evt: Event) {
+          const src = (evt as CustomEvent<{ src?: string }>).detail?.src
           if (!src) return
           editor.chain().focus().insertContent([
             { type: 'video', attrs: { src } },
@@ -1036,8 +1037,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
         }
         window.addEventListener('canopy:insertVideo', onInsertVideo)
 
-        function onInsertFile(e: any) {
-          const { src, name, size, mime } = e.detail || {}
+        function onInsertFile(evt: Event) {
+          const { src, name, size, mime } = (evt as CustomEvent<{ src?: string; name?: string; size?: number; mime?: string }>).detail || {}
           if (!src) return
           const attrs = { src, name: name || src.split('/').pop() || 'File', size: size || 0, mime: mime || '' }
           editor.chain().focus().insertContent([
@@ -1502,8 +1503,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       const { result, error } = await res.json()
       if (error || !result) throw new Error(error || 'No result')
       editor.chain().focus().setTextSelection({ from, to }).insertContent(result).run()
-    } catch (err: any) {
-      setAiError(err?.message || 'AI error')
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'AI error')
       setTimeout(() => setAiError(null), 3000)
     }
     setAiLoading(false)

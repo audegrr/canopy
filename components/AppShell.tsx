@@ -31,7 +31,23 @@ type Props = {
   children: React.ReactNode
 }
 
-function InstantPageView({ data, isFavorite, onToggleFavorite }: { data: any; isFavorite?: boolean; onToggleFavorite?: () => void }) {
+// Shape returned by /api/workspace-pages — a lighter row than the full Page
+// type (no content/timestamps), normalized back up to Page below.
+type WorkspacePageRow = {
+  id: string
+  workspace_id: string
+  parent_id: string | null
+  title: string
+  icon: string
+  position: number
+  is_database: boolean
+  link_permission: 'none' | 'view' | 'edit'
+  owner_id: string
+}
+
+type InstantPageData = { page: Page; canEdit: boolean; canManage?: boolean; isOwner: boolean; isWorkspaceMember?: boolean; userId: string }
+
+function InstantPageView({ data, isFavorite, onToggleFavorite }: { data: InstantPageData; isFavorite?: boolean; onToggleFavorite?: () => void }) {
   return (
     <div style={{ flex: 1, display: 'flex', overflow: 'hidden', animation: 'fadeIn 0.12s ease' }}>
       <PageView
@@ -102,7 +118,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   const [newWsName, setNewWsName] = useState('')
   const [newWsIcon, setNewWsIcon] = useState('🌿')
   const [newWsEmojiPickerOpen, setNewWsEmojiPickerOpen] = useState(false)
-  const [instantPage, setInstantPage] = useState<{ page: any; canEdit: boolean; isOwner: boolean; userId: string } | null>(null)
+  const [instantPage, setInstantPage] = useState<InstantPageData | null>(null)
   const [templatePicker, setTemplatePicker] = useState<{ parentId: string | null } | null>(null)
   const [trashOpen, setTrashOpen] = useState(false)
   const [trashedPages, setTrashedPages] = useState<Page[]>([])
@@ -195,9 +211,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               || page.link_permission === 'edit'
               || sharedWithEdit
               || (memberWs != null && ['member', 'owner'].includes(memberWs._memberRole))
-            ;(window as any).__pageCache = (window as any).__pageCache || new Map()
-            ;(window as any).__pageCache.set(p.id, {
-              page, isOwner, canEdit, canManage, userId: user.id,
+            window.__pageCache = window.__pageCache || new Map()
+            window.__pageCache.set(p.id, {
+              page, isOwner, canEdit, canManage, isWorkspaceMember: isOwner || memberWs != null, userId: user.id,
             })
           }
         } catch {}
@@ -222,7 +238,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       const found = ([...workspaces, ...memberWorkspaces] as Workspace[]).find(w => w.id === savedWs)
       if (found && found.id !== currentWs.id) {
         fetchWorkspacePages(found.id).then(data => {
-          setPages(data.map((p: any) => ({
+          setPages(data.map(p => ({
             ...p, content: [], cover_url: '', created_at: '', updated_at: '',
             icon: p.icon || '', parent_id: p.parent_id ?? null,
             link_permission: p.link_permission || 'none',
@@ -244,7 +260,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     const wsId = currentWs.id  // capture for closures
 
     const channel = supabase.channel(`ws_pages_${wsId}`, { config: { broadcast: { self: false } } })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pages' }, (payload: any) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'pages' }, (payload: { new: Page }) => {
         const p = payload.new
         if (p.workspace_id !== wsId) return
         setPages(prev => {
@@ -257,7 +273,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           }]
         })
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pages' }, (payload: any) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pages' }, (payload: { new: Partial<Page> }) => {
         const p = payload.new
         if (!p.id) return  // payload masked by RLS — ignore
         // Don't check workspace_id here: Supabase may omit unchanged columns
@@ -280,7 +296,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           })
         }
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pages' }, (payload: any) => {
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'pages' }, (payload: { old: Partial<Page> }) => {
         const p = payload.old
         if (p.workspace_id && p.workspace_id !== wsId) return
         setPages(prev => prev.filter(x => x.id !== p.id))
@@ -292,14 +308,14 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         // Re-fetch workspace pages to get the latest hierarchy
         const freshData = await fetchWorkspacePages(wsId)
         if (freshData.length > 0) {
-          setPages(freshData.map((p: any) => ({
+          setPages(freshData.map(p => ({
             ...p, content: [], cover_url: '', created_at: '', updated_at: '',
             icon: p.icon || '', parent_id: p.parent_id ?? null,
             link_permission: p.link_permission || 'none',
           })))
         }
       })
-      .on('broadcast', { event: 'metadata_update' }, ({ payload }: any) => {
+      .on('broadcast', { event: 'metadata_update' }, ({ payload }: { payload: { pageId?: string; title?: string; icon?: string } }) => {
         if (!payload?.pageId) return
         setPages(prev => prev.map(x => x.id !== payload.pageId ? x : {
           ...x,
@@ -319,8 +335,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       .on('postgres_changes', {
         event: 'DELETE', schema: 'public', table: 'page_shares',
         filter: `user_id=eq.${user.id}`,
-      }, (payload: any) => {
-        const removedPageId: string = payload.old?.page_id
+      }, (payload: { old: { page_id?: string } }) => {
+        const removedPageId = payload.old?.page_id
         if (!removedPageId) return
         setSharedPages(sp => {
           const toRemove = new Set<string>([removedPageId])
@@ -372,8 +388,8 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   }, [])
 
   useEffect(() => {
-    function onPageUpdate(e: any) {
-      const { id, title, icon } = e.detail
+    function onPageUpdate(evt: Event) {
+      const { id, title, icon } = (evt as CustomEvent<{ id: string; title?: string; icon?: string }>).detail
       setPages(p => p.map(x => x.id === id ? { ...x, ...(title !== undefined ? { title } : {}), ...(icon !== undefined ? { icon } : {}) } : x))
     }
     window.addEventListener('canopy:pageUpdate', onPageUpdate)
@@ -388,7 +404,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
 
   useEffect(() => {
     supabase.from('page_favorites').select('page_id').eq('user_id', user.id).then(({ data }) => {
-      if (data) setFavoriteIds(new Set(data.map((f: any) => f.page_id)))
+      if (data) setFavoriteIds(new Set(data.map(f => f.page_id)))
     })
   }, [supabase, user.id])
 
@@ -407,7 +423,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     if (path === pathname) { setInstantPage(null); return }
     const pageId = path.match(/\/app\/page\/([^?]+)/)?.[1]
     if (pageId) {
-      const cached = (window as any).__pageCache?.get(pageId)
+      const cached = window.__pageCache?.get(pageId)
       // Only use instant page when canEdit is definitively known (not null/undefined),
       // otherwise fall through to router.push so the route computes real permissions.
       if (cached && cached.canEdit != null) {
@@ -442,7 +458,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       await supabase.from('pages').update({ workspace_id: targetWsId }).eq('id', row.id)
     }
     // Update local state: change workspace_id (don't remove from pages array)
-    const movedIds = new Set([pageId, ...(subIds || []).map((s: any) => s.id)])
+    const movedIds = new Set([pageId, ...(subIds || []).map((s: { id: string }) => s.id)])
     setPages(p => p.map(x => movedIds.has(x.id) ? { ...x, workspace_id: targetWsId, parent_id: x.id === pageId ? null : x.parent_id } : x))
     // Switch to target workspace so user can see the moved page
     const targetWs = workspaces.find(w => w.id === targetWsId)
@@ -484,9 +500,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
         setPages(p => [...p, data as Page])
         if (parentId) setExpandedPages(e => new Set([...e, parentId]))
       }
-      const instantData = { page: data as Page, canEdit: true, isOwner: true, userId: user.id }
-      if (!(window as any).__pageCache) (window as any).__pageCache = new Map()
-      ;(window as any).__pageCache.set(data.id, instantData)
+      const instantData = { page: data as Page, canEdit: true, canManage: true, isOwner: true, isWorkspaceMember: true, userId: user.id }
+      if (!window.__pageCache) window.__pageCache = new Map()
+      window.__pageCache.set(data.id, instantData)
       setInstantPage(instantData)
       window.history.pushState({}, '', `/app/page/${data.id}`)
       setNavigating(false)
@@ -529,7 +545,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
   async function createDatabase(parentId: string | null = null) {
     const parentShared = parentId ? sharedPages.find(p => p.id === parentId) : null
     const targetWorkspaceId = parentShared?.workspace_id ?? currentWs.id
-    const maxPos = [...pages, ...sharedPages].filter(p => p.parent_id === parentId).reduce((m, p) => Math.max(m, (p as any).position ?? 0), 0)
+    const maxPos = [...pages, ...sharedPages].filter(p => p.parent_id === parentId).reduce((m, p) => Math.max(m, 'position' in p ? p.position : 0), 0)
     const { data, error } = await supabase.from('pages').insert({
       workspace_id: targetWorkspaceId, parent_id: parentId, title: 'Untitled database',
       icon: '🗄️', content: [], position: maxPos + 1, is_database: true, link_permission: 'none', owner_id: user.id
@@ -548,9 +564,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
       // createPageWithTemplate — avoids a router.push race where the freshly
       // inserted row isn't cached yet and the route briefly resolves to whatever
       // was last prefetched (e.g. a sibling sub-page hovered in the sidebar).
-      const instantData = { page: data as Page, canEdit: true, isOwner: true, userId: user.id }
-      if (!(window as any).__pageCache) (window as any).__pageCache = new Map()
-      ;(window as any).__pageCache.set(data.id, instantData)
+      const instantData = { page: data as Page, canEdit: true, canManage: true, isOwner: true, isWorkspaceMember: true, userId: user.id }
+      if (!window.__pageCache) window.__pageCache = new Map()
+      window.__pageCache.set(data.id, instantData)
       setInstantPage(instantData)
       window.history.pushState({}, '', `/app/page/${data.id}`)
       setNavigating(false)
@@ -586,7 +602,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     setPages(p => p.filter(x => !toRemove.has(x.id)))
     // Drop any stale instant-nav cache entries so a deleted page can't flash back
     // into view before the route's own deleted_at check kicks in.
-    const winCache = (window as any).__pageCache as Map<string, any> | undefined
+    const winCache = window.__pageCache
     if (winCache) for (const id of toRemove) winCache.delete(id)
     if (currentPageId && toRemove.has(currentPageId)) navigate('/app')
     // Remove shares for all deleted pages — this triggers realtime DELETE on page_shares
@@ -755,7 +771,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     setRenamingWs(false)
   }
 
-  async function fetchWorkspacePages(wsId: string): Promise<any[]> {
+  async function fetchWorkspacePages(wsId: string): Promise<WorkspacePageRow[]> {
     const res = await fetch(`/api/workspace-pages?ws_id=${wsId}`)
     if (!res.ok) return []
     return res.json()
@@ -775,7 +791,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
     // Use the server-side route that bypasses RLS to get all workspace pages
     // (including pages created by other members that RLS might otherwise hide)
     const wsPages = await fetchWorkspacePages(ws.id)
-    setPages(wsPages.map((p: any) => ({
+    setPages(wsPages.map(p => ({
       ...p,
       content: [], cover_url: '', created_at: '', updated_at: '',
       icon: p.icon || '', parent_id: p.parent_id ?? null,
@@ -2103,7 +2119,7 @@ function TemplatePicker({ workspaceId, userId, onSelect, onClose }: { workspaceI
       .eq('workspace_id', workspaceId)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
-        if (data) setCustomTemplates(data as any)
+        if (data) setCustomTemplates(data)
       })
   }, [workspaceId, supabase])
 
@@ -2113,8 +2129,8 @@ function TemplatePicker({ workspaceId, userId, onSelect, onClose }: { workspaceI
     setCustomTemplates(ts => ts.filter(t => t.id !== id))
   }
 
-  const card = (t: PageTemplate, onDelete?: (e: React.MouseEvent) => void) => (
-    <div key={(t as any).id ?? t.title} onClick={() => onSelect(t)}
+  const card = (t: PageTemplate & { id?: string }, onDelete?: (e: React.MouseEvent) => void) => (
+    <div key={t.id ?? t.title} onClick={() => onSelect(t)}
       style={{ padding: '12px 14px', borderRadius: 8, border: '1px solid var(--border)', cursor: 'pointer', display: 'flex', flexDirection: 'column', gap: 4, transition: 'all 0.1s', position: 'relative' }}
       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--accent-light)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--accent)' }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}>
