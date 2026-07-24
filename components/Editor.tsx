@@ -918,6 +918,16 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   const [atResults, setAtResults] = useState<{ id: string; title: string; icon: string }[]>([])
   const [atIndex, setAtIndex] = useState(0)
   const atQueryRef = useRef('')
+  // handleKeyDown below lives inside editorProps, which useEditor only re-applies
+  // when [extensions, editable] change (see comment near that hook) — so it keeps
+  // reading whatever slashMenu/atMenu/etc. closed over at mount. These refs are
+  // updated at every call site alongside their state twin (same pattern as
+  // bubbleMenuEnabledRef) so handleKeyDown always sees the current value.
+  const slashMenuRef = useRef<{ x: number; y: number; query: string; fromPos: number } | null>(null)
+  const slashIndexRef = useRef(0)
+  const atMenuRef = useRef<{ x: number; y: number; query: string } | null>(null)
+  const atResultsRef = useRef<{ id: string; title: string; icon: string }[]>([])
+  const atIndexRef = useRef(0)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [showHighlightPicker, setShowHighlightPicker] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
@@ -1122,30 +1132,48 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
         if (event.key === '@' && workspaceId) {
           const { from } = view.state.selection
           const coords = view.coordsAtPos(from)
-          setAtMenu({ x: coords.left, y: coords.bottom + 8, query: '' })
+          const next = { x: coords.left, y: coords.bottom + 8, query: '' }
+          setAtMenu(next)
+          atMenuRef.current = next
           atQueryRef.current = ''
           setAtIndex(0)
+          atIndexRef.current = 0
           return false
         }
-        if (atMenu) {
-          if (event.key === 'Escape') { setAtMenu(null); return true }
-          if (event.key === 'ArrowDown') { setAtIndex(i => (i + 1) % Math.max(1, atResults.length)); return true }
-          if (event.key === 'ArrowUp') { setAtIndex(i => (i - 1 + Math.max(1, atResults.length)) % Math.max(1, atResults.length)); return true }
+        if (atMenuRef.current) {
+          if (event.key === 'Escape') { setAtMenu(null); atMenuRef.current = null; return true }
+          if (event.key === 'ArrowDown') {
+            const next = (atIndexRef.current + 1) % Math.max(1, atResultsRef.current.length)
+            atIndexRef.current = next
+            setAtIndex(next)
+            return true
+          }
+          if (event.key === 'ArrowUp') {
+            const next = (atIndexRef.current - 1 + Math.max(1, atResultsRef.current.length)) % Math.max(1, atResultsRef.current.length)
+            atIndexRef.current = next
+            setAtIndex(next)
+            return true
+          }
           if (event.key === 'Enter') {
-            if (atResults[atIndex]) { runMention(atResults[atIndex]); return true }
+            if (atResultsRef.current[atIndexRef.current]) { runMention(atResultsRef.current[atIndexRef.current]); return true }
             return false
           }
           if (event.key === 'Backspace') {
-            if (atQueryRef.current.length === 0) { setAtMenu(null); return false }
+            if (atQueryRef.current.length === 0) { setAtMenu(null); atMenuRef.current = null; return false }
             atQueryRef.current = atQueryRef.current.slice(0, -1)
-            setAtMenu(m => m ? { ...m, query: atQueryRef.current } : null)
+            const next = atMenuRef.current ? { ...atMenuRef.current, query: atQueryRef.current } : null
+            atMenuRef.current = next
+            setAtMenu(next)
             return false
           }
-          if (event.key === ' ') { setAtMenu(null); return false }
+          if (event.key === ' ') { setAtMenu(null); atMenuRef.current = null; return false }
           if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
             atQueryRef.current += event.key
-            setAtMenu(m => m ? { ...m, query: atQueryRef.current } : null)
+            const next = atMenuRef.current ? { ...atMenuRef.current, query: atQueryRef.current } : null
+            atMenuRef.current = next
+            setAtMenu(next)
             setAtIndex(0)
+            atIndexRef.current = 0
             return false
           }
         }
@@ -1153,29 +1181,53 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
           const { from, $from } = view.state.selection
           if ($from.parent.textContent.length === 0) {
             const coords = view.coordsAtPos(from)
-            setSlashMenu({ x: coords.left, y: coords.bottom + 8, query: '', fromPos: from })
+            const next = { x: coords.left, y: coords.bottom + 8, query: '', fromPos: from }
+            setSlashMenu(next)
+            slashMenuRef.current = next
             slashQueryRef.current = ''
             setSlashIndex(0)
+            slashIndexRef.current = 0
           }
           return false
         }
-        if (slashMenu) {
-          if (event.key === 'Escape') { setSlashMenu(null); return true }
-          if (event.key === 'ArrowDown') { setSlashIndex(i => (i + 1) % getItems(slashQueryRef.current).length); return true }
-          if (event.key === 'ArrowUp') { setSlashIndex(i => (i - 1 + getItems(slashQueryRef.current).length) % getItems(slashQueryRef.current).length); return true }
+        if (slashMenuRef.current) {
+          if (event.key === 'Escape') { setSlashMenu(null); slashMenuRef.current = null; return true }
+          if (event.key === 'ArrowDown') {
+            const next = (slashIndexRef.current + 1) % getItems(slashQueryRef.current).length
+            slashIndexRef.current = next
+            setSlashIndex(next)
+            return true
+          }
+          if (event.key === 'ArrowUp') {
+            const len = getItems(slashQueryRef.current).length
+            const next = (slashIndexRef.current - 1 + len) % len
+            slashIndexRef.current = next
+            setSlashIndex(next)
+            return true
+          }
           if (event.key === 'Enter') {
             const items = getItems(slashQueryRef.current)
-            if (items[slashIndex]) { runCmd(items[slashIndex].id, slashMenu.fromPos, slashQueryRef.current); return true }
+            if (items[slashIndexRef.current]) { runCmd(items[slashIndexRef.current].id, slashMenuRef.current.fromPos, slashQueryRef.current); return true }
           }
           if (event.key === 'Backspace') {
-            if (slashQueryRef.current.length === 0) setSlashMenu(null)
-            else { slashQueryRef.current = slashQueryRef.current.slice(0, -1); setSlashMenu(m => m ? { ...m, query: slashQueryRef.current } : null); setSlashIndex(0) }
+            if (slashQueryRef.current.length === 0) { setSlashMenu(null); slashMenuRef.current = null }
+            else {
+              slashQueryRef.current = slashQueryRef.current.slice(0, -1)
+              const next = slashMenuRef.current ? { ...slashMenuRef.current, query: slashQueryRef.current } : null
+              slashMenuRef.current = next
+              setSlashMenu(next)
+              setSlashIndex(0)
+              slashIndexRef.current = 0
+            }
             return false
           }
           if (event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
             slashQueryRef.current += event.key
-            setSlashMenu(m => m ? { ...m, query: slashQueryRef.current } : null)
+            const next = slashMenuRef.current ? { ...slashMenuRef.current, query: slashQueryRef.current } : null
+            slashMenuRef.current = next
+            setSlashMenu(next)
             setSlashIndex(0)
+            slashIndexRef.current = 0
             return false
           }
         }
@@ -1245,6 +1297,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
         .eq('workspace_id', workspaceId)
         .ilike('title', `%${q}%`)
         .limit(10)
+      atResultsRef.current = data || []
       setAtResults(data || [])
     }, 150)
     return () => clearTimeout(timer)
@@ -1252,6 +1305,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
 
   function runMention(page: { id: string; title: string; icon: string }) {
     if (!editor) return
+    atMenuRef.current = null
     setAtMenu(null)
     const curPos = editor.state.selection.from
     const q = atQueryRef.current
@@ -1288,6 +1342,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
 
   function runCmd(id: string, fromPos: number, query: string) {
     if (!editor) return
+    slashMenuRef.current = null
     setSlashMenu(null)
     const curPos = editor.state.selection.from
     editor.chain().focus().deleteRange({ from: curPos - query.length - 1, to: curPos }).run()
@@ -1729,7 +1784,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       {/* Slash menu */}
       {slashMenu && (
         <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setSlashMenu(null)} />
+          <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => { slashMenuRef.current = null; setSlashMenu(null) }} />
           <div className="slash-menu fade-in"
             style={{ position: 'fixed', left: Math.min(slashMenu.x, window.innerWidth - 260), top: Math.min(slashMenu.y, window.innerHeight - 360), zIndex: 999 }}>
             <div className="slash-menu-list">
@@ -1743,7 +1798,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
                     <div key={item.id}>
                       {showSec && <div className="slash-menu-section">{item.section}</div>}
                       <div className={`slash-menu-item ${i === slashIndex ? 'active' : ''}`}
-                        onMouseEnter={() => setSlashIndex(i)}
+                        onMouseEnter={() => { slashIndexRef.current = i; setSlashIndex(i) }}
                         onClick={() => runCmd(item.id, slashMenu.fromPos, slashMenu.query)}>
                         <div className="icon" style={{ background: theme?.bg, color: theme?.color }}>{item.icon}</div>
                         <div>
@@ -1766,7 +1821,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       {/* @ mention menu */}
       {atMenu && (
         <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setAtMenu(null)} />
+          <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => { atMenuRef.current = null; setAtMenu(null) }} />
           <div className="slash-menu fade-in"
             style={{ position: 'fixed', left: Math.min(atMenu.x, window.innerWidth - 240), top: Math.min(atMenu.y, window.innerHeight - 280), zIndex: 999, minWidth: 220 }}>
             {atResults.length === 0
@@ -1776,7 +1831,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
               : atResults.map((page, i) => (
                 <div key={page.id}
                   className={`slash-menu-item ${i === atIndex ? 'active' : ''}`}
-                  onMouseEnter={() => setAtIndex(i)}
+                  onMouseEnter={() => { atIndexRef.current = i; setAtIndex(i) }}
                   onClick={() => runMention(page)}>
                   <div className="icon" style={{ fontSize: 16 }}>{page.icon || '📄'}</div>
                   <div>
