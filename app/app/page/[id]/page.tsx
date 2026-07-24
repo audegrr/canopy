@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import PageView from '@/components/PageView'
 import Image from 'next/image'
 import { cachePageForOffline, getCachedPage, type CachedPageAccess } from '@/lib/offline-page-cache'
+import { derivePageAccess } from '@/lib/access-policy'
 import type { Page } from '@/lib/types'
 
 // Module-level cache — persists across navigations
@@ -27,22 +28,20 @@ if (typeof window !== 'undefined') {
       ])
       if (!page || page.deleted_at) return
       const isOwner = page.owner_id === user.id
-      const { data: wsMem } = await sb.from('workspace_members').select('role, workspace_id').eq('user_id', user.id)
-      const { data: ownedWs } = await sb.from('workspaces').select('id').eq('id', page.workspace_id).eq('owner_id', user.id).single()
-      const isWsOwner = !!ownedWs
-      // Manage rights (sharing, moving/reorganizing) are owner_id / workspace
-      // owner_id / an explicit 'owner'-tier share only — see lib/access-policy.ts.
-      const canManage = isOwner
-        || isWsOwner
-        || share?.permission === 'owner'
-        || (wsMem || []).some((m: WorkspaceMembership) => m.workspace_id === page.workspace_id && m.role === 'owner')
-      const canEdit = canManage
-        || share?.permission === 'edit'
-        || page.link_permission === 'edit'
-        || (wsMem || []).some((m: WorkspaceMembership) => m.workspace_id === page.workspace_id && ['owner','member'].includes(m.role))
-      const isMember = (wsMem || []).some((m: WorkspaceMembership) => m.workspace_id === page.workspace_id)
-      const isWorkspaceMember = isWsOwner || isMember
-      const result = { page, canEdit, canManage, isOwner, isWorkspaceMember, userId: user.id }
+      const [{ data: wsMem }, { data: workspace }] = await Promise.all([
+        sb.from('workspace_members').select('role, workspace_id').eq('user_id', user.id),
+        sb.from('workspaces').select('owner_id').eq('id', page.workspace_id).single(),
+      ])
+      const membershipRole = (wsMem || []).find((m: WorkspaceMembership) => m.workspace_id === page.workspace_id)?.role
+      const access = derivePageAccess({
+        userId: user.id,
+        pageOwnerId: page.owner_id,
+        linkPermission: page.link_permission,
+        workspaceOwnerId: workspace?.owner_id,
+        membershipRole,
+        sharePermission: share?.permission,
+      })
+      const result = { page, canEdit: access.canEdit, canManage: access.canManage, isOwner, isWorkspaceMember: access.isWorkspaceMember, userId: user.id }
       cache.set(pid, result)
       // Also sync to window.__pageCache so instant navigation uses correct permissions
       window.__pageCache = window.__pageCache || new Map()
@@ -118,24 +117,21 @@ export default function PageRoute() {
 
       // Check if the current user owns the workspace (workspace creators are NOT in workspace_members)
       const { data: ownedWorkspace } = await supabase
-        .from('workspaces').select('id')
-        .eq('id', resolvedPage.workspace_id).eq('owner_id', user.id).single()
-      const isWsOwner = !!ownedWorkspace
+        .from('workspaces').select('owner_id')
+        .eq('id', resolvedPage.workspace_id).single()
 
-      const isMember = (wsMember || []).some((m: WorkspaceMembership) => m.workspace_id === resolvedPage.workspace_id)
-      const canView = isOwner || isWsOwner || !!share || resolvedPage.link_permission !== 'none' || isMember
-      if (!canView) { setError(true); return }
+      const membershipRole = (wsMember || []).find((m: WorkspaceMembership) => m.workspace_id === resolvedPage.workspace_id)?.role
+      const access = derivePageAccess({
+        userId: user.id,
+        pageOwnerId: resolvedPage.owner_id,
+        linkPermission: resolvedPage.link_permission,
+        workspaceOwnerId: ownedWorkspace?.owner_id,
+        membershipRole,
+        sharePermission: share?.permission,
+      })
+      if (!access.canView) { setError(true); return }
 
-      const canManage = isOwner
-        || isWsOwner
-        || share?.permission === 'owner'
-        || (wsMember || []).some((m: WorkspaceMembership) => m.workspace_id === resolvedPage.workspace_id && m.role === 'owner')
-      const canEdit = canManage
-        || share?.permission === 'edit'
-        || resolvedPage.link_permission === 'edit'
-        || (wsMember || []).some((m: WorkspaceMembership) => m.workspace_id === resolvedPage.workspace_id && ['owner','member'].includes(m.role))
-      const isWorkspaceMember = isWsOwner || isMember
-      const result = { page: resolvedPage, canEdit, canManage, isOwner, isWorkspaceMember, userId: user.id }
+      const result = { page: resolvedPage, canEdit: access.canEdit, canManage: access.canManage, isOwner, isWorkspaceMember: access.isWorkspaceMember, userId: user.id }
       cache.set(id, result)
       // Keep window.__pageCache in sync so future instant navigations use real permissions
       window.__pageCache = window.__pageCache || new Map()

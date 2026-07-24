@@ -63,11 +63,12 @@ export async function POST(req: Request) {
       if (error) return NextResponse.json({ error: 'Unable to update link permission' }, { status: 500 })
       const { data: subIds } = await admin.rpc('get_all_subpage_ids', { page_id })
       if (subIds?.length) {
-        for (const row of subIds) {
-          const { data: sub } = await admin.from('pages').select('link_permission').eq('id', row.id).single()
-          if (sub && (permOrder[sub.link_permission] ?? 0) < (permOrder[linkPerm] ?? 0)) {
-            await admin.from('pages').update({ link_permission: linkPerm }).eq('id', row.id)
-          }
+        const { data: subPages } = await admin.from('pages').select('id, link_permission').in('id', subIds.map((row: { id: string }) => row.id))
+        const idsToUpgrade = (subPages || [])
+          .filter(sub => (permOrder[sub.link_permission] ?? 0) < (permOrder[linkPerm] ?? 0))
+          .map(sub => sub.id)
+        if (idsToUpgrade.length) {
+          await admin.from('pages').update({ link_permission: linkPerm }).in('id', idsToUpgrade)
         }
       }
     } else if (atomicError) {
