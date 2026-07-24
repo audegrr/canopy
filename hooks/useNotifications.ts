@@ -40,8 +40,13 @@ async function unsubscribeFromPush() {
   if (!('serviceWorker' in navigator)) return
   const reg = await navigator.serviceWorker.ready
   const sub = await reg.pushManager.getSubscription()
+  const endpoint = sub?.endpoint
   if (sub) await sub.unsubscribe()
-  await fetch('/api/push/subscribe', { method: 'DELETE' })
+  await fetch('/api/push/subscribe', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ endpoint }),
+  })
 }
 
 export function useNotifications(userId: string, supabase: SupabaseClient) {

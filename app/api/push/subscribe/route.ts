@@ -27,25 +27,33 @@ export async function POST(req: Request) {
     ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, { auth: { persistSession: false } })
     : serverClient
 
-  // Upsert by endpoint to avoid duplicates
+  // Upsert by (user_id, endpoint) so each device/browser keeps its own row
+  // instead of overwriting whatever the user last subscribed from.
   const { error } = await db.from('push_subscriptions')
-    .upsert({ user_id: user.id, subscription }, { onConflict: 'user_id' })
+    .upsert({ user_id: user.id, subscription }, { onConflict: 'user_id,endpoint' })
   if (error) return NextResponse.json({ error: 'Unable to save subscription' }, { status: 500 })
 
   return NextResponse.json({ ok: true })
 }
 
-export async function DELETE() {
+export async function DELETE(req: Request) {
   const serverClient = await createServerClient()
   const { data: { user } } = await serverClient.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // An endpoint scopes the delete to this device only. Without one (older
+  // clients), fall back to removing all of the user's subscriptions.
+  const body = await readJson(req, 4_096)
+  const endpoint = typeof body?.endpoint === 'string' ? body.endpoint : null
 
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const db = serviceRoleKey
     ? createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, { auth: { persistSession: false } })
     : serverClient
 
-  const { error } = await db.from('push_subscriptions').delete().eq('user_id', user.id)
+  let query = db.from('push_subscriptions').delete().eq('user_id', user.id)
+  if (endpoint) query = query.eq('endpoint', endpoint)
+  const { error } = await query
   if (error) return NextResponse.json({ error: 'Unable to remove subscription' }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
