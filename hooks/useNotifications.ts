@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import type { Notification } from '@/lib/types'
+import { reportClientError } from '@/lib/client-telemetry'
 
 const VAPID_PUBLIC_KEY = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
 
@@ -92,7 +93,9 @@ export function useNotifications(userId: string, supabase: SupabaseClient) {
             }
           })
           .subscribe()
-      } catch {}
+      } catch (error) {
+        reportClientError(error, { operation: 'load_notifications' })
+      }
     }
     load()
     return () => { channel?.unsubscribe() }
@@ -127,23 +130,38 @@ export function useNotifications(userId: string, supabase: SupabaseClient) {
 
   async function markAllRead() {
     try {
-      await supabase.from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false)
+      const { error } = await supabase.from('notifications').update({ read: true }).eq('user_id', userId).eq('read', false)
+      if (error) throw error
       setNotifications(ns => ns.map(n => ({ ...n, read: true })))
-    } catch {}
+    } catch (error) {
+      reportClientError(error, { operation: 'mark_notifications_read' })
+    }
   }
 
   async function clearAll() {
     try {
-      await supabase.from('notifications').delete().eq('user_id', userId)
+      const { error } = await supabase.from('notifications').delete().eq('user_id', userId)
+      if (error) throw error
       setNotifications([])
-    } catch {}
+    } catch (error) {
+      reportClientError(error, { operation: 'clear_notifications' })
+    }
   }
 
   async function deleteNotification(id: string) {
+    const removed = notifications.find(notification => notification.id === id)
     setNotifications(ns => ns.filter(n => n.id !== id))
     try {
-      await supabase.from('notifications').delete().eq('id', id).eq('user_id', userId)
-    } catch {}
+      const { error } = await supabase.from('notifications').delete().eq('id', id).eq('user_id', userId)
+      if (error) throw error
+    } catch (error) {
+      if (removed) {
+        setNotifications(current => current.some(notification => notification.id === id)
+          ? current
+          : [...current, removed].toSorted((a, b) => b.created_at.localeCompare(a.created_at)))
+      }
+      reportClientError(error, { operation: 'delete_notification' })
+    }
   }
 
   return { notifications, notifOpen, setNotifOpen, unreadCount, markAllRead, clearAll, deleteNotification, browserPermission, requestBrowserPermission, pushEnabled, togglePush }

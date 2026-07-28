@@ -9,6 +9,8 @@
     "dev": "next dev",
     "build": "next build",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
+    "check:english": "node scripts/check-english-ui.mjs",
+    "backup:schema": "bash scripts/export-supabase-schema.sh",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",

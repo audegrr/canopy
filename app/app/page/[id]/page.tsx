@@ -6,6 +6,7 @@ import PageView from '@/components/PageView'
 import Image from 'next/image'
 import { cachePageForOffline, getCachedPage, type CachedPageAccess } from '@/lib/offline-page-cache'
 import { derivePageAccess } from '@/lib/access-policy'
+import { reportClientError } from '@/lib/client-telemetry'
 import type { Page } from '@/lib/types'
 
 // Module-level cache — persists across navigations
@@ -46,7 +47,9 @@ if (typeof window !== 'undefined') {
       // Also sync to window.__pageCache so instant navigation uses correct permissions
       window.__pageCache = window.__pageCache || new Map()
       window.__pageCache.set(pid, result)
-    } catch {}
+    } catch (error) {
+      reportClientError(error, { operation: 'prewarm_page_access' })
+    }
   })
 }
 

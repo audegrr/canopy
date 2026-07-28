@@ -20,6 +20,8 @@ import WorkspaceBackupSection from './WorkspaceBackupSection'
 import TrashPanel from './TrashPanel'
 import PageRow from './PageRow'
 import { clearOfflinePages } from '@/lib/offline-page-cache'
+import { reportClientError } from '@/lib/client-telemetry'
+import { validateImage } from '@/lib/upload-limits'
 
 type Props = {
   user: User
@@ -216,7 +218,9 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
               page, isOwner, canEdit, canManage, isWorkspaceMember: isOwner || memberWs != null, userId: user.id,
             })
           }
-        } catch {}
+        } catch (error) {
+          reportClientError(error, { operation: 'prewarm_page_cache' })
+        }
         timer = setTimeout(warmNext, 100)
       })()
     }
@@ -2191,6 +2195,7 @@ function SettingsModal({ user, tab, theme, headingFont, bodyFont, numberLocale, 
   const supabase = useMemo(() => createClient(), [])
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [avatarError, setAvatarError] = useState('')
   const avatarInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -2202,6 +2207,12 @@ function SettingsModal({ user, tab, theme, headingFont, bodyFont, numberLocale, 
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = ''
+    const validationError = validateImage(file)
+    if (validationError) {
+      setAvatarError(validationError)
+      return
+    }
+    setAvatarError('')
     setUploadingAvatar(true)
     const ext = file.name.split('.').pop()
     const path = `avatars/${user.id}.${ext}`
@@ -2218,6 +2229,7 @@ function SettingsModal({ user, tab, theme, headingFont, bodyFont, numberLocale, 
   return (
     <>
       <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarUpload} />
+      {avatarError && <div role="alert" style={{ position: 'fixed', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 2200, padding: '8px 12px', borderRadius: 6, background: 'var(--red)', color: '#fff', fontSize: 12 }}>{avatarError}</div>}
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', zIndex: 2000 }} onClick={onClose} />
       <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', width: 'min(500px, calc(100vw - 24px))', height: 'min(440px, 90vh)', display: 'flex', overflow: 'hidden', boxShadow: 'var(--shadow-lg)', zIndex: 2001 }} className="scale-in-center">
         <div style={{ width: '150px', minWidth: '130px', background: 'var(--sidebar-bg)', borderRight: '1px solid var(--border)', padding: '14px 8px', flexShrink: 0 }}>

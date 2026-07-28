@@ -5,14 +5,20 @@ A beautiful document editor — elegant alternative to Notion.
 ## Setup
 
 ### 1. Supabase
-The application expects an existing Supabase schema. The local `supabase/migrations`
-directory contains incremental migrations only; it is not currently a complete
-bootstrap schema for a blank project. Export and version the production schema
-before relying on this repository for disaster recovery.
+The application expects an existing Supabase schema. The local
+`supabase/migrations` directory contains incremental migrations. Generate or
+refresh the complete recovery snapshot from the linked project with:
 
-Review and apply `docs/supabase-security-hardening.sql` to restrict privileged
-database helper functions. It is deliberately not applied automatically because
-the repository does not contain the complete live schema.
+```bash
+npm run backup:schema
+```
+
+Privileged database helpers are restricted by
+`supabase/migrations/017_privileged_function_grants.sql`; keep that migration in
+every restored environment.
+
+See [`docs/OPERATIONS.md`](docs/OPERATIONS.md) for backup, restoration, deployment,
+access and incident procedures.
 
 ### 2. Deploy to Vercel
 1. Push this project to a GitHub repository
@@ -39,7 +45,10 @@ npm run dev
 
 ```bash
 npm run lint
+npm run check:english
+npm test
 npm run build
+npm run check:bundle
 npm audit --omit=dev
 ```
 

@@ -13,6 +13,8 @@ import EmojiPicker from './EmojiPicker'
 import { Icon } from './Icons'
 import { findFirstDifferingBlock, formatRelativeTime, nodesToMarkdown, tiptapToPlainText, tryMergeDocuments } from '@/lib/tiptap-document'
 import { downloadXlsx } from '@/lib/spreadsheet-xlsx'
+import { validateAttachment, validateImage, validateMarkdown } from '@/lib/upload-limits'
+import { reportClientError } from '@/lib/client-telemetry'
 import { CoverGallery, CoverReposition, parseCoverPos } from './PageCoverControls'
 import { queueOfflineSave, readOfflineSaves, removeOfflineSave } from '@/lib/offline-save-queue'
 import { cachePageForOffline } from '@/lib/offline-page-cache'
@@ -644,6 +646,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
 
   const uploadFileRef = useRef<((file: File) => Promise<string | null>) | null>(null)
   async function uploadFile(file: File, bucket = 'images'): Promise<string | null> {
+    const validationError = file.type.startsWith('image/') ? validateImage(file) : validateAttachment(file)
+    if (validationError) { showToast(validationError); return null }
     const ext = file.name.split('.').pop()
     const path = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
     const { error } = await supabase.storage.from(bucket).upload(path, file)
@@ -654,6 +658,8 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
   uploadFileRef.current = uploadFile
 
   async function uploadCover(file: File) {
+    const validationError = validateImage(file)
+    if (validationError) { showToast(validationError); return }
     setIsUploadingCover(true)
     const path = `${userId}/covers/${Date.now()}.${file.name.split('.').pop()}`
     const { error } = await supabase.storage.from('images').upload(path, file)
@@ -923,14 +929,21 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
     const file = e.target.files?.[0]
     if (!file) return
     e.target.value = ''
-    const text = await file.text()
-    const { mdToTiptap } = await import('@/lib/mdToTiptap')
-    const doc = mdToTiptap(text)
-    if (editorRef.current && doc.content.length > 0) {
-      const pos = editorRef.current.state.selection.to
-      editorRef.current.chain().insertContentAt(pos, doc.content).run()
+    const validationError = validateMarkdown(file)
+    if (validationError) { showToast(validationError); return }
+    try {
+      const text = await file.text()
+      const { mdToTiptap } = await import('@/lib/mdToTiptap')
+      const doc = mdToTiptap(text)
+      if (editorRef.current && doc.content.length > 0) {
+        const pos = editorRef.current.state.selection.to
+        editorRef.current.chain().insertContentAt(pos, doc.content).run()
+      }
+      showToast('Markdown imported!')
+    } catch (error) {
+      reportClientError(error, { operation: 'import_markdown' })
+      showToast('Markdown import failed.')
     }
-    showToast('Markdown imported!')
   }
 
   async function exportWord() {

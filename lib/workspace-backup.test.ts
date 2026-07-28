@@ -13,5 +13,14 @@ describe('workspace backups', () => {
   it('keeps older backups compatible', () => expect(parseWorkspaceBackup(JSON.stringify(valid)).comments).toEqual([]))
   it('collects embedded asset URLs once', () => expect(collectAssetUrls({ src: 'https://cdn.test/a.png', nested: ['https://cdn.test/a.png'] })).toEqual(['https://cdn.test/a.png']))
   it('rejects a broken hierarchy', () => expect(() => parseWorkspaceBackup(JSON.stringify({ ...valid, pages: [{ ...valid.pages[0], parent_source_id: 'missing' }] }))).toThrow(/hierarchy/))
+  it('rejects duplicate page identifiers', () => expect(() => parseWorkspaceBackup(JSON.stringify({ ...valid, pages: [valid.pages[0], valid.pages[0]] }))).toThrow(/duplicate/))
+  it('rejects database rows that reference a missing page', () => expect(() => parseWorkspaceBackup(JSON.stringify({
+    ...valid,
+    database_records: [{ page_source_id: 'missing', data: {}, position: 0 }],
+  }))).toThrow(/database record/))
+  it('rejects non-HTTP attachment URLs', () => expect(() => parseWorkspaceBackup(JSON.stringify({
+    ...valid,
+    asset_urls: ['javascript:alert(1)'],
+  }))).toThrow(/asset URL/))
   it('creates a filesystem-safe filename', () => expect(backupFilename('Équipe Produit', new Date('2026-07-19'))).toBe('canopy-equipe-produit-2026-07-19.json'))
 })

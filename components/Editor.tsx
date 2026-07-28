@@ -21,6 +21,7 @@ import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { createRoot } from 'react-dom/client'
 import { createClient } from '@/lib/supabase/client'
+import { reportClientError } from '@/lib/client-telemetry'
 import type { TiptapContent, TiptapNode } from '@/lib/types'
 
 // Stable reference — @tiptap/react's <BubbleMenu> re-dispatches a metadata
@@ -426,7 +427,9 @@ function PageMentionView({ node }: any) {
       nodes.forEach(extract)
       const snippet = words.join(' ').slice(0, 120).trim()
       setPreview({ icon: data.icon || '📄', title: data.title || 'Untitled', snippet })
-    } catch {}
+    } catch (error) {
+      reportClientError(error, { operation: 'load_page_mention_preview' })
+    }
   }
 
   function handleMouseEnter(e: React.MouseEvent) {
@@ -1475,7 +1478,9 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
       const { result, error } = await res.json()
       if (error || !result) throw new Error(error || 'No result')
       editor.chain().focus().insertContentAt(aiWritePos.insertAt, result).run()
-    } catch {}
+    } catch (error) {
+      reportClientError(error, { operation: 'ai_write' })
+    }
     setAiLoading(false)
   }
 
