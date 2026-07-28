@@ -10,7 +10,7 @@ and keeping the English interface understandable.
 | --- | --- |
 | Weekly | Export each active workspace from **Settings → Workspace → Portable backup** and store the JSON outside Canopy. |
 | Monthly | Export and commit the remote Supabase schema with `npm run backup:schema`. |
-| Monthly | Run `npm audit --omit=dev`, `npm test`, `npm run lint`, `npm run check:english`, and `npm run build`. |
+| Monthly | Run `npm run audit:production`, `npm test`, `npm run lint`, `npm run check:english`, and `npm run build`. |
 | Quarterly | Restore a workspace backup into a temporary workspace and complete the recovery checklist below. |
 | When membership changes | Review workspace members, pending invitations, page links and Vercel/Supabase access. |
 

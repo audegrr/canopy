@@ -37,7 +37,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
           SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
       - run: npm run check:bundle
-      - run: npm audit --omit=dev --audit-level=high
+      - run: npm run audit:production
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e -- --project=chromium
         env:
