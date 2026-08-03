@@ -1,5 +1,12 @@
 # ExcelJS transitive dependency risk
 
+## Resolution (2026-08-03)
+
+The upstream patched releases `brace-expansion` 1.1.18 and 2.1.4 are now
+available and selected by `package-lock.json`. `npm audit --omit=dev` reports no
+remaining production vulnerabilities, so the temporary reviewed exception has
+been removed from the production audit check.
+
 Last reviewed: 2026-07-28
 
 ## Finding

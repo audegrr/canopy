@@ -1,19 +1,5 @@
 import { spawnSync } from "node:child_process";
 
-const allowedAdvisory =
-  "https://github.com/advisories/GHSA-mh99-v99m-4gvg";
-const allowedPackages = new Set([
-  "archiver",
-  "archiver-utils",
-  "brace-expansion",
-  "exceljs",
-  "glob",
-  "minimatch",
-  "readdir-glob",
-  "rimraf",
-  "zip-stream",
-]);
-
 const audit = spawnSync(
   process.platform === "win32" ? "npm.cmd" : "npm",
   ["audit", "--omit=dev", "--json"],
@@ -40,43 +26,16 @@ if (report.error) {
 }
 
 const vulnerabilities = Object.values(report.vulnerabilities ?? {});
-const unexpected = vulnerabilities.filter((vulnerability) => {
-  if (!allowedPackages.has(vulnerability.name)) return true;
-  if (vulnerability.severity !== "high") return true;
-  if (vulnerability.isDirect !== (vulnerability.name === "exceljs")) return true;
 
-  return vulnerability.via.some((cause) =>
-    typeof cause === "string"
-      ? !allowedPackages.has(cause)
-      : cause.url !== allowedAdvisory ||
-        cause.name !== "brace-expansion" ||
-        cause.severity !== "high",
-  );
-});
-
-const presentPackages = new Set(
-  vulnerabilities.map((vulnerability) => vulnerability.name),
-);
-const allowlistChanged =
-  presentPackages.size !== allowedPackages.size ||
-  [...allowedPackages].some((name) => !presentPackages.has(name));
-
-if (unexpected.length > 0 || allowlistChanged) {
+if (vulnerabilities.length > 0) {
+  console.error("Production dependency audit found vulnerabilities.");
   console.error(
-    "Production dependency audit differs from the reviewed ExcelJS exception.",
+    `Findings: ${vulnerabilities
+      .map(({ name, severity }) => `${name} (${severity})`)
+      .join(", ")}`,
   );
-  if (unexpected.length > 0) {
-    console.error(
-      `Unexpected findings: ${unexpected.map(({ name }) => name).join(", ")}`,
-    );
-  }
-  console.error("Run `npm audit --omit=dev` and review every change.");
+  console.error("Run `npm audit --omit=dev` and review every finding.");
   process.exit(1);
 }
 
-console.warn(
-  `Allowed reviewed exception: ${allowedPackages.size} high findings all trace to ${allowedAdvisory}.`,
-);
-console.warn(
-  "See security-reports/exceljs-transitive-dependency-risk.md. Any changed or new finding fails this check.",
-);
+console.log("Production dependency audit found no vulnerabilities.");
