@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useMemo } from 'react'
+import Link from 'next/link'
 import { NodeViewWrapper } from '@tiptap/react'
 import { createClient } from '@/lib/supabase/client'
 import { Icon } from './Icons'
@@ -130,12 +131,12 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
                   </button>
                 ))}
               </div>
-              <button onClick={() => window.location.href = `/app/page/${node.attrs.pageId}`}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', fontSize: '11px', padding: '3px 8px', borderRadius: '4px', fontFamily: 'var(--font-sans)' }}
+              <Link href={`/app/page/${node.attrs.pageId}`}
+                style={{ color: 'var(--text-tertiary)', fontSize: '11px', padding: '3px 8px', borderRadius: '4px', fontFamily: 'var(--font-sans)', textDecoration: 'none' }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--accent)' }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-tertiary)' }}>
                 ↗ Full view
-              </button>
+              </Link>
             </div>
           )}
           {collapsed && <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{records.length} rows</span>}
