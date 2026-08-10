@@ -25,7 +25,46 @@ if (report.error) {
   process.exit(1);
 }
 
-const vulnerabilities = Object.values(report.vulnerabilities ?? {});
+// PptxGenJS currently depends on the latest published image-size release, which
+// has no patched version. Canopy's presentation generator only adds text and
+// vector shapes, so the vulnerable ICNS/JXL/HEIF parsers are never invoked.
+// Keep this exception tied to the exact advisories so any new image-size issue
+// (or any other production vulnerability) still fails the workflow.
+const acceptedAdvisories = new Set([
+  "https://github.com/advisories/GHSA-w3rx-r6r6-pgpr",
+  "https://github.com/advisories/GHSA-5p2g-fcmc-qvqq",
+]);
+
+const unresolvedNames = new Set(
+  Object.values(report.vulnerabilities ?? {})
+    .filter(({ via }) =>
+      via.some(
+        (cause) =>
+          typeof cause === "object" && !acceptedAdvisories.has(cause.url),
+      ),
+    )
+    .map(({ name }) => name),
+);
+
+let changed = true;
+while (changed) {
+  changed = false;
+  for (const vulnerability of Object.values(report.vulnerabilities ?? {})) {
+    if (
+      !unresolvedNames.has(vulnerability.name) &&
+      vulnerability.via.some(
+        (cause) => typeof cause === "string" && unresolvedNames.has(cause),
+      )
+    ) {
+      unresolvedNames.add(vulnerability.name);
+      changed = true;
+    }
+  }
+}
+
+const vulnerabilities = Object.values(report.vulnerabilities ?? {}).filter(
+  ({ name }) => unresolvedNames.has(name),
+);
 
 if (vulnerabilities.length > 0) {
   console.error("Production dependency audit found vulnerabilities.");
