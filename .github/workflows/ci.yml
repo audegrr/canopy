@@ -23,7 +23,7 @@ jobs:
       # install. Without it, Vitest's esbuild dep pre-bundle (exceljs,
       # pptxgenjs, docx, @react-pdf/renderer, tiptap, ...) re-scans cold on
       # every CI run, adding several minutes to `npm test`.
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: node_modules/.vite
           key: vite-deps-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
