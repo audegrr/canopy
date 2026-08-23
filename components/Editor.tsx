@@ -31,7 +31,13 @@ import type { TiptapContent, TiptapNode } from '@/lib/types'
 // a re-render on every transaction, that becomes an infinite dispatch loop
 // (each dispatch -> re-render -> new object -> dispatch...) that trips
 // React's "Maximum update depth exceeded" guard.
-const BUBBLE_MENU_OPTIONS = { placement: 'top' as const }
+// flip: false — table header selections sit close to the table's own
+// row/column toolbar (rendered just above the table). Floating UI's default
+// flip middleware would otherwise decide there's not enough room above the
+// selection and flip the bubble menu below it, landing it underneath that
+// toolbar. Disabling flip keeps it pinned above; shift still nudges it back
+// on-screen if it's flush against the viewport edge.
+const BUBBLE_MENU_OPTIONS = { placement: 'top' as const, flip: false as const }
 
 // ── Video node ─────────────────────────────────────────
 const VideoNode = Node.create({
@@ -1527,7 +1533,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   const main = (
     <div style={{ position: 'relative' }}>
       {/* Floating bubble menu on selection */}
-      <BubbleMenu editor={editor} options={BUBBLE_MENU_OPTIONS}
+      <BubbleMenu editor={editor} options={BUBBLE_MENU_OPTIONS} style={{ zIndex: 60 }}
         shouldShow={bubbleMenuShouldShow}>
         <div className="floating-toolbar" style={{ overflowX: 'auto', maxWidth: 'calc(100vw - 32px)', flexWrap: 'nowrap' }} onMouseDown={e => e.preventDefault()}>
           {/* Image-only controls */}
