@@ -154,6 +154,8 @@ export default function DatabaseView({ page, canEdit }: Props) {
     return () => { void supabase.removeChannel(channel) }
   }, [page.id, supabase])
 
+  function showToastMsg(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2000) }
+
   async function addRecord() {
     const maxPos = records.reduce((m, r) => Math.max(m, r.position), 0)
     const { data } = await supabase.from('db_records').insert({ page_id: page.id, data: {}, position: maxPos + 1 }).select().single()
@@ -161,17 +163,27 @@ export default function DatabaseView({ page, canEdit }: Props) {
   }
 
   async function deleteRecord(id: string) {
-    await supabase.from('db_records').delete().eq('id', id)
+    const { error } = await supabase.from('db_records').delete().eq('id', id)
+    if (error) { showToastMsg('Failed to delete record'); return }
     setRecords(r => r.filter(x => x.id !== id))
   }
 
   async function updateCell(recId: string, fieldId: string, value: any) {
     const rec = records.find(r => r.id === recId)
     if (!rec) return
+    const previousData = rec.data
     const newData = { ...rec.data, [fieldId]: value }
-    await supabase.from('db_records').update({ data: newData }).eq('id', recId)
+    // Optimistic for snappy editing, but reverted on failure — an unchecked
+    // error here previously left the UI showing a value that was never
+    // written to the server, so it silently vanished for other devices/users
+    // (and even for the same user on reload).
     setRecords(r => r.map(x => x.id === recId ? { ...x, data: newData } : x))
     setEditingCell(prev => (prev?.recId === recId && prev?.fieldId === fieldId) ? null : prev)
+    const { error } = await supabase.from('db_records').update({ data: newData }).eq('id', recId)
+    if (error) {
+      setRecords(r => r.map(x => x.id === recId ? { ...x, data: previousData } : x))
+      showToastMsg('Failed to save — change was not saved')
+    }
   }
 
   async function addField() {
@@ -186,13 +198,19 @@ export default function DatabaseView({ page, canEdit }: Props) {
   }
 
   async function deleteField(id: string) {
-    await supabase.from('db_fields').delete().eq('id', id)
+    const { error } = await supabase.from('db_fields').delete().eq('id', id)
+    if (error) { showToastMsg('Failed to delete field'); return }
     setFields(f => f.filter(x => x.id !== id))
   }
 
   async function updateField(id: string, updates: Partial<DbField>) {
-    await supabase.from('db_fields').update(updates).eq('id', id)
+    const previous = fields.find(f => f.id === id)
     setFields(f => f.map(x => x.id === id ? { ...x, ...updates } as DbField : x))
+    const { error } = await supabase.from('db_fields').update(updates).eq('id', id)
+    if (error) {
+      if (previous) setFields(f => f.map(x => x.id === id ? previous : x))
+      showToastMsg('Failed to save field change')
+    }
   }
 
   // Manual column-resize drag. resizeStateRef tracks the in-progress drag
@@ -280,8 +298,6 @@ export default function DatabaseView({ page, canEdit }: Props) {
     for (const f of updated) await supabase.from('db_fields').update({ position: f.position }).eq('id', f.id)
     setDragColIdx(null); setDragOverColIdx(null)
   }
-
-  function showToastMsg(msg: string) { setToast(msg); setTimeout(() => setToast(''), 2000) }
 
   function getExportRecords() {
     return selectedRows.size > 0 ? records.filter(r => selectedRows.has(r.id)) : displayRecords
