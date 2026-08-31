@@ -472,22 +472,22 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
   }, [page.id, page.title])
 
   useEffect(() => {
-    if (!canEdit) return
+    if (!canEdit || !userId) return
     async function flushOfflineSaves() {
       if (!navigator.onLine) return
-      const queued = readOfflineSaves().filter(item => item.workspaceId === page.workspace_id)
+      const queued = readOfflineSaves(userId).filter(item => item.workspaceId === page.workspace_id)
       for (const item of queued) {
         const { error } = await supabase.from('pages').update(item.updates).eq('id', item.pageId)
-        if (!error) removeOfflineSave(item.pageId)
+        if (!error) removeOfflineSave(userId, item.pageId)
       }
-      const stillQueued = readOfflineSaves().some(item => item.pageId === page.id)
+      const stillQueued = readOfflineSaves(userId).some(item => item.pageId === page.id)
       setSaveOffline(stillQueued)
       if (!stillQueued) { setSaved(true); savedRef.current = true }
     }
     void flushOfflineSaves()
     window.addEventListener('online', flushOfflineSaves)
     return () => window.removeEventListener('online', flushOfflineSaves)
-  }, [canEdit, page.id, page.workspace_id, supabase])
+  }, [canEdit, page.id, page.workspace_id, supabase, userId])
 
   // Sync editor content when page.content changes from outside (e.g. load() returns fresh data)
   // Only apply if there are no unsaved local changes to avoid overwriting in-progress edits.
@@ -554,11 +554,11 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
       if (userId && !isPublicShare) cachePageForOffline({ page: cachedPage, canEdit, canManage, isOwner, isWorkspaceMember, userId })
       const { error: saveError } = await supabase.from('pages').update(persisted).eq('id', page.id)
       if (saveError) {
-        queueOfflineSave({ pageId: page.id, workspaceId: page.workspace_id, updates: persisted, queuedAt: ts })
+        if (userId) queueOfflineSave(userId, { pageId: page.id, workspaceId: page.workspace_id, updates: persisted, queuedAt: ts })
         setSaveOffline(true)
         return
       }
-      removeOfflineSave(page.id)
+      if (userId) removeOfflineSave(userId, page.id)
       setSaveOffline(false)
       // Keep timestamp in the set for 20s so delayed realtime events are recognised as ours
       setTimeout(() => saveTimestamps.current.delete(normTs(ts)), 20_000)
