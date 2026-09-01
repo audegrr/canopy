@@ -65,6 +65,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const relatedFieldsRef = useRef<Record<string, DbField[]>>({})
   const supabase = useMemo(() => createClient(), [])
   const [realtimeStatus, setRealtimeStatus] = useState<'connecting' | 'live' | 'offline'>('connecting')
+  const [cellConflict, setCellConflict] = useState<{ recId: string; fieldId: string; fieldName: string; mine: any; theirs: any } | null>(null)
   const { resolvedLocale } = useNumberFormatPrefs()
   const contentRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(0)
@@ -172,6 +173,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
     const rec = records.find(r => r.id === recId)
     if (!rec) return
     const previousData = rec.data
+    const knownUpdatedAt = rec.updated_at
     const newData = { ...rec.data, [fieldId]: value }
     // Optimistic for snappy editing, but reverted on failure — an unchecked
     // error here previously left the UI showing a value that was never
@@ -179,11 +181,50 @@ export default function DatabaseView({ page, canEdit }: Props) {
     // (and even for the same user on reload).
     setRecords(r => r.map(x => x.id === recId ? { ...x, data: newData } : x))
     setEditingCell(prev => (prev?.recId === recId && prev?.fieldId === fieldId) ? null : prev)
-    const { error } = await supabase.from('db_records').update({ data: newData }).eq('id', recId)
+
+    // Compare-and-swap on updated_at: only write if nobody changed this row
+    // since we last read it. Without this, two people editing the same
+    // record around the same time silently clobber each other — whoever's
+    // write lands last in Postgres wins with no warning, even for fields
+    // neither of them touched.
+    let query = supabase.from('db_records').update({ data: newData, updated_at: new Date().toISOString() }).eq('id', recId)
+    if (knownUpdatedAt) query = query.eq('updated_at', knownUpdatedAt)
+    const { data: updatedRows, error } = await query.select()
+
     if (error) {
       setRecords(r => r.map(x => x.id === recId ? { ...x, data: previousData } : x))
       showToastMsg('Failed to save — change was not saved')
+      return
     }
+    if (updatedRows && updatedRows.length > 0) {
+      setRecords(r => r.map(x => x.id === recId ? updatedRows[0] : x))
+      return
+    }
+
+    // No row matched — someone else wrote to this record first. Find out
+    // whether they touched the same field or a different one.
+    const { data: serverRow } = await supabase.from('db_records').select('*').eq('id', recId).single()
+    if (!serverRow) return
+    if (JSON.stringify(serverRow.data?.[fieldId]) === JSON.stringify(previousData?.[fieldId])) {
+      // Different field — merge silently and retry once rather than bother the user.
+      const merged = { ...serverRow.data, [fieldId]: value }
+      const { data: retryRows } = await supabase.from('db_records')
+        .update({ data: merged, updated_at: new Date().toISOString() })
+        .eq('id', recId).eq('updated_at', serverRow.updated_at).select()
+      setRecords(r => r.map(x => x.id === recId ? (retryRows?.[0] ?? { ...serverRow, data: merged }) : x))
+      return
+    }
+    // Same field changed by both — surface it instead of silently overwriting.
+    setRecords(r => r.map(x => x.id === recId ? serverRow : x))
+    const field = fields.find(f => f.id === fieldId)
+    setCellConflict({ recId, fieldId, fieldName: field?.name || 'this field', mine: value, theirs: serverRow.data?.[fieldId] })
+  }
+
+  function formatConflictValue(value: any): string {
+    if (value === null || value === undefined || value === '') return '(empty)'
+    if (Array.isArray(value)) return value.join(', ') || '(empty)'
+    if (typeof value === 'boolean') return value ? 'checked' : 'unchecked'
+    return String(value)
   }
 
   async function addField() {
@@ -732,6 +773,37 @@ export default function DatabaseView({ page, canEdit }: Props) {
           </button>
         )}
       </div>
+
+      {/* Conflict banner: someone else edited this exact cell before our write landed */}
+      {cellConflict && (
+        <div style={{ padding: '10px 16px', background: '#fef9c3', borderBottom: '1px solid #fde047', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, color: '#713f12', flex: 1 }}>⚠️ Someone else changed “{cellConflict.fieldName}” on this row at the same time.</span>
+            <button onClick={() => setCellConflict(null)}
+              style={{ background: '#fff', border: '1px solid #fde047', borderRadius: 5, padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', color: '#713f12', fontWeight: 500 }}>
+              Keep theirs
+            </button>
+            <button onClick={() => { const c = cellConflict; setCellConflict(null); updateCell(c.recId, c.fieldId, c.mine) }}
+              style={{ background: '#713f12', border: 'none', borderRadius: 5, padding: '4px 12px', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font-sans)', color: '#fff', fontWeight: 500 }}>
+              Use mine
+            </button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#713f12', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Your version</div>
+              <div style={{ margin: 0, padding: '6px 10px', background: 'rgba(255,255,255,0.6)', border: '1px solid #fde047', borderRadius: 5, fontSize: 12, fontFamily: 'var(--font-sans)', wordBreak: 'break-word', color: '#713f12' }}>
+                {formatConflictValue(cellConflict.mine)}
+              </div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#166534', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Their version</div>
+              <div style={{ margin: 0, padding: '6px 10px', background: 'rgba(220,252,231,0.7)', border: '1px solid #86efac', borderRadius: 5, fontSize: 12, fontFamily: 'var(--font-sans)', wordBreak: 'break-word', color: '#166534' }}>
+                {formatConflictValue(cellConflict.theirs)}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filter rows */}
       {showFilters && (
