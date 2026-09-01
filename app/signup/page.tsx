@@ -1,11 +1,12 @@
 'use client'
 import { useState, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import Image from 'next/image'
 
 function SignupForm() {
+  const router = useRouter()
   const searchParams = useSearchParams()
   const inviteToken = searchParams.get('invite') ?? ''
   const prefillEmail = searchParams.get('email') ?? ''
@@ -26,14 +27,19 @@ function SignupForm() {
       ? `${location.origin}/auth/callback?next=${encodeURIComponent(`/invite/${inviteToken}`)}`
       : `${location.origin}/auth/callback`
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: { data: { full_name: name }, emailRedirectTo: redirectTo },
     })
 
-    if (error) { setError(error.message); setLoading(false) }
-    else setDone(true)
+    if (error) { setError(error.message); setLoading(false); return }
+    // If email confirmation is off at the project level, signUp already
+    // returns a live session instead of requiring a click-through — showing
+    // "check your email" here would leave an already-signed-in user staring
+    // at a message for an email that was never sent.
+    if (data.session) { router.push(inviteToken ? `/invite/${inviteToken}` : '/app'); return }
+    setDone(true)
   }
 
   async function handleGoogle() {
