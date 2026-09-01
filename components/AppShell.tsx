@@ -865,7 +865,7 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
           user_id: body.userId,
           type: 'workspace_invite',
           title: `Added to workspace "${currentWs.name}"`,
-          body: `${user.name} invited you as ${inviteRole === 'member' ? 'member' : 'viewer'}.`,
+          body: `${profileName} invited you as ${inviteRole === 'member' ? 'member' : 'viewer'}.`,
           data: { workspace_id: currentWs.id, workspace_name: currentWs.name }
         })
       }).catch(() => {})
@@ -1277,10 +1277,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--side-hover)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
             <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-              {user.name[0]?.toUpperCase()}
+              {profileName[0]?.toUpperCase()}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--side-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-body)' }}>{user.name}</div>
+              <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--side-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-body)' }}>{profileName}</div>
               <div style={{ fontSize: '11px', color: 'var(--side-text-2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
             </div>
           </div>
@@ -1293,10 +1293,10 @@ export default function AppShell({ user, workspaces: initWS, currentWorkspace: i
                 {/* Avatar header */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '6px 7px 8px', borderBottom: '1px solid var(--border)', marginBottom: '4px' }}>
                   <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '13px', fontWeight: 600, color: '#fff', flexShrink: 0 }}>
-                    {user.name[0]?.toUpperCase()}
+                    {profileName[0]?.toUpperCase()}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{user.name}</div>
+                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>{profileName}</div>
                     <div style={{ fontSize: '11px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</div>
                   </div>
                 </div>
@@ -2263,7 +2263,7 @@ function SettingsModal({ user, tab, theme, headingFont, bodyFont, numberLocale, 
                   style={{ position: 'relative', width: '56px', height: '56px', borderRadius: '50%', flexShrink: 0, cursor: 'pointer', overflow: 'hidden' }}>
                   {avatarUrl
                     ? <img src={avatarUrl} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : <div style={{ width: '100%', height: '100%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: 700, color: '#fff' }}>{user.name[0]?.toUpperCase()}</div>
+                    : <div style={{ width: '100%', height: '100%', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: 700, color: '#fff' }}>{profileName[0]?.toUpperCase()}</div>
                   }
                   <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: uploadingAvatar ? 1 : 0, transition: 'opacity 0.15s' }}
                     onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
