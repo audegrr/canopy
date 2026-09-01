@@ -4,11 +4,14 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
+import { Icon } from '@/components/Icons'
+import { friendlyAuthError } from '@/lib/friendly-auth-error'
 
 function LoginForm() {
   const searchParams = useSearchParams()
   const [email, setEmail] = useState(searchParams.get('email') ?? '')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState(
     searchParams.get('error') === 'invalid_or_expired_link'
       ? 'This sign-in link is invalid or has expired. Ask the workspace owner for a new invitation.'
@@ -22,7 +25,7 @@ function LoginForm() {
     e.preventDefault()
     setLoading(true); setError('')
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) { setError(error.message); setLoading(false) }
+    if (error) { setError(friendlyAuthError(error.message)); setLoading(false) }
     else router.push(searchParams.get('redirect') ?? '/app')
   }
 
@@ -45,9 +48,18 @@ function LoginForm() {
         <label className="sr-only" htmlFor="login-email">Email</label>
         <input id="login-email" name="email" autoComplete="email" type="email" value={email} onChange={e => setEmail(e.target.value)} required style={inputSt} placeholder="Email" />
         <label className="sr-only" htmlFor="login-password">Password</label>
-        <input id="login-password" name="password" autoComplete="current-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required style={inputSt} placeholder="Password" />
+        <div style={{ position: 'relative' }}>
+          <input id="login-password" name="password" autoComplete="current-password" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required style={{ ...inputSt, paddingRight: '38px' }} placeholder="Password" />
+          <button type="button" onClick={() => setShowPassword(s => !s)} aria-label={showPassword ? 'Hide password' : 'Show password'}
+            style={{ position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '6px', display: 'flex', alignItems: 'center' }}>
+            <Icon name={showPassword ? 'eye-off' : 'eye'} size={16} />
+          </button>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <Link href={email ? `/forgot-password?email=${encodeURIComponent(email)}` : '/forgot-password'} style={{ color: 'var(--text-secondary)', fontSize: '12.5px', textDecoration: 'underline', textUnderlineOffset: 2 }}>Forgot password?</Link>
+        </div>
         {error && <p role="alert" style={{ color: '#eb5757', fontSize: '13px' }}>{error}</p>}
-        <button type="submit" disabled={loading} style={primaryBtn}>{loading ? 'Signing in…' : 'Continue'}</button>
+        <button type="submit" disabled={loading} style={primaryBtn}>{loading ? 'Signing in…' : error ? 'Try again' : 'Continue'}</button>
       </form>
       <p style={{ textAlign: 'center', marginTop: '16px', fontSize: '13px', color: 'var(--text-secondary)' }}>
         No account? <Link href="/signup" style={{ color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Sign up</Link>

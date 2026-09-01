@@ -4,6 +4,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import Image from 'next/image'
+import { Icon } from '@/components/Icons'
+import { friendlyAuthError } from '@/lib/friendly-auth-error'
 
 function SignupForm() {
   const router = useRouter()
@@ -13,6 +15,7 @@ function SignupForm() {
 
   const [email, setEmail] = useState(prefillEmail)
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -33,7 +36,7 @@ function SignupForm() {
       options: { data: { full_name: name }, emailRedirectTo: redirectTo },
     })
 
-    if (error) { setError(error.message); setLoading(false); return }
+    if (error) { setError(friendlyAuthError(error.message)); setLoading(false); return }
     // If email confirmation is off at the project level, signUp already
     // returns a live session instead of requiring a click-through — showing
     // "check your email" here would leave an already-signed-in user staring
@@ -103,7 +106,13 @@ function SignupForm() {
               readOnly={!!prefillEmail}
             />
             <label className="sr-only" htmlFor="signup-password">Password</label>
-            <input id="signup-password" name="password" autoComplete="new-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} style={inputSt} placeholder="Password (min. 8 characters)" />
+            <div style={{ position: 'relative' }}>
+              <input id="signup-password" name="password" autoComplete="new-password" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required minLength={8} style={{ ...inputSt, paddingRight: '38px' }} placeholder="Password (min. 8 characters)" />
+              <button type="button" onClick={() => setShowPassword(s => !s)} aria-label={showPassword ? 'Hide password' : 'Show password'}
+                style={{ position: 'absolute', right: '6px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: '6px', display: 'flex', alignItems: 'center' }}>
+                <Icon name={showPassword ? 'eye-off' : 'eye'} size={16} />
+              </button>
+            </div>
             {error && <p role="alert" style={{ color: '#eb5757', fontSize: '13px' }}>{error}</p>}
             <button type="submit" disabled={loading} style={primaryBtn}>{loading ? 'Creating account…' : 'Create account'}</button>
           </form>
