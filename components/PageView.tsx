@@ -486,7 +486,13 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
     }
     void flushOfflineSaves()
     window.addEventListener('online', flushOfflineSaves)
-    return () => window.removeEventListener('online', flushOfflineSaves)
+    // A save can fail (and get queued) from a degraded connection — wifi/cellular
+    // handoff, weak signal — that never actually flips navigator.onLine to false,
+    // most common on mobile. The 'online' event never fires in that case, so
+    // without this the queued edit would sit stuck on that device indefinitely,
+    // invisible to every other collaborator, until the page happens to remount.
+    const retryTimer = setInterval(flushOfflineSaves, 30_000)
+    return () => { window.removeEventListener('online', flushOfflineSaves); clearInterval(retryTimer) }
   }, [canEdit, page.id, page.workspace_id, supabase, userId])
 
   // Sync editor content when page.content changes from outside (e.g. load() returns fresh data)
