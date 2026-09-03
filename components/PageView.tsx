@@ -1485,6 +1485,10 @@ export default function PageView({ page: initialPage, canEdit, isOwner, canManag
                       onUpdate={onContentUpdate}
                       onEditorReady={e => { setEditorInstance(e); editorRef.current = e; setTimeout(() => { editorReadyRef.current = true }, 200) }}
                       workspaceId={page.workspace_id}
+                      pageId={page.id}
+                      pageTitle={page.title}
+                      currentUserId={userId}
+                      getCurrentUserName={() => myPresenceRef.current.name}
                     />
                   </>
               }

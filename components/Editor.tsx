@@ -495,6 +495,42 @@ const PageMentionNode = Node.create({
   },
 })
 
+// ── USER MENTION NODE ─────────────────────────────────────────────────
+function UserMentionView({ node }: any) {
+  return (
+    <NodeViewWrapper as="span" style={{ display: 'inline' }}>
+      <span
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', background: 'var(--accent-light)', color: 'var(--accent)', borderRadius: '4px', padding: '1px 7px', fontSize: '0.92em', cursor: 'default', fontWeight: 500 }}
+        title={node.attrs.email || undefined}>
+        {'@' + (node.attrs.label || 'Someone')}
+      </span>
+    </NodeViewWrapper>
+  )
+}
+
+const UserMentionNode = Node.create({
+  name: 'userMention',
+  group: 'inline',
+  inline: true,
+  atom: true,
+  addAttributes() {
+    return {
+      userId: { default: null },
+      label: { default: '' },
+      email: { default: '' },
+    }
+  },
+  parseHTML() { return [{ tag: 'span[data-user-mention]' }] },
+  renderHTML({ HTMLAttributes }) {
+    return ['span', mergeAttributes(HTMLAttributes, {
+      'data-user-mention': HTMLAttributes.userId,
+    }), '@' + (HTMLAttributes.label || '')]
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(UserMentionView)
+  },
+})
+
 // ── COLUMN LAYOUT NODES ───────────────────────────────────────────────
 const ColumnNode = Node.create({
   name: 'column',
@@ -899,12 +935,20 @@ const CommentMark = Mark.create({
 
 // ── CUSTOM CODE BLOCK ─────────────────────────────────────────────────────────
 
+type AtResult =
+  | { kind: 'page'; id: string; title: string; icon: string }
+  | { kind: 'user'; id: string; title: string; email: string }
+
 type Props = {
   content: TiptapContent
   editable: boolean
   onUpdate: (content: TiptapContent) => void
   onEditorReady?: (editor: any) => void
   workspaceId?: string
+  pageId?: string
+  pageTitle?: string
+  currentUserId?: string
+  getCurrentUserName?: () => string
 }
 
 function FBtn({ onClick, active, children, title, btnRef, disabled }: { onClick?: () => void; active: boolean; children: React.ReactNode; title?: string; btnRef?: React.RefObject<HTMLButtonElement | null>; disabled?: boolean }) {
@@ -921,12 +965,13 @@ function FBtn({ onClick, active, children, title, btnRef, disabled }: { onClick?
   )
 }
 
-export default function Editor({ content, editable, onUpdate, onEditorReady, workspaceId }: Props) {
+export default function Editor({ content, editable, onUpdate, onEditorReady, workspaceId, pageId, pageTitle, currentUserId, getCurrentUserName }: Props) {
   const [slashMenu, setSlashMenu] = useState<{ x: number; y: number; query: string; fromPos: number } | null>(null)
   const [slashIndex, setSlashIndex] = useState(0)
   const [atMenu, setAtMenu] = useState<{ x: number; y: number; query: string } | null>(null)
-  const [atResults, setAtResults] = useState<{ id: string; title: string; icon: string }[]>([])
+  const [atResults, setAtResults] = useState<AtResult[]>([])
   const [atIndex, setAtIndex] = useState(0)
+  const workspaceMembersRef = useRef<{ id: string; label: string; email: string }[] | null>(null)
   const atQueryRef = useRef('')
   // handleKeyDown below lives inside editorProps, which useEditor only re-applies
   // when [extensions, editable] change (see comment near that hook) — so it keeps
@@ -936,7 +981,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
   const slashMenuRef = useRef<{ x: number; y: number; query: string; fromPos: number } | null>(null)
   const slashIndexRef = useRef(0)
   const atMenuRef = useRef<{ x: number; y: number; query: string } | null>(null)
-  const atResultsRef = useRef<{ id: string; title: string; icon: string }[]>([])
+  const atResultsRef = useRef<AtResult[]>([])
   const atIndexRef = useRef(0)
   const [showColorPicker, setShowColorPicker] = useState(false)
   const [showHighlightPicker, setShowHighlightPicker] = useState(false)
@@ -1008,6 +1053,7 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
     SubpageExtension,
     DatabaseBlockExtension,
     PageMentionNode,
+    UserMentionNode,
     ColumnNode,
     ColumnsNode,
     EmbedNode,
@@ -1301,30 +1347,73 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
     const q = atMenu.query
     const timer = setTimeout(async () => {
       const supabase = createClient()
-      const { data } = await supabase
-        .from('pages')
-        .select('id, title, icon')
-        .eq('workspace_id', workspaceId)
-        .ilike('title', `%${q}%`)
-        .limit(10)
-      atResultsRef.current = data || []
-      setAtResults(data || [])
+      const [{ data: pages }] = await Promise.all([
+        supabase
+          .from('pages')
+          .select('id, title, icon')
+          .eq('workspace_id', workspaceId)
+          .is('deleted_at', null)
+          .ilike('title', `%${q}%`)
+          .limit(10),
+        (async () => {
+          if (workspaceMembersRef.current !== null) return
+          try {
+            const res = await fetch(`/api/workspace-members?ws_id=${workspaceId}`)
+            if (!res.ok) { workspaceMembersRef.current = []; return }
+            const members = await res.json()
+            workspaceMembersRef.current = (Array.isArray(members) ? members : [])
+              .filter((m: any) => m.user_id !== currentUserId)
+              .map((m: any) => ({ id: m.user_id, label: m.full_name || m.email || 'Someone', email: m.email || '' }))
+          } catch {
+            workspaceMembersRef.current = []
+          }
+        })(),
+      ])
+      const matchedUsers = (workspaceMembersRef.current || [])
+        .filter(m => m.label.toLowerCase().includes(q.toLowerCase()) || m.email.toLowerCase().includes(q.toLowerCase()))
+        .slice(0, 5)
+      const results: AtResult[] = [
+        ...(pages || []).map(p => ({ kind: 'page' as const, id: p.id, title: p.title, icon: p.icon })),
+        ...matchedUsers.map(m => ({ kind: 'user' as const, id: m.id, title: m.label, email: m.email })),
+      ]
+      atResultsRef.current = results
+      setAtResults(results)
     }, 150)
     return () => clearTimeout(timer)
-  }, [atMenu, workspaceId])
+  }, [atMenu, workspaceId, currentUserId])
 
-  function runMention(page: { id: string; title: string; icon: string }) {
+  function runMention(result: AtResult) {
     if (!editor) return
     atMenuRef.current = null
     setAtMenu(null)
     const curPos = editor.state.selection.from
     const q = atQueryRef.current
     const deleteFrom = curPos - q.length - 1
-    editor.chain()
-      .focus()
-      .deleteRange({ from: deleteFrom, to: curPos })
-      .insertContentAt(deleteFrom, { type: 'pageMention', attrs: { pageId: page.id, label: page.title || 'Untitled' } })
-      .run()
+    if (result.kind === 'page') {
+      editor.chain()
+        .focus()
+        .deleteRange({ from: deleteFrom, to: curPos })
+        .insertContentAt(deleteFrom, { type: 'pageMention', attrs: { pageId: result.id, label: result.title || 'Untitled' } })
+        .run()
+    } else {
+      editor.chain()
+        .focus()
+        .deleteRange({ from: deleteFrom, to: curPos })
+        .insertContentAt(deleteFrom, { type: 'userMention', attrs: { userId: result.id, label: result.title || 'Someone', email: result.email } })
+        .run()
+      if (currentUserId && result.id !== currentUserId) {
+        const supabase = createClient()
+        const mentionerName = getCurrentUserName?.() || 'Someone'
+        supabase.from('notifications').insert({
+          user_id: result.id,
+          type: 'mention',
+          title: `${mentionerName} mentioned you in "${pageTitle || 'Untitled'}"`,
+          body: null,
+          read: false,
+          data: { page_id: pageId, workspace_id: workspaceId },
+        }).then(() => {})
+      }
+    }
     atQueryRef.current = ''
   }
 
@@ -1838,16 +1927,21 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
             style={{ position: 'fixed', left: Math.min(atMenu.x, window.innerWidth - 240), top: Math.min(atMenu.y, window.innerHeight - 280), zIndex: 999, minWidth: 220 }}>
             {atResults.length === 0
               ? <div style={{ padding: '10px 12px', color: 'var(--text-tertiary)', fontSize: '13px' }}>
-                  {atMenu.query ? 'No pages found' : 'Type to search…'}
+                  {atMenu.query ? 'No pages or people found' : 'Type to search…'}
                 </div>
-              : atResults.map((page, i) => (
-                <div key={page.id}
+              : atResults.map((result, i) => (
+                <div key={`${result.kind}-${result.id}`}
                   className={`slash-menu-item ${i === atIndex ? 'active' : ''}`}
                   onMouseEnter={() => { atIndexRef.current = i; setAtIndex(i) }}
-                  onClick={() => runMention(page)}>
-                  <div className="icon" style={{ fontSize: 16 }}>{page.icon || '📄'}</div>
+                  onClick={() => runMention(result)}>
+                  <div className="icon" style={{ fontSize: 16 }}>
+                    {result.kind === 'page' ? (result.icon || '📄') : '👤'}
+                  </div>
                   <div>
-                    <div className="label">{page.title || 'Untitled'}</div>
+                    <div className="label">{result.title || (result.kind === 'page' ? 'Untitled' : 'Someone')}</div>
+                    {result.kind === 'user' && result.email && (
+                      <div className="hint" style={{ fontSize: 11 }}>{result.email}</div>
+                    )}
                   </div>
                 </div>
               ))
