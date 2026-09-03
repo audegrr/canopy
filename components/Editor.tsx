@@ -1924,7 +1924,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
         <>
           <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => { atMenuRef.current = null; setAtMenu(null) }} />
           <div className="slash-menu fade-in"
-            style={{ position: 'fixed', left: Math.min(atMenu.x, window.innerWidth - 240), top: Math.min(atMenu.y, window.innerHeight - 280), zIndex: 999, minWidth: 220 }}>
+            style={{ position: 'fixed', left: Math.min(atMenu.x, window.innerWidth - 240), top: Math.min(atMenu.y, window.innerHeight - 360), zIndex: 999, minWidth: 220 }}>
+            <div className="slash-menu-list">
             {atResults.length === 0
               ? <div style={{ padding: '10px 12px', color: 'var(--text-tertiary)', fontSize: '13px' }}>
                   {atMenu.query ? 'No pages or people found' : 'Type to search…'}
@@ -1946,6 +1947,8 @@ export default function Editor({ content, editable, onUpdate, onEditorReady, wor
                 </div>
               ))
             }
+            </div>
+            {atResults.length > 0 && <div className="slash-menu-bottom-fade"/>}
           </div>
         </>
       )}
