@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { NodeViewWrapper } from '@tiptap/react'
 import { createClient } from '@/lib/supabase/client'
 import { Icon } from './Icons'
+import { PersonEditor, type WsMember } from './DatabaseFieldControls'
 
 type Field = { id: string; name: string; type: string; options?: any[] }
 type Record_ = { id: string; data: Record<string, any> }
@@ -25,13 +26,15 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
   const [collapsed, setCollapsed] = useState(node.attrs.collapsed || false)
   const [editingCell, setEditingCell] = useState<{ recId: string; fieldId: string } | null>(null)
   const [editVal, setEditVal] = useState('')
+  const [wsMembers, setWsMembers] = useState<WsMember[]>([])
+  const [editCellRect, setEditCellRect] = useState<DOMRect | null>(null)
   const supabase = useMemo(() => createClient(), [])
   const canEdit = editor?.isEditable ?? true
 
   useEffect(() => {
     if (!node.attrs.pageId) { setLoading(false); return }
     Promise.all([
-      supabase.from('pages').select('id, title, icon').eq('id', node.attrs.pageId).single(),
+      supabase.from('pages').select('id, title, icon, workspace_id').eq('id', node.attrs.pageId).single(),
       supabase.from('db_fields').select('*').eq('page_id', node.attrs.pageId).order('position'),
       supabase.from('db_records').select('*').eq('page_id', node.attrs.pageId).order('position'),
     ]).then(([{ data: p }, { data: f }, { data: r }]) => {
@@ -39,8 +42,33 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
       setFields(f || [])
       setRecords(r || [])
       setLoading(false)
+      if (p?.workspace_id) {
+        fetch(`/api/workspace-members?ws_id=${p.workspace_id}`)
+          .then(res => res.ok ? res.json() : [])
+          .then(members => setWsMembers((Array.isArray(members) ? members : []).map((m: any) => ({
+            id: m.user_id, label: m.full_name || m.email || 'Someone', email: m.email || '',
+          }))))
+          .catch(() => {})
+      }
     })
   }, [node.attrs.pageId, supabase])
+
+  async function notifyAssignment(rec: Record_, field: Field, member: WsMember) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || member.id === user.id) return
+    const { data: myProfile } = await supabase.from('profiles').select('full_name, email').eq('id', user.id).single()
+    const assignerName = myProfile?.full_name || myProfile?.email?.split('@')[0] || 'Someone'
+    const titleField = fields[0]
+    const recTitle = titleField ? String(rec.data?.[titleField.id] ?? '') : ''
+    await supabase.from('notifications').insert({
+      user_id: member.id,
+      type: 'assignment',
+      title: `${assignerName} assigned you to "${recTitle || 'Untitled'}" in "${page?.title || 'Untitled'}"`,
+      body: field.name,
+      read: false,
+      data: { page_id: node.attrs.pageId, workspace_id: page?.workspace_id },
+    })
+  }
 
   function setViewMode(v: 'table' | 'board') {
     setView(v)
@@ -162,13 +190,26 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
                     <tr key={rec.id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.01)' }}>
                       {fields.map(f => (
                         <td key={f.id} style={{ padding: '4px 10px', borderRight: '1px solid var(--border)', verticalAlign: 'middle', cursor: canEdit ? 'pointer' : 'default' }}
-                          onClick={() => {
+                          onClick={e => {
                             if (!canEdit) return
                             setEditingCell({ recId: rec.id, fieldId: f.id })
                             setEditVal(String(rec.data?.[f.id] ?? ''))
+                            setEditCellRect(e.currentTarget.getBoundingClientRect())
                           }}>
                           {canEdit && editingCell?.recId === rec.id && editingCell?.fieldId === f.id ? (
-                            f.type === 'select' ? (
+                            f.type === 'person' ? (
+                              <PersonEditor
+                                members={wsMembers}
+                                currentValue={editVal}
+                                cellRect={editCellRect}
+                                onSelect={member => {
+                                  updateCell(rec.id, f.id, member?.label || '')
+                                  setEditingCell(null)
+                                  if (member) notifyAssignment(rec, f, member)
+                                }}
+                                onClose={() => setEditingCell(null)}
+                              />
+                            ) : f.type === 'select' ? (
                               <select autoFocus value={editVal} onChange={e => setEditVal(e.target.value)}
                                 onBlur={() => { updateCell(rec.id, f.id, editVal); setEditingCell(null) }}
                                 style={{ width: '100%', border: 'none', outline: 'none', fontSize: '13px', fontFamily: 'var(--font-sans)', background: 'transparent' }}>
@@ -250,6 +291,13 @@ function CellDisplay({ value, field }: { value: any; field: Field }) {
     const opt = (field.options || []).find((o: any) => (o.label || o) === value)
     const color = opt?.color || '#e9e9e7'
     return <span style={{ background: color + '40', color: '#37352f', padding: '1px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 500 }}>{value}</span>
+  }
+  if (field.type === 'person') {
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--accent-light)', color: 'var(--accent)', padding: '1px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 500 }}>
+        <Icon name="user" size={10} /> {value}
+      </span>
+    )
   }
   return <span style={{ fontSize: '13px', color: 'var(--text)' }}>{String(value)}</span>
 }

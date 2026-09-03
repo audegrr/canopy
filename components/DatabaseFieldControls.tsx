@@ -6,12 +6,12 @@ import { createClient } from '@/lib/supabase/client'
 import type { DbField } from '@/lib/types'
 import { Icon } from './Icons'
 
-export const FIELD_TYPE_ICON: Record<string, string> = { text: 'field-text', number: 'field-number', currency: 'currency', select: 'tag', multiselect: 'tags', date: 'calendar', checkbox: 'check-square', relation: 'relation', rollup: 'sigma', url: 'link', email: 'mail', phone: 'phone' }
+export const FIELD_TYPE_ICON: Record<string, string> = { text: 'field-text', number: 'field-number', currency: 'currency', select: 'tag', multiselect: 'tags', date: 'calendar', checkbox: 'check-square', relation: 'relation', rollup: 'sigma', url: 'link', email: 'mail', phone: 'phone', person: 'user' }
 export const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY', 'CNY']
 const SELECT_COLORS = ['#fde68a','#bbf7d0','#bfdbfe','#fecaca','#e9d5ff','#fed7aa','#cffafe','#fbcfe8','#d1fae5','#ddd6fe']
 const ctrlSt: React.CSSProperties = { padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'var(--font-sans)', fontSize: 12, background: 'var(--sidebar-bg)', color: 'var(--text)', outline: 'none', cursor: 'pointer' }
 
-const FIELD_TYPES_LIST: DbField['type'][] = ['text','number','currency','select','multiselect','date','checkbox','relation','rollup','url','email','phone']
+const FIELD_TYPES_LIST: DbField['type'][] = ['text','number','currency','select','multiselect','date','checkbox','person','relation','rollup','url','email','phone']
 
 // Anchors a fixed-position dropdown below a trigger button, but keeps its
 // top edge high enough that a menu up to maxHeight tall never runs past the
@@ -125,6 +125,65 @@ export function SelectEditor({ field, currentValue, onSelect, onAddOption, onDel
         <button onClick={onClose} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)' }}>Done</button>
       </div>
     </div>
+    </>
+  )
+}
+
+export type WsMember = { id: string; label: string; email: string }
+
+type PersonEditorProps = {
+  members: WsMember[]
+  currentValue: string
+  onSelect: (member: WsMember | null) => void
+  onClose: () => void
+  cellRect?: DOMRect | null
+}
+
+export function PersonEditor({ members, currentValue, onSelect, onClose, cellRect }: PersonEditorProps) {
+  const [search, setSearch] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const q = search.toLowerCase()
+  const filtered = members.filter(m => m.label.toLowerCase().includes(q) || m.email.toLowerCase().includes(q))
+
+  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 50) }, [])
+
+  return (
+    <>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={onClose} />
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, minWidth: 220,
+        position: 'fixed',
+        left: cellRect ? Math.min(cellRect.left, window.innerWidth - 240) : 0,
+        top: cellRect ? Math.min(cellRect.bottom + 2, window.innerHeight - 260) : 0,
+        zIndex: 300, boxShadow: 'var(--shadow-lg)', maxHeight: '60vh', overflowY: 'auto' }}
+        onMouseDown={e => e.stopPropagation()}>
+        <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
+          <input ref={inputRef} value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search people…"
+            onKeyDown={e => { if (e.key === 'Escape') onClose(); e.stopPropagation() }}
+            style={{ width: '100%', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', fontSize: 12, fontFamily: 'var(--font-sans)', outline: 'none' }} />
+        </div>
+        <div style={{ padding: '4px' }}>
+          <div onClick={() => onSelect(null)}
+            style={{ padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+            — Unassigned
+          </div>
+          {filtered.map(m => (
+            <div key={m.id} onClick={() => onSelect(m)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12.5 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+              <Icon name="user" size={13} />
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.label}</span>
+              {currentValue === m.label && <span style={{ color: 'var(--accent)' }}>✓</span>}
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div style={{ padding: '6px 8px', fontSize: 12, color: 'var(--text-tertiary)' }}>No members found</div>
+          )}
+        </div>
+      </div>
     </>
   )
 }

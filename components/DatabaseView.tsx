@@ -3,7 +3,7 @@ import { useState, useEffect, useEffectEvent, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Page, DbField, DbRecord } from '@/lib/types'
 import { downloadXlsx } from '@/lib/spreadsheet-xlsx'
-import { FieldMenu, FieldTypePicker, RelationPagePicker, SelectEditor, CURRENCIES } from './DatabaseFieldControls'
+import { FieldMenu, FieldTypePicker, RelationPagePicker, SelectEditor, PersonEditor, CURRENCIES, type WsMember } from './DatabaseFieldControls'
 import DatabaseImportModal from './DatabaseImportModal'
 import { Icon } from './Icons'
 import { useNumberFormatPrefs } from '@/hooks/useNumberFormatPrefs'
@@ -15,7 +15,7 @@ type Props = { page: Page; canEdit: boolean }
 const FIELD_ICONS: Record<string, string> = {
   text: 'Aa', number: '#', currency: '$', select: '◉', multiselect: '◈',
   date: '▦', checkbox: '☐', relation: '⤴', rollup: 'Σ',
-  url: '⊕', email: '@', phone: '℡'
+  url: '⊕', email: '@', phone: '℡', person: '◍'
 }
 
 const SELECT_COLORS = [
@@ -69,6 +69,39 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const { resolvedLocale } = useNumberFormatPrefs()
   const contentRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(0)
+  const [wsMembers, setWsMembers] = useState<WsMember[]>([])
+
+  useEffect(() => {
+    if (!page.workspace_id) return
+    let active = true
+    fetch(`/api/workspace-members?ws_id=${page.workspace_id}`)
+      .then(res => res.ok ? res.json() : [])
+      .then(members => {
+        if (!active) return
+        setWsMembers((Array.isArray(members) ? members : []).map((m: any) => ({
+          id: m.user_id, label: m.full_name || m.email || 'Someone', email: m.email || '',
+        })))
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [page.workspace_id])
+
+  async function notifyAssignment(rec: DbRecord, field: DbField, member: WsMember) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user || member.id === user.id) return
+    const { data: myProfile } = await supabase.from('profiles').select('full_name, email').eq('id', user.id).single()
+    const assignerName = myProfile?.full_name || myProfile?.email?.split('@')[0] || 'Someone'
+    const titleField = fields[0]
+    const recTitle = titleField ? String(rec.data?.[titleField.id] ?? '') : ''
+    await supabase.from('notifications').insert({
+      user_id: member.id,
+      type: 'assignment',
+      title: `${assignerName} assigned you to "${recTitle || 'Untitled'}" in "${page.title || 'Untitled'}"`,
+      body: field.name,
+      read: false,
+      data: { page_id: page.id, workspace_id: page.workspace_id },
+    })
+  }
 
   // Re-measure the scrollable area whenever it resizes (window resize,
   // sidebar toggle, etc.) so column widths below can shrink to fit it —
@@ -448,7 +481,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
     const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
 
     useEffect(() => {
-      if (isEditing && inputRef.current && field.type !== 'checkbox' && field.type !== 'select' && field.type !== 'relation') {
+      if (isEditing && inputRef.current && field.type !== 'checkbox' && field.type !== 'select' && field.type !== 'relation' && field.type !== 'person') {
         // Focus after a tiny delay so the click event positions the cursor first
         const t = setTimeout(() => {
           inputRef.current?.focus()
@@ -492,6 +525,23 @@ export default function DatabaseView({ page, canEdit }: Props) {
                 (o.label || o) === label ? { ...o, color } : o
               )
               await updateField(field.id, { options: newOpts })
+            }}
+            onClose={() => setEditingCell(null)}
+          />
+        )
+      }
+      if (field.type === 'person') {
+        const cellElP = document.querySelector(`[data-cell="${rec.id}-${field.id}"]`) as HTMLElement
+        const cellRectP = cellElP?.getBoundingClientRect()
+        return (
+          <PersonEditor
+            members={wsMembers}
+            currentValue={val}
+            cellRect={cellRectP}
+            onSelect={(member: WsMember | null) => {
+              updateCell(rec.id, field.id, member?.label || '')
+              setEditingCell(null)
+              if (member) notifyAssignment(rec, field, member)
             }}
             onClose={() => setEditingCell(null)}
           />
@@ -591,6 +641,13 @@ export default function DatabaseView({ page, canEdit }: Props) {
     if (field.type === 'select' && val) {
       const opt = (field.options || []).find((o: any) => (o.label || o) === val)
       return <span style={{ background: (opt?.color || '#e9e9e7') + '50', color: '#37352f', padding: '1px 8px', borderRadius: 10, fontSize: 12, fontWeight: 500 }}>{val}</span>
+    }
+    if (field.type === 'person' && val) {
+      return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--accent-light)', color: 'var(--accent)', padding: '1px 8px', borderRadius: 10, fontSize: 12, fontWeight: 500 }}>
+          <Icon name="user" size={11} /> {val}
+        </span>
+      )
     }
     if (field.type === 'relation') {
       const activeRelIds = relations.filter(r => r.field_id === field.id && r.from_record_id === rec.id).map(r => r.to_record_id)
