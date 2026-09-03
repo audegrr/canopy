@@ -155,11 +155,11 @@ export function PersonEditor({ members, currentValues, onToggle, onClear, onClos
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={onClose} />
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, minWidth: 220,
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, width: 260,
         position: 'fixed',
-        left: cellRect ? Math.min(cellRect.left, window.innerWidth - 240) : 0,
-        top: cellRect ? Math.min(cellRect.bottom + 2, window.innerHeight - 300) : 0,
-        zIndex: 300, boxShadow: 'var(--shadow-lg)', maxHeight: '60vh', overflowY: 'auto' }}
+        left: cellRect ? Math.max(8, Math.min(cellRect.left, window.innerWidth - 268)) : 0,
+        top: cellRect ? Math.max(8, Math.min(cellRect.bottom + 2, window.innerHeight - 300)) : 0,
+        zIndex: 300, boxShadow: 'var(--shadow-lg)', maxHeight: 300, overflowY: 'auto' }}
         onMouseDown={e => e.stopPropagation()}>
         <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
           <input ref={inputRef} value={search} onChange={e => setSearch(e.target.value)}
@@ -172,12 +172,12 @@ export function PersonEditor({ members, currentValues, onToggle, onClear, onClos
             const active = currentValues.includes(m.label)
             return (
               <div key={m.id} onClick={() => onToggle(m)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12.5 }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12.5, minWidth: 0 }}
                 onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
                 <Icon name="user" size={13} />
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.label}</span>
-                {active && <span style={{ color: 'var(--accent)' }}>✓</span>}
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.label}</span>
+                {active && <span style={{ color: 'var(--accent)', flexShrink: 0 }}>✓</span>}
               </div>
             )
           })}
@@ -215,11 +215,11 @@ export function PageEditor({ pages, onSelect, onClose, cellRect }: PageEditorPro
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={onClose} />
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, minWidth: 220,
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, width: 260,
         position: 'fixed',
-        left: cellRect ? Math.min(cellRect.left, window.innerWidth - 240) : 0,
-        top: cellRect ? Math.min(cellRect.bottom + 2, window.innerHeight - 300) : 0,
-        zIndex: 300, boxShadow: 'var(--shadow-lg)', maxHeight: '60vh', overflowY: 'auto' }}
+        left: cellRect ? Math.max(8, Math.min(cellRect.left, window.innerWidth - 268)) : 0,
+        top: cellRect ? Math.max(8, Math.min(cellRect.bottom + 2, window.innerHeight - 300)) : 0,
+        zIndex: 300, boxShadow: 'var(--shadow-lg)', maxHeight: 300, overflowY: 'auto' }}
         onMouseDown={e => e.stopPropagation()}>
         <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
           <input ref={inputRef} value={search} onChange={e => setSearch(e.target.value)}
@@ -236,11 +236,11 @@ export function PageEditor({ pages, onSelect, onClose, cellRect }: PageEditorPro
           </div>
           {filtered.map(p => (
             <div key={p.id} onClick={() => onSelect(p)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12.5 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12.5, minWidth: 0 }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-              <span style={{ fontSize: 13 }}>{p.icon || '📄'}</span>
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || 'Untitled'}</span>
+              <span style={{ fontSize: 13, flexShrink: 0 }}>{p.icon || '📄'}</span>
+              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || 'Untitled'}</span>
             </div>
           ))}
           {filtered.length === 0 && (
