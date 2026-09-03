@@ -6,12 +6,12 @@ import { createClient } from '@/lib/supabase/client'
 import type { DbField } from '@/lib/types'
 import { Icon } from './Icons'
 
-export const FIELD_TYPE_ICON: Record<string, string> = { text: 'field-text', number: 'field-number', currency: 'currency', select: 'tag', multiselect: 'tags', date: 'calendar', checkbox: 'check-square', relation: 'relation', rollup: 'sigma', url: 'link', email: 'mail', phone: 'phone', person: 'user' }
+export const FIELD_TYPE_ICON: Record<string, string> = { text: 'field-text', number: 'field-number', currency: 'currency', select: 'tag', multiselect: 'tags', date: 'calendar', checkbox: 'check-square', relation: 'relation', rollup: 'sigma', url: 'link', email: 'mail', phone: 'phone', person: 'user', page: 'doc' }
 export const CURRENCIES = ['EUR', 'USD', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY', 'CNY']
 const SELECT_COLORS = ['#fde68a','#bbf7d0','#bfdbfe','#fecaca','#e9d5ff','#fed7aa','#cffafe','#fbcfe8','#d1fae5','#ddd6fe']
 const ctrlSt: React.CSSProperties = { padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 5, fontFamily: 'var(--font-sans)', fontSize: 12, background: 'var(--sidebar-bg)', color: 'var(--text)', outline: 'none', cursor: 'pointer' }
 
-const FIELD_TYPES_LIST: DbField['type'][] = ['text','number','currency','select','multiselect','date','checkbox','person','relation','rollup','url','email','phone']
+const FIELD_TYPES_LIST: DbField['type'][] = ['text','number','currency','select','multiselect','date','checkbox','person','page','relation','rollup','url','email','phone']
 
 // Anchors a fixed-position dropdown below a trigger button, but keeps its
 // top edge high enough that a menu up to maxHeight tall never runs past the
@@ -133,13 +133,18 @@ export type WsMember = { id: string; label: string; email: string }
 
 type PersonEditorProps = {
   members: WsMember[]
-  currentValue: string
-  onSelect: (member: WsMember | null) => void
+  currentValues: string[]
+  onToggle: (member: WsMember) => void
+  onClear: () => void
   onClose: () => void
   cellRect?: DOMRect | null
 }
 
-export function PersonEditor({ members, currentValue, onSelect, onClose, cellRect }: PersonEditorProps) {
+// Multi-select: clicking a person toggles them in/out of the cell's list
+// rather than replacing it and closing, so the menu stays open to pick
+// several people in a row — matches how SelectEditor keeps itself open
+// while adding options.
+export function PersonEditor({ members, currentValues, onToggle, onClear, onClose, cellRect }: PersonEditorProps) {
   const [search, setSearch] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const q = search.toLowerCase()
@@ -153,7 +158,7 @@ export function PersonEditor({ members, currentValue, onSelect, onClose, cellRec
       <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, minWidth: 220,
         position: 'fixed',
         left: cellRect ? Math.min(cellRect.left, window.innerWidth - 240) : 0,
-        top: cellRect ? Math.min(cellRect.bottom + 2, window.innerHeight - 260) : 0,
+        top: cellRect ? Math.min(cellRect.bottom + 2, window.innerHeight - 300) : 0,
         zIndex: 300, boxShadow: 'var(--shadow-lg)', maxHeight: '60vh', overflowY: 'auto' }}
         onMouseDown={e => e.stopPropagation()}>
         <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
@@ -163,24 +168,83 @@ export function PersonEditor({ members, currentValue, onSelect, onClose, cellRec
             style={{ width: '100%', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', fontSize: 12, fontFamily: 'var(--font-sans)', outline: 'none' }} />
         </div>
         <div style={{ padding: '4px' }}>
+          {filtered.map(m => {
+            const active = currentValues.includes(m.label)
+            return (
+              <div key={m.id} onClick={() => onToggle(m)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12.5 }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
+                <Icon name="user" size={13} />
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.label}</span>
+                {active && <span style={{ color: 'var(--accent)' }}>✓</span>}
+              </div>
+            )
+          })}
+          {filtered.length === 0 && (
+            <div style={{ padding: '6px 8px', fontSize: 12, color: 'var(--text-tertiary)' }}>No members found</div>
+          )}
+        </div>
+        <div style={{ padding: '4px 8px 6px', borderTop: '1px solid var(--border)', display: 'flex', gap: 8 }}>
+          <button onClick={onClear} style={{ flex: 1, background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)', textAlign: 'left' }}>Clear all</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--text-tertiary)', fontFamily: 'var(--font-sans)' }}>Done</button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+export type PageLink = { pageId: string; title: string; icon: string }
+export type WsPage = { id: string; title: string; icon: string }
+
+type PageEditorProps = {
+  pages: WsPage[]
+  onSelect: (page: WsPage | null) => void
+  onClose: () => void
+  cellRect?: DOMRect | null
+}
+
+export function PageEditor({ pages, onSelect, onClose, cellRect }: PageEditorProps) {
+  const [search, setSearch] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+  const q = search.toLowerCase()
+  const filtered = pages.filter(p => p.title.toLowerCase().includes(q)).slice(0, 30)
+
+  useEffect(() => { setTimeout(() => inputRef.current?.focus(), 50) }, [])
+
+  return (
+    <>
+      <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={onClose} />
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, minWidth: 220,
+        position: 'fixed',
+        left: cellRect ? Math.min(cellRect.left, window.innerWidth - 240) : 0,
+        top: cellRect ? Math.min(cellRect.bottom + 2, window.innerHeight - 300) : 0,
+        zIndex: 300, boxShadow: 'var(--shadow-lg)', maxHeight: '60vh', overflowY: 'auto' }}
+        onMouseDown={e => e.stopPropagation()}>
+        <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border)' }}>
+          <input ref={inputRef} value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search pages…"
+            onKeyDown={e => { if (e.key === 'Escape') onClose(); e.stopPropagation() }}
+            style={{ width: '100%', border: '1px solid var(--border)', borderRadius: 5, padding: '4px 8px', fontSize: 12, fontFamily: 'var(--font-sans)', outline: 'none' }} />
+        </div>
+        <div style={{ padding: '4px' }}>
           <div onClick={() => onSelect(null)}
             style={{ padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12, color: 'var(--text-tertiary)' }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
             onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-            — Unassigned
+            — Clear
           </div>
-          {filtered.map(m => (
-            <div key={m.id} onClick={() => onSelect(m)}
+          {filtered.map(p => (
+            <div key={p.id} onClick={() => onSelect(p)}
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 4, cursor: 'pointer', fontSize: 12.5 }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)' }}
               onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'none' }}>
-              <Icon name="user" size={13} />
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.label}</span>
-              {currentValue === m.label && <span style={{ color: 'var(--accent)' }}>✓</span>}
+              <span style={{ fontSize: 13 }}>{p.icon || '📄'}</span>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.title || 'Untitled'}</span>
             </div>
           ))}
           {filtered.length === 0 && (
-            <div style={{ padding: '6px 8px', fontSize: 12, color: 'var(--text-tertiary)' }}>No members found</div>
+            <div style={{ padding: '6px 8px', fontSize: 12, color: 'var(--text-tertiary)' }}>No pages found</div>
           )}
         </div>
       </div>

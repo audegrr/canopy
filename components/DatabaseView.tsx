@@ -3,7 +3,7 @@ import { useState, useEffect, useEffectEvent, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Page, DbField, DbRecord } from '@/lib/types'
 import { downloadXlsx } from '@/lib/spreadsheet-xlsx'
-import { FieldMenu, FieldTypePicker, RelationPagePicker, SelectEditor, PersonEditor, CURRENCIES, type WsMember } from './DatabaseFieldControls'
+import { FieldMenu, FieldTypePicker, RelationPagePicker, SelectEditor, PersonEditor, PageEditor, CURRENCIES, type WsMember, type WsPage, type PageLink } from './DatabaseFieldControls'
 import DatabaseImportModal from './DatabaseImportModal'
 import { Icon } from './Icons'
 import { useNumberFormatPrefs } from '@/hooks/useNumberFormatPrefs'
@@ -15,7 +15,7 @@ type Props = { page: Page; canEdit: boolean }
 const FIELD_ICONS: Record<string, string> = {
   text: 'Aa', number: '#', currency: '$', select: '◉', multiselect: '◈',
   date: '▦', checkbox: '☐', relation: '⤴', rollup: 'Σ',
-  url: '⊕', email: '@', phone: '℡', person: '◍'
+  url: '⊕', email: '@', phone: '℡', person: '◍', page: '📄'
 }
 
 const SELECT_COLORS = [
@@ -24,6 +24,16 @@ const SELECT_COLORS = [
 ]
 
 const MIN_FIELD_COL = 100
+
+// A page-link cell stores { pageId, title, icon } instead of a plain
+// string (unlike select/person, it needs the id to stay a stable, clickable
+// link across renames) — this extracts the text search/sort/export/conflict
+// UI generically expect from any cell value.
+function cellText(field: DbField, val: any): string {
+  if (field.type === 'page' && val && typeof val === 'object') return val.title || ''
+  if (Array.isArray(val)) return val.join(', ')
+  return String(val ?? '')
+}
 
 type DbFilter = { id: number; field: string; op: string; value: string }
 type DbSort = { field: string; dir: 'asc' | 'desc' }
@@ -70,6 +80,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
   const contentRef = useRef<HTMLDivElement>(null)
   const [containerWidth, setContainerWidth] = useState(0)
   const [wsMembers, setWsMembers] = useState<WsMember[]>([])
+  const [wsPages, setWsPages] = useState<WsPage[]>([])
 
   useEffect(() => {
     if (!page.workspace_id) return
@@ -81,6 +92,19 @@ export default function DatabaseView({ page, canEdit }: Props) {
         setWsMembers((Array.isArray(members) ? members : []).map((m: any) => ({
           id: m.user_id, label: m.full_name || m.email || 'Someone', email: m.email || '',
         })))
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [page.workspace_id])
+
+  useEffect(() => {
+    if (!page.workspace_id) return
+    let active = true
+    fetch(`/api/workspace-pages?ws_id=${page.workspace_id}`)
+      .then(res => res.ok ? res.json() : [])
+      .then(pages => {
+        if (!active) return
+        setWsPages((Array.isArray(pages) ? pages : []).map((p: any) => ({ id: p.id, title: p.title || '', icon: p.icon || '' })))
       })
       .catch(() => {})
     return () => { active = false }
@@ -213,7 +237,13 @@ export default function DatabaseView({ page, canEdit }: Props) {
     // written to the server, so it silently vanished for other devices/users
     // (and even for the same user on reload).
     setRecords(r => r.map(x => x.id === recId ? { ...x, data: newData } : x))
-    setEditingCell(prev => (prev?.recId === recId && prev?.fieldId === fieldId) ? null : prev)
+    // Person cells are multi-select and stay open across several toggles
+    // (closed explicitly via PersonEditor's onClose) — every other field
+    // type closes as soon as its value is written.
+    const isMultiSelectField = fields.find(f => f.id === fieldId)?.type === 'person'
+    if (!isMultiSelectField) {
+      setEditingCell(prev => (prev?.recId === recId && prev?.fieldId === fieldId) ? null : prev)
+    }
 
     // Compare-and-swap on updated_at: only write if nobody changed this row
     // since we last read it. Without this, two people editing the same
@@ -257,6 +287,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
     if (value === null || value === undefined || value === '') return '(empty)'
     if (Array.isArray(value)) return value.join(', ') || '(empty)'
     if (typeof value === 'boolean') return value ? 'checked' : 'unchecked'
+    if (typeof value === 'object' && 'title' in value) return value.title || '(empty)'
     return String(value)
   }
 
@@ -381,7 +412,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
     const exportRecs = getExportRecords()
     const header = fields.map(f => `"${f.name.replace(/"/g, '""')}"`).join(',')
     const rows = exportRecs.map(rec =>
-      fields.map(f => `"${String(rec.data?.[f.id] ?? '').replace(/"/g, '""')}"`)
+      fields.map(f => `"${cellText(f, rec.data?.[f.id]).replace(/"/g, '""')}"`)
         .join(',')
     )
     const csv = [header, ...rows].join('\n')
@@ -401,7 +432,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
       const v = rec.data?.[f.id]
       if (f.type === 'checkbox') return v ? 'Yes' : 'No'
       if (f.type === 'number') return v !== undefined && v !== '' ? Number(v) : ''
-      return String(v ?? '')
+      return cellText(f, v)
     }))
     await downloadXlsx((page.title || 'database') + '.xlsx', page.title || 'Database', [header, ...rows])
   }
@@ -422,7 +453,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
   if (dbSearch.trim()) {
     const q = dbSearch.trim().toLowerCase()
     displayRecords = displayRecords.filter(r =>
-      fields.some(f => String(r.data?.[f.id] ?? '').toLowerCase().includes(q))
+      fields.some(f => cellText(f, r.data?.[f.id]).toLowerCase().includes(q))
     )
   }
 
@@ -430,7 +461,8 @@ export default function DatabaseView({ page, canEdit }: Props) {
   if (activeFilters.length > 0) {
     displayRecords = displayRecords.filter(r =>
       activeFilters.every(f => {
-        const val = String(r.data?.[f.field] ?? '')
+        const filterField = fields.find(fld => fld.id === f.field)
+        const val = filterField ? cellText(filterField, r.data?.[f.field]) : String(r.data?.[f.field] ?? '')
         if (f.op === 'contains') return val.toLowerCase().includes(f.value.toLowerCase())
         if (f.op === 'equals') return val === f.value
         if (f.op === 'not_equals') return val !== f.value
@@ -441,8 +473,8 @@ export default function DatabaseView({ page, canEdit }: Props) {
     )
   }
   if (sort.field) {
-    const sortFieldType = fields.find(f => f.id === sort.field)?.type
-    const isNumeric = sortFieldType === 'number' || sortFieldType === 'currency'
+    const sortField = fields.find(f => f.id === sort.field)
+    const isNumeric = sortField?.type === 'number' || sortField?.type === 'currency'
     displayRecords.sort((a, b) => {
       const rawA = a.data?.[sort.field], rawB = b.data?.[sort.field]
       if (isNumeric) {
@@ -455,7 +487,8 @@ export default function DatabaseView({ page, canEdit }: Props) {
         if (isNaN(nb)) return -1
         return sort.dir === 'asc' ? na - nb : nb - na
       }
-      const av = String(rawA ?? ''), bv = String(rawB ?? '')
+      const av = sortField ? cellText(sortField, rawA) : String(rawA ?? '')
+      const bv = sortField ? cellText(sortField, rawB) : String(rawB ?? '')
       return sort.dir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
     })
   }
@@ -481,7 +514,7 @@ export default function DatabaseView({ page, canEdit }: Props) {
     const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null)
 
     useEffect(() => {
-      if (isEditing && inputRef.current && field.type !== 'checkbox' && field.type !== 'select' && field.type !== 'relation' && field.type !== 'person') {
+      if (isEditing && inputRef.current && field.type !== 'checkbox' && field.type !== 'select' && field.type !== 'relation' && field.type !== 'person' && field.type !== 'page') {
         // Focus after a tiny delay so the click event positions the cursor first
         const t = setTimeout(() => {
           inputRef.current?.focus()
@@ -533,15 +566,33 @@ export default function DatabaseView({ page, canEdit }: Props) {
       if (field.type === 'person') {
         const cellElP = document.querySelector(`[data-cell="${rec.id}-${field.id}"]`) as HTMLElement
         const cellRectP = cellElP?.getBoundingClientRect()
+        const currentNames: string[] = Array.isArray(val) ? val : (val ? [val] : [])
         return (
           <PersonEditor
             members={wsMembers}
-            currentValue={val}
+            currentValues={currentNames}
             cellRect={cellRectP}
-            onSelect={(member: WsMember | null) => {
-              updateCell(rec.id, field.id, member?.label || '')
+            onToggle={(member: WsMember) => {
+              const wasAssigned = currentNames.includes(member.label)
+              const next = wasAssigned ? currentNames.filter(n => n !== member.label) : [...currentNames, member.label]
+              updateCell(rec.id, field.id, next)
+              if (!wasAssigned) notifyAssignment(rec, field, member)
+            }}
+            onClear={() => updateCell(rec.id, field.id, [])}
+            onClose={() => setEditingCell(null)}
+          />
+        )
+      }
+      if (field.type === 'page') {
+        const cellElPg = document.querySelector(`[data-cell="${rec.id}-${field.id}"]`) as HTMLElement
+        const cellRectPg = cellElPg?.getBoundingClientRect()
+        return (
+          <PageEditor
+            pages={wsPages}
+            cellRect={cellRectPg}
+            onSelect={(picked: WsPage | null) => {
+              updateCell(rec.id, field.id, picked ? { pageId: picked.id, title: picked.title, icon: picked.icon } : null)
               setEditingCell(null)
-              if (member) notifyAssignment(rec, field, member)
             }}
             onClose={() => setEditingCell(null)}
           />
@@ -642,10 +693,30 @@ export default function DatabaseView({ page, canEdit }: Props) {
       const opt = (field.options || []).find((o: any) => (o.label || o) === val)
       return <span style={{ background: (opt?.color || '#e9e9e7') + '50', color: '#37352f', padding: '1px 8px', borderRadius: 10, fontSize: 12, fontWeight: 500 }}>{val}</span>
     }
-    if (field.type === 'person' && val) {
+    if (field.type === 'person') {
+      const names: string[] = Array.isArray(val) ? val : (val ? [val] : [])
+      if (names.length === 0) return null
       return (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--accent-light)', color: 'var(--accent)', padding: '1px 8px', borderRadius: 10, fontSize: 12, fontWeight: 500 }}>
-          <Icon name="user" size={11} /> {val}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+          {names.map(name => (
+            <span key={name} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--accent-light)', color: 'var(--accent)', padding: '1px 8px', borderRadius: 10, fontSize: 12, fontWeight: 500 }}>
+              <Icon name="user" size={11} /> {name}
+            </span>
+          ))}
+        </div>
+      )
+    }
+    if (field.type === 'page') {
+      const link: PageLink | null = val && typeof val === 'object' ? val : null
+      if (!link) return null
+      return (
+        <span
+          onClick={e => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('canopy:navigate', { detail: { path: `/app/page/${link.pageId}` } })) }}
+          title={`Open ${link.title || 'Untitled'}`}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--accent-light)', color: 'var(--accent)', padding: '1px 8px', borderRadius: 10, fontSize: 12, fontWeight: 500, cursor: 'pointer' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.opacity = '0.75' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.opacity = '1' }}>
+          {link.icon || '📄'} {link.title || 'Untitled'}
         </span>
       )
     }
@@ -1449,7 +1520,7 @@ function CrossDbRecordDetail({ rec, fields, pageTitle, onClose }: { rec: DbRecor
                         ? new Intl.NumberFormat(resolvedLocale, { style: 'currency', currency: f.options?.[0] || 'EUR' }).format(Number(val))
                         : f.type === 'number' && val !== '' && val != null && !isNaN(Number(val))
                           ? new Intl.NumberFormat(resolvedLocale).format(Number(val))
-                          : val ? String(val) : '—'
+                          : val ? cellText(f, val) : '—'
                   }
                 </div>
               </div>

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { NodeViewWrapper } from '@tiptap/react'
 import { createClient } from '@/lib/supabase/client'
 import { Icon } from './Icons'
-import { PersonEditor, type WsMember } from './DatabaseFieldControls'
+import { PersonEditor, PageEditor, type WsMember, type WsPage, type PageLink } from './DatabaseFieldControls'
 
 type Field = { id: string; name: string; type: string; options?: any[] }
 type Record_ = { id: string; data: Record<string, any> }
@@ -27,6 +27,7 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
   const [editingCell, setEditingCell] = useState<{ recId: string; fieldId: string } | null>(null)
   const [editVal, setEditVal] = useState('')
   const [wsMembers, setWsMembers] = useState<WsMember[]>([])
+  const [wsPages, setWsPages] = useState<WsPage[]>([])
   const [editCellRect, setEditCellRect] = useState<DOMRect | null>(null)
   const supabase = useMemo(() => createClient(), [])
   const canEdit = editor?.isEditable ?? true
@@ -48,6 +49,10 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
           .then(members => setWsMembers((Array.isArray(members) ? members : []).map((m: any) => ({
             id: m.user_id, label: m.full_name || m.email || 'Someone', email: m.email || '',
           }))))
+          .catch(() => {})
+        fetch(`/api/workspace-pages?ws_id=${p.workspace_id}`)
+          .then(res => res.ok ? res.json() : [])
+          .then(wsp => setWsPages((Array.isArray(wsp) ? wsp : []).map((x: any) => ({ id: x.id, title: x.title || '', icon: x.icon || '' }))))
           .catch(() => {})
       }
     })
@@ -197,15 +202,31 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
                             setEditCellRect(e.currentTarget.getBoundingClientRect())
                           }}>
                           {canEdit && editingCell?.recId === rec.id && editingCell?.fieldId === f.id ? (
-                            f.type === 'person' ? (
-                              <PersonEditor
-                                members={wsMembers}
-                                currentValue={editVal}
+                            f.type === 'person' ? (() => {
+                              const rawVal = rec.data?.[f.id]
+                              const currentNames: string[] = Array.isArray(rawVal) ? rawVal : (rawVal ? [rawVal] : [])
+                              return (
+                                <PersonEditor
+                                  members={wsMembers}
+                                  currentValues={currentNames}
+                                  cellRect={editCellRect}
+                                  onToggle={member => {
+                                    const wasAssigned = currentNames.includes(member.label)
+                                    const next = wasAssigned ? currentNames.filter(n => n !== member.label) : [...currentNames, member.label]
+                                    updateCell(rec.id, f.id, next)
+                                    if (!wasAssigned) notifyAssignment(rec, f, member)
+                                  }}
+                                  onClear={() => updateCell(rec.id, f.id, [])}
+                                  onClose={() => setEditingCell(null)}
+                                />
+                              )
+                            })() : f.type === 'page' ? (
+                              <PageEditor
+                                pages={wsPages}
                                 cellRect={editCellRect}
-                                onSelect={member => {
-                                  updateCell(rec.id, f.id, member?.label || '')
+                                onSelect={picked => {
+                                  updateCell(rec.id, f.id, picked ? { pageId: picked.id, title: picked.title, icon: picked.icon } : null)
                                   setEditingCell(null)
-                                  if (member) notifyAssignment(rec, f, member)
                                 }}
                                 onClose={() => setEditingCell(null)}
                               />
@@ -285,19 +306,34 @@ export default function DatabaseBlock({ node, updateAttributes, deleteNode, sele
 }
 
 function CellDisplay({ value, field }: { value: any; field: Field }) {
+  if (field.type === 'person') {
+    const names: string[] = Array.isArray(value) ? value : (value ? [value] : [])
+    if (names.length === 0) return <span style={{ color: 'var(--text-tertiary)', fontSize: '12px' }}>—</span>
+    return (
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
+        {names.map(name => (
+          <span key={name} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--accent-light)', color: 'var(--accent)', padding: '1px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 500 }}>
+            <Icon name="user" size={10} /> {name}
+          </span>
+        ))}
+      </div>
+    )
+  }
+  if (field.type === 'page') {
+    const link: PageLink | null = value && typeof value === 'object' ? value : null
+    if (!link) return <span style={{ color: 'var(--text-tertiary)', fontSize: '12px' }}>—</span>
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--accent-light)', color: 'var(--accent)', padding: '1px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 500 }}>
+        {link.icon || '📄'} {link.title || 'Untitled'}
+      </span>
+    )
+  }
   if (value === undefined || value === null || value === '') return <span style={{ color: 'var(--text-tertiary)', fontSize: '12px' }}>—</span>
   if (field.type === 'checkbox') return <Icon name={value ? 'check-square' : 'square'} size={14} style={{ color: value ? 'var(--accent)' : 'var(--text-tertiary)' }} />
   if (field.type === 'select' && value) {
     const opt = (field.options || []).find((o: any) => (o.label || o) === value)
     const color = opt?.color || '#e9e9e7'
     return <span style={{ background: color + '40', color: '#37352f', padding: '1px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 500 }}>{value}</span>
-  }
-  if (field.type === 'person') {
-    return (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--accent-light)', color: 'var(--accent)', padding: '1px 8px', borderRadius: '10px', fontSize: '11px', fontWeight: 500 }}>
-        <Icon name="user" size={10} /> {value}
-      </span>
-    )
   }
   return <span style={{ fontSize: '13px', color: 'var(--text)' }}>{String(value)}</span>
 }
